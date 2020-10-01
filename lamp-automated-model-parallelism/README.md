@@ -17,16 +17,10 @@ MICCAI 2020 (Early Accept, paper link: https://arxiv.org/abs/2006.12575)
 ## To run the demo:
 
 ### Prerequisites
-- Download and switch to MONAI 0.2.0 source code:
-```bash
-git clone https://github.com/Project-MONAI/MONAI
-cd MONAI
-git checkout 0.2.0
-pip install -e .  # install from the source code
-```
+- `pip install monai==0.2.0`
 - `pip install torchgpipe`
 
-The rest of the steps assume that the current directory is the folder of this README file.
+The rest of the steps assume that this repo is cloned to your local file system and the current directory is the folder of this README file.
 
 ### Data
 ```bash
