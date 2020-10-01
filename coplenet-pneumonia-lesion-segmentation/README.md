@@ -21,14 +21,11 @@ This research prototype is adapted from:
 
 To run the inference demo:
 
-- Download and switch to MONAI 0.2.0 source code:
+- Install MONAI 0.2.0:
 ```bash
-git clone https://github.com/Project-MONAI/MONAI
-cd MONAI
-git checkout 0.2.0
-pip install -e '.[nibabel]'  # install from the source code
+pip install "monai[nibabel]==0.2.0"
 ```
-The rest of the steps assume that the current directory is the folder of this README file.
+The rest of the steps assume that this repo is cloned to your local file system and the current directory is the folder of this README file.
 - download the input examples from [google drive folder](https://drive.google.com/drive/folders/1pIoSSc4Iq8R9_xXo0NzaOhIHZ3-PqqDC) to `./images`.
 - download the adapted pretrained model from [google drive folder](https://drive.google.com/drive/folders/1HXlYJGvTF3gNGOL0UFBeHVoA6Vh_GqEw) to `./model`.
 - run `python run_inference.py` and segmentation results will be saved at `./output`.
