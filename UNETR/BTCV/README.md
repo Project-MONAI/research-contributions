@@ -6,7 +6,7 @@ A transformer-based model for volumetric (3D) multi-organ segmentation task usin
 
 A step-by-step tutorial can be found in:
 
-tutorial/unetr_segmentation_3d.ipynb
+tutorial/unetr_btcv_segmentation_3d.ipynb
 
 ### Installing Dependencies
 Dependencies can be installed using:
