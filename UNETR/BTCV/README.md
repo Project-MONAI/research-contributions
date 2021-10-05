@@ -1,6 +1,3 @@
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/unetr-transformers-for-3d-medical-image/medical-image-segmentation-on-synapse-multi)](https://paperswithcode.com/sota/medical-image-segmentation-on-synapse-multi?p=unetr-transformers-for-3d-medical-image)
-
-
 # Model Overview
 A transformer-based model for volumetric (3D) multi-organ segmentation task using the BTCV challenge dataset. This model is trained using the UNETR architecture [1].
 ![image](https://lh3.googleusercontent.com/pw/AM-JKLU2eTW17rYtCmiZP3WWC-U1HCPOHwLe6pxOfJXwv2W-00aHfsNy7jeGV1dwUq0PXFOtkqasQ2Vyhcu6xkKsPzy3wx7O6yGOTJ7ZzA01S6LSh8szbjNLfpbuGgMe6ClpiS61KGvqu71xXFnNcyvJNFjN=w1448-h496-no?authuser=0)
