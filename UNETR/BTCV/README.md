@@ -132,10 +132,10 @@ If you find this repository useful, please consider citing UNETR paper:
   journal={arXiv preprint arXiv:2103.10504},
   year={2021}
 }
-
 ```
 
 ## References
 [1] Hatamizadeh, Ali, et al. "UNETR: Transformers for 3D Medical Image Segmentation", 2021. https://arxiv.org/abs/2103.10504.
+
 [2] Dosovitskiy, Alexey, et al. "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale
 ", 2020. https://arxiv.org/abs/2010.11929.
