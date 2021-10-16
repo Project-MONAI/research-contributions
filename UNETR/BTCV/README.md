@@ -61,7 +61,7 @@ We provide pre-trained TorchScript checkpoint of UNETR. Please download the weig
 
 https://drive.google.com/file/d/1XpNrHmcpdvvYB7MHJwxne9NmI4ramzwG/view?usp=sharing
 
-Once download, please place the TorchScript model in the following directory or use ```--pretrained_dir``` to provide the address of where the model is place:
+Once download, please place the TorchScript model in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
 
 ```./pretrained_models```
 
@@ -87,7 +87,7 @@ You can use the pre-trained TorchScript checkpoint of UNETR to test it on your o
 
 https://drive.google.com/file/d/1XpNrHmcpdvvYB7MHJwxne9NmI4ramzwG/view?usp=sharing
 
-Once download, please place the TorchScript model in the following directory or use ```--pretrained_dir``` to provide the address of where the model is place:
+Once download, please place the TorchScript model in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
 
 ```./pretrained_models```
 
