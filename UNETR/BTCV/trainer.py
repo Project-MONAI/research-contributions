@@ -14,8 +14,8 @@ import time
 import shutil
 import numpy as np
 import torch
-from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import GradScaler, autocast
+from tensorboardX import SummaryWriter
 import torch.nn.parallel
 import math
 import torch.utils.data.distributed
@@ -102,6 +102,13 @@ def distributed_all_gather(tensor_list,
             tensor_list_out.append(gather_list)
     return tensor_list_out
 
+def dice(x, y):
+    intersect = np.sum(np.sum(np.sum(x * y)))
+    y_sum = np.sum(np.sum(np.sum(y)))
+    if y_sum == 0:
+        return 0.0
+    x_sum = np.sum(np.sum(np.sum(x)))
+    return 2 * intersect / (x_sum + y_sum)
 
 class AverageMeter(object):
 
@@ -251,7 +258,7 @@ def run_training(model,
     writer = None
     if args.logdir is not None and args.rank == 0:
         writer = SummaryWriter(log_dir=args.logdir)
-        if args.rank == 0: print('Writing Tensorboard logs to ', writer.log_dir)
+        if args.rank == 0: print('Writing Tensorboard logs to ', args.logdir)
     scaler = None
     if args.amp:
         scaler = GradScaler()

@@ -9,6 +9,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import numpy as np
 import torch
 import torch.nn.parallel
@@ -30,11 +31,14 @@ import argparse
 
 parser = argparse.ArgumentParser(description='UNETR segmentation pipeline')
 parser.add_argument('--checkpoint', default=None)
-parser.add_argument('--logdir', default=None)
+parser.add_argument('--logdir', default='test', type=str)
+parser.add_argument('--pretrained_dir', default='./pretrained_models/', type=str)
+parser.add_argument('--data_dir', default='/dataset/dataset0/', type=str)
+parser.add_argument('--pretrained_model_name', default='UNETR_torchscript.pt', type=str)
 parser.add_argument('--save_checkpoint', action='store_true')
 parser.add_argument('--max_epochs', default=5000, type=int)
-parser.add_argument('--batch_size', default=4, type=int)
-parser.add_argument('--sw_batch_size', default=4, type=int)
+parser.add_argument('--batch_size', default=1, type=int)
+parser.add_argument('--sw_batch_size', default=1, type=int)
 parser.add_argument('--optim_lr', default=4e-4, type=float)
 parser.add_argument('--optim_name', default='adamw', type=str)
 parser.add_argument('--reg_weight', default=1e-5, type=float)
@@ -48,9 +52,9 @@ parser.add_argument('--dist-url', default='tcp://127.0.0.1:23456', type=str)
 parser.add_argument('--dist-backend', default='nccl', type=str, help='distributed backend')
 parser.add_argument('--workers', default=8, type=int)
 parser.add_argument('--model_name', default='unetr', type=str)
-parser.add_argument('--pos_embedd', default='conv', type=str)
+parser.add_argument('--pos_embedd', default='perceptron', type=str)
 parser.add_argument('--norm_name', default='instance', type=str)
-parser.add_argument('--num_heads', default=16, type=int)
+parser.add_argument('--num_heads', default=12, type=int)
 parser.add_argument('--mlp_dim', default=3072, type=int)
 parser.add_argument('--hidden_size', default=768, type=int)
 parser.add_argument('--feature_size', default=16, type=int)
@@ -70,7 +74,7 @@ parser.add_argument('--infer_overlap', default=0.5, type=float)
 parser.add_argument('--lrschedule', default='warmup_cosine', type=str)
 parser.add_argument('--warmup_epochs', default=50, type=int)
 parser.add_argument('--resume_ckpt', action='store_true')
-parser.add_argument('--pretrained_dir', default=None, type=str)
+parser.add_argument('--resume_jit', action='store_true')
 parser.add_argument('--smooth_dr', default=1e-6, type=float)
 parser.add_argument('--smooth_nr', default=0.0, type=float)
 
@@ -79,10 +83,6 @@ def main():
     args = parser.parse_args()
     args.amp = not args.noamp
     args.logdir = './runs/' + args.logdir
-    print("MAIN Argument values:")
-    for k, v in vars(args).items():
-        print(k, '=>', v)
-    print('-----------------')
     if args.distributed:
         args.ngpus_per_node = torch.cuda.device_count()
         print('Found total gpus', args.ngpus_per_node)
@@ -112,8 +112,9 @@ def main_worker(gpu, args):
     if args.rank == 0:
         print('Batch size is:', args.batch_size, 'epochs', args.max_epochs)
     inf_size = roi_size = [args.roi_x, args.roi_y, args.roi_x]
-    data_dir ='/dataset/dataset0'
-    datalist_json = data_dir + '/dataset_0.json'
+    data_dir = args.data_dir
+    datalist_json = os.path.join(data_dir, 'dataset_0.json')
+    pretrained_dir = args.pretrained_dir
 
     train_transform = transforms.Compose(
         [
@@ -184,6 +185,7 @@ def main_worker(gpu, args):
         ]
     )
     if (args.model_name is None) or args.model_name == 'unetr':
+
         model = UNETR(
             in_channels=args.in_channels,
             out_channels=args.out_channels,
@@ -197,11 +199,18 @@ def main_worker(gpu, args):
             conv_block=True,
             res_block=True,
             dropout_rate=args.dropout_rate)
+
         if args.resume_ckpt:
             model_dict = torch.load(args.pretrained_dir)
             model.load_state_dict(model_dict['state_dict'])
             print('Use pretrained weights')
-        
+
+        if args.resume_jit:
+            if not args.noamp:
+                raise ValueError('Training from pre-trained checkpoint does not support AMP. Use --noamp argument !')
+            else:
+                model = torch.jit.load(os.path.join(pretrained_dir, args.pretrained_model_name))
+
     else:
         raise ValueError('Unsupported model ' + str(args.model_name))
 
@@ -218,6 +227,7 @@ def main_worker(gpu, args):
     dice_acc = DiceMetric(include_background=True,
                           reduction=MetricReduction.MEAN,
                           get_not_nans=True)
+
     datalist = load_decathlon_datalist(datalist_json,
                                        True,
                                        "training",
