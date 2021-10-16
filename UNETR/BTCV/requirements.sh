@@ -1,5 +1,5 @@
 #!/bin/bash
-pip install monai==0.0.6;
+pip install monai==0.6.0;
 pip install nibabel==3.1.1;
 pip install tqdm==4.59.0;
 pip install einops==0.3.0;
