@@ -39,7 +39,7 @@ parser.add_argument('--save_checkpoint', action='store_true')
 parser.add_argument('--max_epochs', default=5000, type=int)
 parser.add_argument('--batch_size', default=1, type=int)
 parser.add_argument('--sw_batch_size', default=1, type=int)
-parser.add_argument('--optim_lr', default=4e-4, type=float)
+parser.add_argument('--optim_lr', default=1e-4, type=float)
 parser.add_argument('--optim_name', default='adamw', type=str)
 parser.add_argument('--reg_weight', default=1e-5, type=float)
 parser.add_argument('--momentum', default=0.99, type=float)
@@ -62,7 +62,7 @@ parser.add_argument('--in_channels', default=1, type=int)
 parser.add_argument('--out_channels', default=14, type=int)
 parser.add_argument('--res_block', action='store_true')
 parser.add_argument('--conv_block', action='store_true')
-parser.add_argument('--use_cache_dataset', action='store_true')
+parser.add_argument('--use_normal_dataset', action='store_true')
 parser.add_argument('--roi_x', default=96, type=int)
 parser.add_argument('--roi_y', default=96, type=int)
 parser.add_argument('--roi_z', default=96, type=int)
@@ -239,7 +239,10 @@ def main_worker(gpu, args):
                                         base_dir=data_dir)
     print('Crop size', roi_size)
     print('train_files files', len(datalist), 'validation files', len(val_files))
-    if args.use_cache_dataset:
+    if args.use_normal_dataset:
+        train_ds = data.Dataset(data=datalist, transform=train_transform)
+        val_ds = data.Dataset(data=val_files, transform=val_transform)
+    else:
         train_ds = data.CacheDataset(
             data=datalist,
             transform=train_transform,
@@ -247,8 +250,13 @@ def main_worker(gpu, args):
             cache_rate=1.0,
             num_workers=args.workers,
         )
-    else:
-        train_ds = data.Dataset(data=datalist, transform=train_transform)
+        val_ds = data.CacheDataset(
+            data=val_files,
+            transform=val_transform,
+            cache_num=6,
+            cache_rate=1.0,
+            num_workers=args.workers,
+        )
     train_sampler = Sampler(train_ds) if args.distributed else None
     train_loader = data.DataLoader(train_ds,
                                    batch_size=args.batch_size,
@@ -256,8 +264,6 @@ def main_worker(gpu, args):
                                    num_workers=args.workers,
                                    sampler=train_sampler,
                                    pin_memory=True)
-
-    val_ds = data.Dataset(data=val_files, transform=val_transform)
     val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
     val_loader = data.DataLoader(val_ds,
                                  batch_size=1,
