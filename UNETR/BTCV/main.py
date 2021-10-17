@@ -256,14 +256,16 @@ def main_worker(gpu, args):
                                    shuffle=(train_sampler is None),
                                    num_workers=args.workers,
                                    sampler=train_sampler,
-                                   pin_memory=True)
+                                   pin_memory=True,
+                                   persistent_workers=True)
     val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
     val_loader = data.DataLoader(val_ds,
                                  batch_size=1,
                                  shuffle=False,
                                  num_workers=args.workers,
                                  sampler=val_sampler,
-                                 pin_memory=True)
+                                 pin_memory=True,
+                                 persistent_workers=True)
 
     model_inferer = partial(sliding_window_inference,
                             roi_size=inf_size,
