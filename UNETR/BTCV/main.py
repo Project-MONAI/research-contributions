@@ -241,7 +241,6 @@ def main_worker(gpu, args):
     print('train_files files', len(datalist), 'validation files', len(val_files))
     if args.use_normal_dataset:
         train_ds = data.Dataset(data=datalist, transform=train_transform)
-        val_ds = data.Dataset(data=val_files, transform=val_transform)
     else:
         train_ds = data.CacheDataset(
             data=datalist,
@@ -250,13 +249,7 @@ def main_worker(gpu, args):
             cache_rate=1.0,
             num_workers=args.workers,
         )
-        val_ds = data.CacheDataset(
-            data=val_files,
-            transform=val_transform,
-            cache_num=6,
-            cache_rate=1.0,
-            num_workers=args.workers,
-        )
+    val_ds = data.Dataset(data=val_files, transform=val_transform)
     train_sampler = Sampler(train_ds) if args.distributed else None
     train_loader = data.DataLoader(train_ds,
                                    batch_size=args.batch_size,
