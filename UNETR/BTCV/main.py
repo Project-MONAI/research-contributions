@@ -62,6 +62,7 @@ parser.add_argument('--in_channels', default=1, type=int)
 parser.add_argument('--out_channels', default=14, type=int)
 parser.add_argument('--res_block', action='store_true')
 parser.add_argument('--conv_block', action='store_true')
+parser.add_argument('--use_cache_dataset', action='store_true')
 parser.add_argument('--roi_x', default=96, type=int)
 parser.add_argument('--roi_y', default=96, type=int)
 parser.add_argument('--roi_z', default=96, type=int)
@@ -238,13 +239,16 @@ def main_worker(gpu, args):
                                         base_dir=data_dir)
     print('Crop size', roi_size)
     print('train_files files', len(datalist), 'validation files', len(val_files))
-    train_ds = data.CacheDataset(
-        data=datalist,
-        transform=train_transform,
-        cache_num=24,
-        cache_rate=1.0,
-        num_workers=args.workers,
-    )
+    if args.use_cache_dataset:
+        train_ds = data.CacheDataset(
+            data=datalist,
+            transform=train_transform,
+            cache_num=24,
+            cache_rate=1.0,
+            num_workers=args.workers,
+        )
+    else:
+        train_ds = data.Dataset(data=datalist, transform=train_transform)
     train_sampler = Sampler(train_ds) if args.distributed else None
     train_loader = data.DataLoader(train_ds,
                                    batch_size=args.batch_size,
