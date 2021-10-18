@@ -6,7 +6,7 @@ The code presents a volumetric (3D) multi-organ segmentation application using t
 ### Installing Dependencies
 Dependencies can be installed using:
 ``` bash
-./requirements.sh
+pip install -r requirements.txt
 ```
 
 ### Training
@@ -61,7 +61,7 @@ We provide pre-trained TorchScript checkpoint of UNETR. Please download the weig
 
 https://drive.google.com/file/d/1XpNrHmcpdvvYB7MHJwxne9NmI4ramzwG/view?usp=sharing
 
-Once download, please place the TorchScript model in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
+Once downloaded, please place the TorchScript model in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
 
 ```./pretrained_models```
 
