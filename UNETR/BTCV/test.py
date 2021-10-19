@@ -60,8 +60,9 @@ def main():
     pretrained_dir = args.pretrained_dir
     model_name = args.pretrained_model_name
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    pretrained_pth = os.path.join(pretrained_dir, model_name)
     if args.saved_checkpoint == 'torchscript':
-        model = torch.jit.load(os.path.join(pretrained_dir, model_name)).to(device)
+        model = torch.jit.load(pretrained_pth)
     elif args.saved_checkpoint == 'statedict':
         model = UNETR(
             in_channels=args.in_channels,
@@ -74,8 +75,11 @@ def main():
             pos_embed=args.pos_embed,
             norm_name=args.norm_name,
             res_block=True,
-            dropout_rate=args.dropout_rate).to(device)
+            dropout_rate=args.dropout_rate)
+        model_dict = torch.load(pretrained_pth)
+        model.load_state_dict(model_dict['state_dict'])
     model.eval()
+    model.to(device)
 
     with torch.no_grad():
         dice_list_case = []
