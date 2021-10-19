@@ -78,6 +78,7 @@ python main.py
 --data_dir=/dataset/dataset0/
 --pretrained_dir='./pretrained_models/'
 --noamp
+--resume_jit
 ``` 
 Note that finetuning from the provided TorchScript model does not support AMP. Hence ```--noamp``` needs to be used. 
 

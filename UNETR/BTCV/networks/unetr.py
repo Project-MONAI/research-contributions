@@ -14,8 +14,8 @@ import torch
 import torch.nn as nn
 
 from monai.networks.blocks.dynunet_block import UnetOutBlock
-from networks.unetr_block import UnetrBasicBlock, UnetrPrUpBlock, UnetrUpBlock
-from networks.vit import ViT
+from monai.networks.blocks import UnetrBasicBlock, UnetrPrUpBlock, UnetrUpBlock
+from monai.networks.nets import ViT
 
 
 class UNETR(nn.Module):

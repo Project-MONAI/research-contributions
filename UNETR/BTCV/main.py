@@ -20,11 +20,10 @@ from monai.inferers import sliding_window_inference
 from monai.losses import DiceLoss, DiceCELoss
 from monai.metrics import DiceMetric
 from monai.utils.enums import MetricReduction
-from monai.data import load_decathlon_datalist
 from monai.transforms import AsDiscrete,Activations,Compose
-from monai import transforms, data
 from networks.unetr import UNETR
-from trainer import Sampler, run_training
+from utils.data_utils import get_loader
+from trainer import run_training
 from optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
 from functools import partial
 import argparse
@@ -34,6 +33,7 @@ parser.add_argument('--checkpoint', default=None, help='start training from save
 parser.add_argument('--logdir', default='test', type=str, help='directory to save the tensorboard logs')
 parser.add_argument('--pretrained_dir', default='./pretrained_models/', type=str, help='pretrained checkpoint directory')
 parser.add_argument('--data_dir', default='/dataset/dataset0/', type=str, help='dataset directory')
+parser.add_argument('--json_list', default='dataset_0.json', type=str, help='dataset json file')
 parser.add_argument('--pretrained_model_name', default='UNETR_torchscript.pt', type=str, help='pretrained model name')
 parser.add_argument('--save_checkpoint', action='store_true', help='save checkpoint during training')
 parser.add_argument('--max_epochs', default=5000, type=int, help='max number of training epochs')
@@ -45,7 +45,7 @@ parser.add_argument('--reg_weight', default=1e-5, type=float, help='regularizati
 parser.add_argument('--momentum', default=0.99, type=float, help='momentum')
 parser.add_argument('--noamp', action='store_true', help='do NOT use amp for training')
 parser.add_argument('--val_every', default=100, type=int, help='validation frequency')
-parser.add_argument('--distributed', action='store_true', type=int, help='start distributed training')
+parser.add_argument('--distributed', action='store_true', help='start distributed training')
 parser.add_argument('--world_size', default=1, type=int, help='number of nodes for distributed training')
 parser.add_argument('--rank', default=0, type=int, help='node rank for distributed training')
 parser.add_argument('--dist-url', default='tcp://127.0.0.1:23456', type=str, help='distributed url')
@@ -63,6 +63,13 @@ parser.add_argument('--out_channels', default=14, type=int, help='number of outp
 parser.add_argument('--res_block', action='store_true', help='use residual blocks')
 parser.add_argument('--conv_block', action='store_true', help='use conv blocks')
 parser.add_argument('--use_normal_dataset', action='store_true', help='use monai Dataset class')
+parser.add_argument('--a_min', default=-175.0, type=float, help='a_min in ScaleIntensityRanged')
+parser.add_argument('--a_max', default=250.0, type=float, help='a_max in ScaleIntensityRanged')
+parser.add_argument('--b_min', default=0.0, type=float, help='b_min in ScaleIntensityRanged')
+parser.add_argument('--b_max', default=1.0, type=float, help='b_max in ScaleIntensityRanged')
+parser.add_argument('--space_x', default=1.5, type=float, help='spacing in x direction')
+parser.add_argument('--space_y', default=1.5, type=float, help='spacing in y direction')
+parser.add_argument('--space_z', default=2.0, type=float, help='spacing in z direction')
 parser.add_argument('--roi_x', default=96, type=int, help='roi size in x direction')
 parser.add_argument('--roi_y', default=96, type=int, help='roi size in y direction')
 parser.add_argument('--roi_z', default=96, type=int, help='roi size in z direction')
@@ -108,83 +115,13 @@ def main_worker(gpu, args):
                                 rank=args.rank)
     torch.cuda.set_device(args.gpu)
     torch.backends.cudnn.benchmark = True
-
+    args.test_mode = False
+    loader = get_loader(args)
     print(args.rank, ' gpu', args.gpu)
     if args.rank == 0:
         print('Batch size is:', args.batch_size, 'epochs', args.max_epochs)
-    inf_size = roi_size = [args.roi_x, args.roi_y, args.roi_x]
-    data_dir = args.data_dir
-    datalist_json = os.path.join(data_dir, 'dataset_0.json')
+    inf_size = [args.roi_x, args.roi_y, args.roi_x]
     pretrained_dir = args.pretrained_dir
-
-    train_transform = transforms.Compose(
-        [
-            transforms.LoadImaged(keys=["image", "label"]),
-            transforms.AddChanneld(keys=["image", "label"]),
-            transforms.Orientationd(keys=["image", "label"],
-                                    axcodes="RAS"),
-            transforms.Spacingd(keys=["image", "label"],
-                                pixdim=(1.5, 1.5, 2.0),
-                                mode=("bilinear", "nearest")),
-            transforms.ScaleIntensityRanged(keys=["image"],
-                                            a_min=-175,
-                                            a_max=250,
-                                            b_min=0.0,
-                                            b_max=1.0,
-                                            clip=True),
-            transforms.CropForegroundd(keys=["image", "label"], source_key="image"),
-            transforms.RandCropByPosNegLabeld(
-                keys=["image", "label"],
-                label_key="label",
-                spatial_size=(args.roi_x, args.roi_y, args.roi_x),
-                pos=1,
-                neg=1,
-                num_samples=4,
-                image_key="image",
-                image_threshold=0,
-            ),
-            transforms.RandFlipd(keys=["image", "label"],
-                                 prob=args.RandFlipd_prob,
-                                 spatial_axis=0),
-            transforms.RandFlipd(keys=["image", "label"],
-                                 prob=args.RandFlipd_prob,
-                                 spatial_axis=1),
-            transforms.RandFlipd(keys=["image", "label"],
-                                 prob=args.RandFlipd_prob,
-                                 spatial_axis=2),
-            transforms.RandRotate90d(
-                keys=["image", "label"],
-                prob=args.RandRotate90d_prob,
-                max_k=3,
-            ),
-            transforms.RandScaleIntensityd(keys="image",
-                                           factors=0.1,
-                                           prob=args.RandScaleIntensityd_prob),
-            transforms.RandShiftIntensityd(keys="image",
-                                           offsets=0.1,
-                                           prob=args.RandShiftIntensityd_prob),
-            transforms.ToTensord(keys=["image", "label"]),
-        ]
-    )
-    val_transform = transforms.Compose(
-        [
-            transforms.LoadImaged(keys=["image", "label"]),
-            transforms.AddChanneld(keys=["image", "label"]),
-            transforms.Orientationd(keys=["image", "label"],
-                                    axcodes="RAS"),
-            transforms.Spacingd(keys=["image", "label"],
-                                pixdim=(1.5, 1.5, 2.0),
-                                mode=("bilinear", "nearest")),
-            transforms.ScaleIntensityRanged(keys=["image"],
-                                            a_min=-175,
-                                            a_max=250,
-                                            b_min=0.0,
-                                            b_max=1.0,
-                                            clip=True),
-            transforms.CropForegroundd(keys=["image", "label"], source_key="image"),
-            transforms.ToTensord(keys=["image", "label"]),
-        ]
-    )
     if (args.model_name is None) or args.model_name == 'unetr':
 
         model = UNETR(
@@ -208,10 +145,9 @@ def main_worker(gpu, args):
 
         if args.resume_jit:
             if not args.noamp:
-                raise ValueError('Training from pre-trained checkpoint does not support AMP. Use --noamp argument !')
-            else:
-                model = torch.jit.load(os.path.join(pretrained_dir, args.pretrained_model_name))
-
+                print('Training from pre-trained checkpoint does not support AMP\nAMP is disabled.')
+                args.amp = args.noamp
+            model = torch.jit.load(os.path.join(pretrained_dir, args.pretrained_model_name))
     else:
         raise ValueError('Unsupported model ' + str(args.model_name))
 
@@ -228,45 +164,6 @@ def main_worker(gpu, args):
     dice_acc = DiceMetric(include_background=True,
                           reduction=MetricReduction.MEAN,
                           get_not_nans=True)
-
-    datalist = load_decathlon_datalist(datalist_json,
-                                       True,
-                                       "training",
-                                       base_dir=data_dir)
-    val_files = load_decathlon_datalist(datalist_json,
-                                        True,
-                                        "validation",
-                                        base_dir=data_dir)
-    print('Crop size', roi_size)
-    print('train_files files', len(datalist), 'validation files', len(val_files))
-    if args.use_normal_dataset:
-        train_ds = data.Dataset(data=datalist, transform=train_transform)
-    else:
-        train_ds = data.CacheDataset(
-            data=datalist,
-            transform=train_transform,
-            cache_num=24,
-            cache_rate=1.0,
-            num_workers=args.workers,
-        )
-    val_ds = data.Dataset(data=val_files, transform=val_transform)
-    train_sampler = Sampler(train_ds) if args.distributed else None
-    train_loader = data.DataLoader(train_ds,
-                                   batch_size=args.batch_size,
-                                   shuffle=(train_sampler is None),
-                                   num_workers=args.workers,
-                                   sampler=train_sampler,
-                                   pin_memory=True,
-                                   persistent_workers=True)
-    val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
-    val_loader = data.DataLoader(val_ds,
-                                 batch_size=1,
-                                 shuffle=False,
-                                 num_workers=args.workers,
-                                 sampler=val_sampler,
-                                 pin_memory=True,
-                                 persistent_workers=True)
-
     model_inferer = partial(sliding_window_inference,
                             roi_size=inf_size,
                             sw_batch_size=args.sw_batch_size,
@@ -332,8 +229,8 @@ def main_worker(gpu, args):
     else:
         scheduler = None
     accuracy = run_training(model=model,
-                            train_loader=train_loader,
-                            val_loader=val_loader,
+                            train_loader=loader[0],
+                            val_loader=loader[1],
                             optimizer=optimizer,
                             loss_func=dice_loss,
                             acc_func=dice_acc,

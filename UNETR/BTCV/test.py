@@ -13,49 +13,50 @@ import os
 import torch
 import numpy as np
 from monai.inferers import sliding_window_inference
-from monai.transforms import (
-    LoadImaged,
-    AddChanneld,
-    Compose,
-    Spacingd,
-    Orientationd,
-    ScaleIntensityRanged,
-    CropForegroundd,
-    RandSpatialCropSamplesd,
-    ToTensord
-)
 from networks.unetr import UNETR
+from utils.data_utils import get_loader
 from trainer import dice
-from monai.data import (
-    DataLoader,
-    load_decathlon_datalist,
-    Dataset,
-)
 import argparse
 
 parser = argparse.ArgumentParser(description='UNETR segmentation pipeline')
-parser.add_argument('--pretrained_dir', default='./pretrained_models/', type=str)
-parser.add_argument('--data_dir', default='/dataset/dataset0/', type=str)
-parser.add_argument('--pretrained_model_name', default='UNETR_torchscript.pt', type=str)
-parser.add_argument('--saved_checkpoint', default='torchscript', type=str, help='Supports torchscript or statedict')
-parser.add_argument('--mlp_dim', default=3072, type=int)
-parser.add_argument('--hidden_size', default=768, type=int)
-parser.add_argument('--feature_size', default=16, type=int)
-parser.add_argument('--infer_overlap', default=0.5, type=float)
-parser.add_argument('--in_channels', default=1, type=int)
-parser.add_argument('--out_channels', default=14, type=int)
-parser.add_argument('--num_heads', default=12, type=int)
-parser.add_argument('--res_block', action='store_true')
-parser.add_argument('--conv_block', action='store_true')
-parser.add_argument('--roi_x', default=96, type=int)
-parser.add_argument('--roi_y', default=96, type=int)
-parser.add_argument('--roi_z', default=96, type=int)
-parser.add_argument('--dropout_rate', default=0.0, type=float)
-parser.add_argument('--pos_embedd', default='perceptron', type=str)
-parser.add_argument('--norm_name', default='instance', type=str)
+parser.add_argument('--pretrained_dir', default='./pretrained_models/', type=str, help='pretrained checkpoint directory')
+parser.add_argument('--data_dir', default='/dataset/dataset0/', type=str, help='dataset directory')
+parser.add_argument('--json_list', default='dataset_0.json', type=str, help='dataset json file')
+parser.add_argument('--pretrained_model_name', default='UNETR_torchscript.pt', type=str, help='pretrained model name')
+parser.add_argument('--saved_checkpoint', default='torchscript', type=str, help='Supports torchscript or statedict pretrained checkpoint type')
+parser.add_argument('--mlp_dim', default=3072, type=int, help='mlp dimention in ViT encoder')
+parser.add_argument('--hidden_size', default=768, type=int, help='hidden size dimention in ViT encoder')
+parser.add_argument('--feature_size', default=16, type=int, help='feature size dimention')
+parser.add_argument('--infer_overlap', default=0.5, type=float, help='sliding window inference overlap')
+parser.add_argument('--in_channels', default=1, type=int, help='number of input channels')
+parser.add_argument('--out_channels', default=14, type=int, help='number of output channels')
+parser.add_argument('--num_heads', default=12, type=int, help='number of attention heads in ViT encoder')
+parser.add_argument('--res_block', action='store_true', help='use residual blocks')
+parser.add_argument('--conv_block', action='store_true', help='use conv blocks')
+parser.add_argument('--a_min', default=-175.0, type=float, help='a_min in ScaleIntensityRanged')
+parser.add_argument('--a_max', default=250.0, type=float, help='a_max in ScaleIntensityRanged')
+parser.add_argument('--b_min', default=0.0, type=float, help='b_min in ScaleIntensityRanged')
+parser.add_argument('--b_max', default=1.0, type=float, help='b_max in ScaleIntensityRanged')
+parser.add_argument('--space_x', default=1.5, type=float, help='spacing in x direction')
+parser.add_argument('--space_y', default=1.5, type=float, help='spacing in y direction')
+parser.add_argument('--space_z', default=2.0, type=float, help='spacing in z direction')
+parser.add_argument('--roi_x', default=96, type=int, help='roi size in x direction')
+parser.add_argument('--roi_y', default=96, type=int, help='roi size in y direction')
+parser.add_argument('--roi_z', default=96, type=int, help='roi size in z direction')
+parser.add_argument('--dropout_rate', default=0.0, type=float, help='dropout rate')
+parser.add_argument('--distributed', action='store_true', help='start distributed training')
+parser.add_argument('--workers', default=8, type=int, help='number of workers')
+parser.add_argument('--RandFlipd_prob', default=0.2, type=float, help='RandFlipd aug probability')
+parser.add_argument('--RandRotate90d_prob', default=0.2, type=float, help='RandRotate90d aug probability')
+parser.add_argument('--RandScaleIntensityd_prob', default=0.1, type=float, help='RandScaleIntensityd aug probability')
+parser.add_argument('--RandShiftIntensityd_prob', default=0.1, type=float, help='RandShiftIntensityd aug probability')
+parser.add_argument('--pos_embedd', default='perceptron', type=str, help='type of position embedding')
+parser.add_argument('--norm_name', default='instance', type=str, help='normalization layer type in decoder')
 
 def main():
     args = parser.parse_args()
+    args.test_mode = True
+    val_loader = get_loader(args)
     pretrained_dir = args.pretrained_dir
     model_name = args.pretrained_model_name
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -75,36 +76,7 @@ def main():
             res_block=True,
             dropout_rate=args.dropout_rate).to(device)
     model.eval()
-    val_transforms = Compose(
-        [
-            LoadImaged(keys=["image", "label"]),
-            AddChanneld(keys=["image", "label"]),
-            Spacingd(keys=["image", "label"],
-                     pixdim=(1.5, 1.5, 2.0),
-                     mode=("bilinear", "nearest")),
-            Orientationd(keys=["image", "label"],
-                         axcodes="RAS"),
-            ScaleIntensityRanged(keys=["image"],
-                                 a_min=-175,
-                                 a_max=250,
-                                 b_min=0.0,
-                                 b_max=1.0,
-                                 clip=True),
-            CropForegroundd(keys=["image", "label"],
-                            source_key="image"),
-            ToTensord(keys=["image", "label"]),
-        ]
-    )
-    data_dir = args.data_dir
-    split_JSON = 'dataset_0.json'
-    datasets = data_dir + split_JSON
-    val_files = load_decathlon_datalist(datasets, True, "validation")
-    val_ds = Dataset(data=val_files, transform=val_transforms)
-    val_loader = DataLoader(val_ds,
-                            batch_size=1,
-                            shuffle=False,
-                            num_workers=8,
-                            pin_memory=True)
+
     with torch.no_grad():
         dice_list_case = []
         for i, batch in enumerate(val_loader):
