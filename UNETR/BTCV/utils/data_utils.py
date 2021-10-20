@@ -9,111 +9,183 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from monai.transforms import (
-    Activations,
-    AsChannelFirstd,
-    AsDiscrete,
-    AddChanneld,
-    Compose,
-    MapTransform,
-    CropForegroundd,
-    LoadImaged,
-    NormalizeIntensityd,
-    Orientationd,
-    RandFlipd,
-    RandCropByPosNegLabeld,
-    RandScaleIntensityd,
-    RandShiftIntensityd,
-    RandSpatialCropd,
-    ScaleIntensityRanged,
-    Spacingd,
-    RandRotate90d,
-    ToTensord,
-)
+import os
+import math
+import numpy as np
+import torch
+from monai import transforms, data
+from monai.data import load_decathlon_datalist
 
-from monai.data import (
-    DataLoader,
-    CacheDataset,
-    load_decathlon_datalist,
-    load_decathlon_properties,
-    partition_dataset,
-    select_cross_validation_folds,
-    SmartCacheDataset,
-    Dataset,
-    decollate_batch,
-)
-from monai.data import CacheDataset,SmartCacheDataset, DataLoader, Dataset
+class Sampler(torch.utils.data.Sampler):
+    def __init__(self, dataset, num_replicas=None, rank=None,
+                 shuffle=True, make_even=True):
+        if num_replicas is None:
+            if not torch.distributed.is_available():
+                raise RuntimeError("Requires distributed package to be available")
+            num_replicas = torch.distributed.get_world_size()
+        if rank is None:
+            if not torch.distributed.is_available():
+                raise RuntimeError("Requires distributed package to be available")
+            rank = torch.distributed.get_rank()
+        self.shuffle = shuffle
+        self.make_even = make_even
+        self.dataset = dataset
+        self.num_replicas = num_replicas
+        self.rank = rank
+        self.epoch = 0
+        self.num_samples = int(math.ceil(len(self.dataset) * 1.0 / self.num_replicas))
+        self.total_size = self.num_samples * self.num_replicas
+        indices = list(range(len(self.dataset)))
+        self.valid_length = len(indices[self.rank:self.total_size:self.num_replicas])
+
+    def __iter__(self):
+        if self.shuffle:
+            g = torch.Generator()
+            g.manual_seed(self.epoch)
+            indices = torch.randperm(len(self.dataset), generator=g).tolist()
+        else:
+            indices = list(range(len(self.dataset)))
+        if self.make_even:
+            if len(indices) < self.total_size:
+                if self.total_size - len(indices) < len(indices):
+                    indices += indices[:(self.total_size - len(indices))]
+                else:
+                    extra_ids = np.random.randint(low=0,high=len(indices), size=self.total_size - len(indices))
+                    indices += [indices[ids] for ids in extra_ids]
+            assert len(indices) == self.total_size
+        indices = indices[self.rank:self.total_size:self.num_replicas]
+        self.num_samples = len(indices)
+        return iter(indices)
+
+    def __len__(self):
+        return self.num_samples
+
+    def set_epoch(self, epoch):
+        self.epoch = epoch
 
 def get_loader(args):
-    train_transforms = Compose(
+    data_dir = args.data_dir
+    datalist_json = os.path.join(data_dir, args.json_list)
+    train_transform = transforms.Compose(
         [
-            LoadImaged(keys=["image", "label"]),
-            AddChanneld(keys=["image", "label"]),
-            Spacingd(keys=["image", "label"], pixdim=(1.5, 1.5, 2.0), mode=("bilinear", "nearest")),
-            Orientationd(keys=["image", "label"], axcodes="RAS"),
-            ScaleIntensityRanged(
-                keys=["image"], a_min=-175, a_max=250,
-                b_min=0.0, b_max=1.0, clip=True,
-            ),
-            CropForegroundd(keys=["image", "label"], source_key="image"),
-            RandCropByPosNegLabeld(
+            transforms.LoadImaged(keys=["image", "label"]),
+            transforms.AddChanneld(keys=["image", "label"]),
+            transforms.Orientationd(keys=["image", "label"],
+                                    axcodes="RAS"),
+            transforms.Spacingd(keys=["image", "label"],
+                                pixdim=(args.space_x, args.space_y, args.space_z),
+                                mode=("bilinear", "nearest")),
+            transforms.ScaleIntensityRanged(keys=["image"],
+                                            a_min=args.a_min,
+                                            a_max=args.a_max,
+                                            b_min=args.b_min,
+                                            b_max=args.b_max,
+                                            clip=True),
+            transforms.CropForegroundd(keys=["image", "label"], source_key="image"),
+            transforms.RandCropByPosNegLabeld(
                 keys=["image", "label"],
                 label_key="label",
-                spatial_size=(96, 96, 96),
+                spatial_size=(args.roi_x, args.roi_y, args.roi_x),
                 pos=1,
                 neg=1,
                 num_samples=4,
                 image_key="image",
                 image_threshold=0,
             ),
-            RandFlipd(
+            transforms.RandFlipd(keys=["image", "label"],
+                                 prob=args.RandFlipd_prob,
+                                 spatial_axis=0),
+            transforms.RandFlipd(keys=["image", "label"],
+                                 prob=args.RandFlipd_prob,
+                                 spatial_axis=1),
+            transforms.RandFlipd(keys=["image", "label"],
+                                 prob=args.RandFlipd_prob,
+                                 spatial_axis=2),
+            transforms.RandRotate90d(
                 keys=["image", "label"],
-                spatial_axis=[0],
-                prob=0.10,
-            ),
-            RandFlipd(
-                keys=["image", "label"],
-                spatial_axis=[1],
-                prob=0.10,
-            ),
-            RandFlipd(
-                keys=["image", "label"],
-                spatial_axis=[2],
-                prob=0.10,
-            ),
-            RandRotate90d(
-                keys=["image", "label"],
-                prob=0.10,
+                prob=args.RandRotate90d_prob,
                 max_k=3,
             ),
-            RandShiftIntensityd(
-                keys=["image"],
-                offsets=0.10,
-                prob=0.50,
-            ),
-            ToTensord(keys=["image", "label"]),
+            transforms.RandScaleIntensityd(keys="image",
+                                           factors=0.1,
+                                           prob=args.RandScaleIntensityd_prob),
+            transforms.RandShiftIntensityd(keys="image",
+                                           offsets=0.1,
+                                           prob=args.RandShiftIntensityd_prob),
+            transforms.ToTensord(keys=["image", "label"]),
         ]
     )
-    val_transforms = Compose(
+    val_transform = transforms.Compose(
         [
-            LoadImaged(keys=["image", "label"]),
-            AddChanneld(keys=["image", "label"]),
-            Spacingd(keys=["image", "label"], pixdim=(1.5, 1.5, 2.0), mode=("bilinear", "nearest")),
-            Orientationd(keys=["image", "label"], axcodes="RAS"),
-            ScaleIntensityRanged(keys=["image"], a_min=-175, a_max=250, b_min=0.0, b_max=1.0, clip=True),
-            CropForegroundd(keys=["image", "label"], source_key="image"),
-            ToTensord(keys=["image", "label"]),
+            transforms.LoadImaged(keys=["image", "label"]),
+            transforms.AddChanneld(keys=["image", "label"]),
+            transforms.Orientationd(keys=["image", "label"],
+                                    axcodes="RAS"),
+            transforms.Spacingd(keys=["image", "label"],
+                                pixdim=(args.space_x, args.space_y, args.space_z),
+                                mode=("bilinear", "nearest")),
+            transforms.ScaleIntensityRanged(keys=["image"],
+                                            a_min=args.a_min,
+                                            a_max=args.a_max,
+                                            b_min=args.b_min,
+                                            b_max=args.b_max,
+                                            clip=True),
+            transforms.CropForegroundd(keys=["image", "label"], source_key="image"),
+            transforms.ToTensord(keys=["image", "label"]),
         ]
     )
 
-    data_dir = '/home/ali/Desktop/data_local/Synapse_Orig/'
-    split_JSON = 'dataset_0.json'
-    datasets = data_dir + split_JSON
-    datalist = load_decathlon_datalist(datasets, True, "training")
-    val_files = load_decathlon_datalist(datasets, True, "validation")
-    train_ds = CacheDataset(data=datalist, transform=train_transforms, cache_num=24, cache_rate=1.0, num_workers=8)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=8, pin_memory=True)
-    val_ds = CacheDataset(data=val_files, transform=val_transforms, cache_num=6, cache_rate=1.0, num_workers=4)
-    val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
+    if args.test_mode:
+        test_files = load_decathlon_datalist(datalist_json,
+                                            True,
+                                            "validation",
+                                            base_dir=data_dir)
+        test_ds = data.Dataset(data=test_files, transform=val_transform)
+        test_sampler = Sampler(test_ds, shuffle=False) if args.distributed else None
+        test_loader = data.DataLoader(test_ds,
+                                     batch_size=1,
+                                     shuffle=False,
+                                     num_workers=args.workers,
+                                     sampler=test_sampler,
+                                     pin_memory=True,
+                                     persistent_workers=True)
+        loader = test_loader
+    else:
+        datalist = load_decathlon_datalist(datalist_json,
+                                           True,
+                                           "training",
+                                           base_dir=data_dir)
+        if args.use_normal_dataset:
+            train_ds = data.Dataset(data=datalist, transform=train_transform)
+        else:
+            train_ds = data.CacheDataset(
+                data=datalist,
+                transform=train_transform,
+                cache_num=24,
+                cache_rate=1.0,
+                num_workers=args.workers,
+            )
+        train_sampler = Sampler(train_ds) if args.distributed else None
+        train_loader = data.DataLoader(train_ds,
+                                       batch_size=args.batch_size,
+                                       shuffle=(train_sampler is None),
+                                       num_workers=args.workers,
+                                       sampler=train_sampler,
+                                       pin_memory=True,
+                                       persistent_workers=True)
+        val_files = load_decathlon_datalist(datalist_json,
+                                            True,
+                                            "validation",
+                                            base_dir=data_dir)
+        val_ds = data.Dataset(data=val_files, transform=val_transform)
+        val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
+        val_loader = data.DataLoader(val_ds,
+                                     batch_size=1,
+                                     shuffle=False,
+                                     num_workers=args.workers,
+                                     sampler=val_sampler,
+                                     pin_memory=True,
+                                     persistent_workers=True)
+        loader = [train_loader, val_loader]
 
-    return train_loader, val_loader
+    return loader
