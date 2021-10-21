@@ -22,8 +22,8 @@ parser = argparse.ArgumentParser(description='UNETR segmentation pipeline')
 parser.add_argument('--pretrained_dir', default='./pretrained_models/', type=str, help='pretrained checkpoint directory')
 parser.add_argument('--data_dir', default='/dataset/dataset0/', type=str, help='dataset directory')
 parser.add_argument('--json_list', default='dataset_0.json', type=str, help='dataset json file')
-parser.add_argument('--pretrained_model_name', default='UNETR_torchscript.pt', type=str, help='pretrained model name')
-parser.add_argument('--saved_checkpoint', default='torchscript', type=str, help='Supports torchscript or statedict pretrained checkpoint type')
+parser.add_argument('--pretrained_model_name', default='UNETR_model_best_acc.pth', type=str, help='pretrained model name')
+parser.add_argument('--saved_checkpoint', default='ckpt', type=str, help='Supports torchscript or ckpt pretrained checkpoint type')
 parser.add_argument('--mlp_dim', default=3072, type=int, help='mlp dimention in ViT encoder')
 parser.add_argument('--hidden_size', default=768, type=int, help='hidden size dimention in ViT encoder')
 parser.add_argument('--feature_size', default=16, type=int, help='feature size dimention')
@@ -50,7 +50,7 @@ parser.add_argument('--RandFlipd_prob', default=0.2, type=float, help='RandFlipd
 parser.add_argument('--RandRotate90d_prob', default=0.2, type=float, help='RandRotate90d aug probability')
 parser.add_argument('--RandScaleIntensityd_prob', default=0.1, type=float, help='RandScaleIntensityd aug probability')
 parser.add_argument('--RandShiftIntensityd_prob', default=0.1, type=float, help='RandShiftIntensityd aug probability')
-parser.add_argument('--pos_embedd', default='perceptron', type=str, help='type of position embedding')
+parser.add_argument('--pos_embed', default='perceptron', type=str, help='type of position embedding')
 parser.add_argument('--norm_name', default='instance', type=str, help='normalization layer type in decoder')
 
 def main():
@@ -63,7 +63,7 @@ def main():
     pretrained_pth = os.path.join(pretrained_dir, model_name)
     if args.saved_checkpoint == 'torchscript':
         model = torch.jit.load(pretrained_pth)
-    elif args.saved_checkpoint == 'statedict':
+    elif args.saved_checkpoint == 'ckpt':
         model = UNETR(
             in_channels=args.in_channels,
             out_channels=args.out_channels,
@@ -74,10 +74,11 @@ def main():
             num_heads=args.num_heads,
             pos_embed=args.pos_embed,
             norm_name=args.norm_name,
+            conv_block=True,
             res_block=True,
             dropout_rate=args.dropout_rate)
         model_dict = torch.load(pretrained_pth)
-        model.load_state_dict(model_dict['state_dict'])
+        model.load_state_dict(model_dict)
     model.eval()
     model.to(device)
 

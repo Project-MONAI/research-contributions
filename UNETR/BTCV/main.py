@@ -34,7 +34,7 @@ parser.add_argument('--logdir', default='test', type=str, help='directory to sav
 parser.add_argument('--pretrained_dir', default='./pretrained_models/', type=str, help='pretrained checkpoint directory')
 parser.add_argument('--data_dir', default='/dataset/dataset0/', type=str, help='dataset directory')
 parser.add_argument('--json_list', default='dataset_0.json', type=str, help='dataset json file')
-parser.add_argument('--pretrained_model_name', default='UNETR_torchscript.pt', type=str, help='pretrained model name')
+parser.add_argument('--pretrained_model_name', default='UNETR_model_best_acc.pth', type=str, help='pretrained model name')
 parser.add_argument('--save_checkpoint', action='store_true', help='save checkpoint during training')
 parser.add_argument('--max_epochs', default=5000, type=int, help='max number of training epochs')
 parser.add_argument('--batch_size', default=1, type=int, help='number of batch size')
@@ -52,7 +52,7 @@ parser.add_argument('--dist-url', default='tcp://127.0.0.1:23456', type=str, hel
 parser.add_argument('--dist-backend', default='nccl', type=str, help='distributed backend')
 parser.add_argument('--workers', default=8, type=int, help='number of workers')
 parser.add_argument('--model_name', default='unetr', type=str, help='model name')
-parser.add_argument('--pos_embedd', default='perceptron', type=str, help='type of position embedding')
+parser.add_argument('--pos_embed', default='perceptron', type=str, help='type of position embedding')
 parser.add_argument('--norm_name', default='instance', type=str, help='normalization layer type in decoder')
 parser.add_argument('--num_heads', default=12, type=int, help='number of attention heads in ViT encoder')
 parser.add_argument('--mlp_dim', default=3072, type=int, help='mlp dimention in ViT encoder')
@@ -123,7 +123,6 @@ def main_worker(gpu, args):
     inf_size = [args.roi_x, args.roi_y, args.roi_x]
     pretrained_dir = args.pretrained_dir
     if (args.model_name is None) or args.model_name == 'unetr':
-
         model = UNETR(
             in_channels=args.in_channels,
             out_channels=args.out_channels,
@@ -132,15 +131,15 @@ def main_worker(gpu, args):
             hidden_size=args.hidden_size,
             mlp_dim=args.mlp_dim,
             num_heads=args.num_heads,
-            pos_embed=args.pos_embedd,
+            pos_embed=args.pos_embed,
             norm_name=args.norm_name,
             conv_block=True,
             res_block=True,
             dropout_rate=args.dropout_rate)
 
         if args.resume_ckpt:
-            model_dict = torch.load(args.pretrained_dir)
-            model.load_state_dict(model_dict['state_dict'])
+            model_dict = torch.load(os.path.join(pretrained_dir, args.pretrained_model_name))
+            model.load_state_dict(model_dict)
             print('Use pretrained weights')
 
         if args.resume_jit:

@@ -24,6 +24,7 @@ model = UNETR(
     num_heads=12,
     pos_embed='perceptron',
     norm_name='instance',
+    conv_block=True,
     res_block=True,
     dropout_rate=0.0)
 ```
@@ -31,7 +32,7 @@ model = UNETR(
 The above UNETR model is used for CT images (1-channel input) and for 14-class segmentation outputs. The network expects
 resampled input images with size ```(96, 96, 96)``` which will be converted into non-overlapping patches of size ```(16, 16, 16)```.
 The position embedding is performed using a perceptron layer. The ViT encoder follows standard hyper-parameters as introduced in [2].
-The decoder uses residual blocks and instance normalization. More details can be found in [1].
+The decoder uses convolutional and residual blocks as well as instance normalization. More details can be found in [1].
 
 Using the default values for hyper-parameters, the following command can be used to initiate training using PyTorch native AMP package:
 ``` bash
@@ -57,9 +58,34 @@ If UNETR is used in distributed multi-gpu training, we recommend increasing the 
 according to the number of GPUs. For instance, ```--optim_lr=4e-4``` is recommended for training with 4 GPUs.
 
 ### Finetuning
-We provide pre-trained TorchScript checkpoint of UNETR. Please download the weights from the following directory:
+We provide state-of-the-art pre-trained checkpoints and TorchScript models of UNETR using BTCV dataset. 
 
-https://drive.google.com/file/d/1XpNrHmcpdvvYB7MHJwxne9NmI4ramzwG/view?usp=sharing
+For using the pre-trained checkpoint, please download the weights from the following directory:
+
+https://drive.google.com/file/d/1kR5QuRAuooYcTNLMnMj80Z9IgSs8jtLO/view?usp=sharing
+
+Once downloaded, please place the checkpoint in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
+
+```./pretrained_models```
+
+The following command initiates finetuning using the pretrained checkpoint:
+``` bash
+python main.py
+--batch_size=1
+--logdir=unetr_pretrained
+--fold=0
+--optim_lr=1e-4
+--lrschedule=warmup_cosine
+--infer_overlap=0.5 
+--save_checkpoint
+--data_dir=/dataset/dataset0/
+--pretrained_dir='./pretrained_models/'
+--resume_ckpt
+``` 
+
+For using the pre-trained TorchScript model, please download the model from the following directory:
+
+https://drive.google.com/file/d/1_YbUE0abQFJUR4Luwict6BB8S77yUaWN/view?usp=sharing
 
 Once downloaded, please place the TorchScript model in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
 
@@ -80,27 +106,29 @@ python main.py
 --noamp
 --resume_jit
 ``` 
-Note that finetuning from the provided TorchScript model does not support AMP. Hence ```--noamp``` needs to be used. 
+Note that finetuning from the provided TorchScript model does not support AMP. 
 
 
 ### Testing
-You can use the pre-trained TorchScript checkpoint of UNETR to test it on your own data. Please download the weights from the following directory:
+You can use the state-of-the-art pre-trained TorchScript model or checkpoint of UNETR to test it on your own data.
 
-https://drive.google.com/file/d/1XpNrHmcpdvvYB7MHJwxne9NmI4ramzwG/view?usp=sharing
+Once the pretrained weights are downloaded, using the links above, please place the TorchScript model in the following directory or 
+use ```--pretrained_dir``` to provide the address of where the model is placed:
 
-Once download, please place the TorchScript model in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
+```./pretrained_models``` 
 
-```./pretrained_models```
-
-The following command runs inference using the provided TorchScript model:
+The following command runs inference using the provided checkpoint:
 ``` bash
 python test.py
 --infer_overlap=0.5
 --data_dir=/dataset/dataset0/
 --pretrained_dir='./pretrained_models/'
+--saved_checkpoint=ckpt
 ``` 
 
 Note that ```--infer_overlap``` determines the overlap between the sliding window patches. A higher value typically results in more accurate segmentation outputs but with the cost of longer inference time.
+
+If you would like to use the pretrained TorchScript model, ```--saved_checkpoint=torchscript``` should be used.
 
 ### Tutorial
 A tutorial for the task of multi-organ segmentation using BTCV dataset can be found in the following:
@@ -122,6 +150,12 @@ Under Institutional Review Board (IRB) supervision, 50 abdomen CT scans of were 
 - Modality: CT  
 - Size: 30 3D volumes (24 Training + 6 Testing)  
 - Size: BTCV MICCAI Challenge
+
+We provide the json file that is used to train our models in the following link:
+
+https://drive.google.com/file/d/1t4fIQQkONv7ArTSZe4Nucwkk1KfdUDvW/view?usp=sharing
+
+Once the json file is downloaded, please place it in the same folder as the dataset.
 
 ## Citation
 If you find this repository useful, please consider citing UNETR paper:
