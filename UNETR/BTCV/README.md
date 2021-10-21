@@ -80,6 +80,7 @@ python main.py
 --save_checkpoint
 --data_dir=/dataset/dataset0/
 --pretrained_dir='./pretrained_models/'
+--pretrained_model_name='UNETR_model_best_acc.pth'
 --resume_ckpt
 ``` 
 
@@ -104,6 +105,7 @@ python main.py
 --data_dir=/dataset/dataset0/
 --pretrained_dir='./pretrained_models/'
 --noamp
+--pretrained_model_name='UNETR_model_best_acc.pt'
 --resume_jit
 ``` 
 Note that finetuning from the provided TorchScript model does not support AMP. 
