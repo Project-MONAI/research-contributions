@@ -197,8 +197,8 @@ def main():
     output_classes = config_core["output_classes"]
     overlap_ratio = config_core["overlap_ratio"]
     patch_size = tuple(map(int, config_core["patch_size"].split(',')))
-    # patch_size_valid = tuple(map(int, config_core["infer_patch_size"].split(',')))
-    patch_size_valid = patch_size
+    patch_size_valid = tuple(map(int, config_core["infer_patch_size"].split(',')))
+    # patch_size_valid = patch_size
     # scale_intensity_range = list(map(float, config_core["scale_intensity_range"].split(',')))
     spacing = list(map(float, config_core["spacing"].split(',')))
 
@@ -457,8 +457,7 @@ def main():
             if amp:
                 with autocast():
                     outputs = model(inputs, [node_a, code_a, code_c], ds=False)
-                    outputs = outputs[0]
-                    loss = loss_func(outputs, labels)
+                    loss = loss_func(outputs[-1], labels)
 
                 scaler.scale(loss).backward()
                 # scaler.unscale_(optimizer)
@@ -467,8 +466,7 @@ def main():
                 scaler.update()
             else:
                 outputs = model(inputs, [node_a, code_a, code_c], ds=False)
-                outputs = outputs[0]
-                loss = loss_func(outputs, labels)
+                loss = loss_func(outputs[-1], labels)
                 loss.backward()
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
@@ -519,7 +517,7 @@ def main():
                             val_images,
                             roi_size,
                             sw_batch_size,
-                            lambda x: model(x, [node_a, code_a, code_c], ds=False)[0],
+                            lambda x: model(x, [node_a, code_a, code_c], ds=False)[-1],
                             mode="gaussian",
                             overlap=overlap_ratio,
                         )
@@ -534,7 +532,7 @@ def main():
                                     ),
                                     roi_size,
                                     sw_batch_size,
-                                    lambda x: model(x, [node_a, code_a, code_c], ds=False)[0],
+                                    lambda x: model(x, [node_a, code_a, code_c], ds=False)[-1],
                                     mode="gaussian",
                                     overlap=overlap_ratio,
                                 ),

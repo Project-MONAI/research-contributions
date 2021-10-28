@@ -10,4 +10,3 @@ pip install git+https://github.com/Project-MONAI/MONAI#egg=monai
 
 pip uninstall --yes tqdm
 pip install tqdm
-

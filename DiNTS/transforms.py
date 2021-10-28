@@ -43,6 +43,7 @@ from monai.transforms import (
 )
 # from monai.transforms.compose import MapTransform
 from monai.transforms.transform import MapTransform
+from scipy import ndimage
 from typing import Any, Callable, Dict, Hashable, List, Mapping, Optional, Sequence, Tuple, Union
 
 
@@ -277,17 +278,12 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
             CorrectLabelAffined(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"]),
             Orientationd(keys=["image", "label"], axcodes="RAS"),
-            # CopyItemsd(keys=["label"], times=1, names=["label_before"]),
-            # Lambdad(keys="label_before", func=lambda x: np.array(np.sum(x))[None][None]),
-            CropForegroundd(
-                keys=["image", "label"],
-                source_key="image",
-                select_fn=lambda x: x >= intensity_range[0],
-                margin=foreground_crop_margin
-            ),
-            # CopyItemsd(keys=["label"], times=1, names=["label_after"]),
-            # Lambdad(keys="label_after", func=lambda x: np.array(np.sum(x))[None][None]),
-            # ConcatItemsd(keys=["label_before", "label_after"], name="label_warning"),
+            # CropForegroundd(
+            #     keys=["image", "label"],
+            #     source_key="image",
+            #     select_fn=lambda x: x >= intensity_range[0],
+            #     margin=foreground_crop_margin
+            # ),
         ] +
         label_interpolation_transform +
         [
@@ -302,6 +298,21 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
                 keys=["image", "label"],
                 dtype=(np.float16, np.uint8)
             ),
+            CopyItemsd(
+                keys=["label"],
+                times=1,
+                names=["label4crop"],
+            ),
+            Lambdad(
+                keys=["label4crop"],
+                func=lambda x: np.concatenate(tuple([np.ones(shape=x.shape, dtype=x.dtype),] + [ndimage.binary_dilation((x==_k).astype(x.dtype), iterations=48).astype(x.dtype) for _k in range(1, output_classes)]), axis=0),
+                overwrite=True,
+            ),
+            # Lambdad(
+            #     keys=["label4crop"],
+            #     func=lambda x: print(x.shape, x.dtype),
+            #     overwrite=False,
+            # ),
             EnsureTyped(
                 keys=["image", "label"]
             ),
@@ -329,7 +340,7 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
             ),
             RandCropByLabelClassesd(
                 keys=["image", "label"],
-                label_key="label",
+                label_key="label4crop",
                 num_classes=output_classes,
                 ratios=[1,] * output_classes,
                 spatial_size=patch_size,
@@ -343,6 +354,7 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
             #     neg=1,
             #     num_samples=num_patches_per_image
             # ),
+            Lambdad(keys=["label4crop"], func=lambda x: 0),
         ] + 
         augmenations + 
         [
