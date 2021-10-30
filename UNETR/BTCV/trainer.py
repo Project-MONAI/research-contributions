@@ -201,8 +201,6 @@ def run_training(model,
         if args.rank==0 and writer is not None:
             writer.add_scalar('train_loss', train_loss, epoch)
         b_new_best = False
-        val_acc = 0
-
         if (epoch+1) % args.val_every == 0:
             if args.distributed:
                 torch.distributed.barrier()
@@ -219,10 +217,10 @@ def run_training(model,
                 print('Final validation  {}/{}'.format(epoch, args.max_epochs - 1),
                       'acc', val_avg_acc, 'time {:.2f}s'.format(time.time() - epoch_time))
                 if writer is not None:
-                    writer.add_scalar('val_acc', np.mean(val_avg_acc), epoch)
-                if np.mean(val_acc) > val_acc_max:
-                    print('new best ({:.6f} --> {:.6f}). '.format(val_acc_max, np.mean(val_acc)))
-                    val_acc_max = np.mean(val_acc)
+                    writer.add_scalar('val_acc', val_avg_acc, epoch)
+                if val_avg_acc > val_acc_max:
+                    print('new best ({:.6f} --> {:.6f}). '.format(val_acc_max, val_avg_acc))
+                    val_acc_max = val_avg_acc
                     b_new_best = True
                     if args.rank == 0 and args.logdir is not None and args.save_checkpoint:
                         save_checkpoint(model, epoch, args,
@@ -233,7 +231,7 @@ def run_training(model,
                 save_checkpoint(model,
                                 epoch,
                                 args,
-                                best_acc=np.mean(val_acc),
+                                best_acc=val_acc_max,
                                 filename='model_final.pt')
                 if b_new_best:
                     print('Copying to model.pt new best model!!!!')
