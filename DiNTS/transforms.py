@@ -272,7 +272,7 @@ def creating_label_interpolation_transform(method, spacing, output_classes):
 #     return train_transforms
 
 
-def creating_transforms_training(foreground_crop_margin, label_interpolation_transform, num_patches_per_image, patch_size, intensity_range, intensity_norm_transforms, augmenations, device, output_classes):
+def creating_transforms_training(foreground_crop_margin, label_interpolation_transform, num_patches_per_image, patch_size, intensity_norm_transforms, augmenations, device, output_classes):
     train_transforms = Compose(
         [
             LoadImaged(keys=["image", "label"]),
@@ -447,19 +447,19 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
 #     return val_transforms
 
 
-def creating_transforms_validation(foreground_crop_margin, label_interpolation_transform, patch_size, intensity_range, intensity_norm_transforms, device):
+def creating_transforms_validation(foreground_crop_margin, label_interpolation_transform, patch_size, intensity_norm_transforms, device):
     val_transforms = Compose(
         [
             LoadImaged(keys=["image", "label"]),
             CorrectLabelAffined(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"]),
             Orientationd(keys=["image", "label"], axcodes="RAS"),
-            CropForegroundd(
-                keys=["image", "label"],
-                source_key="image",
-                select_fn=lambda x: x >= intensity_range[0],
-                margin=foreground_crop_margin
-            ),
+            # CropForegroundd(
+            #     keys=["image", "label"],
+            #     source_key="image",
+            #     select_fn=lambda x: x >= intensity_range[0],
+            #     margin=foreground_crop_margin
+            # ),
         ] +
         label_interpolation_transform +
         [
@@ -577,7 +577,7 @@ def creating_transforms_validation(foreground_crop_margin, label_interpolation_t
 #     return test_transforms
 
 
-def creating_transforms_testing(foreground_crop_margin, intensity_range, intensity_norm_transforms, spacing):
+def creating_transforms_testing(foreground_crop_margin, intensity_norm_transforms, spacing):
     test_transforms = Compose(
         [
             LoadImaged(keys=["image"]),

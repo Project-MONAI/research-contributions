@@ -702,10 +702,20 @@ def main():
                             "iter_num": idx_iter,
                             "epochs": epoch + 1,
                             "best_dsc": best_metric,
-                            "best_path": best_metric_iterations
+                            "best_path": best_metric_iterations,
                         },
                         os.path.join(args.output_root, "search_code_" + str(idx_iter) + ".pth"),
                     )
+                    # print(
+                    #     "node_a", node_a_d,
+                    #     "code_a", code_a_d,
+                    #     "code_a_max", code_a_max_d,
+                    #     "code_c", code_c_d,
+                    #     "iter_num", idx_iter,
+                    #     "epochs", epoch + 1,
+                    #     "best_dsc", best_metric,
+                    #     "best_path", best_metric_iterations,
+                    # )
                     print("saved new best metric model")
 
                     dict_file = {}

@@ -180,7 +180,7 @@ def main():
     foreground_crop_margin = int(config_core["foreground_crop_margin"])
     input_channels = config_core["input_channels"]
     intensity_norm = config_core["intensity_norm"]
-    intensity_range = list(map(float, config_core["intensity_range"].split(',')))
+    # intensity_range = list(map(float, config_core["intensity_range"].split(',')))
     label_interpolation = config_core["label_interpolation"]
     learning_rate = config_core["learning_rate"]
     learning_rate_gamma = config_core["learning_rate_gamma"]
@@ -282,8 +282,8 @@ def main():
     torch.cuda.set_device(device)
 
     label_interpolation_transform = creating_label_interpolation_transform(label_interpolation, spacing, output_classes)
-    train_transforms = creating_transforms_training(foreground_crop_margin, label_interpolation_transform, num_patches_per_image, patch_size, intensity_range, intensity_norm_transforms, augmenations, device, output_classes)
-    val_transforms = creating_transforms_validation(foreground_crop_margin, label_interpolation_transform, patch_size, intensity_range, intensity_norm_transforms, device)
+    train_transforms = creating_transforms_training(foreground_crop_margin, label_interpolation_transform, num_patches_per_image, patch_size, intensity_norm_transforms, augmenations, device, output_classes)
+    val_transforms = creating_transforms_validation(foreground_crop_margin, label_interpolation_transform, patch_size, intensity_norm_transforms, device)
 
     if True:
         # train_ds = monai.data.CacheDataset(data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8)
