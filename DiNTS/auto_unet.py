@@ -92,8 +92,8 @@ class AutoUnet(nn.Module):
         for res_idx in range(num_depths):
             if use_stem:
                 self.stem_down[str(res_idx)] = nn.Sequential(
-                    nn.Upsample(scale_factor=1/(2**res_idx), mode='trilinear', align_corners=True),
-                    # Interpolate(scale_factor=1/(2**res_idx), mode='trilinear', align_corners=True),
+                    nn.Upsample(scale_factor=1/(2**res_idx), mode="trilinear", align_corners=True),
+                    # Interpolate(scale_factor=1/(2**res_idx), mode="trilinear", align_corners=True),
                     nn.Conv3d(in_channels, filter_nums[res_idx], 3, stride=1, padding=1, bias=False),
                     nn.InstanceNorm3d(filter_nums[res_idx], affine=affine),
                     nn.ReLU(),
@@ -104,12 +104,12 @@ class AutoUnet(nn.Module):
                                                     nn.ReLU(),
                                                     nn.Conv3d(filter_nums[res_idx+1],filter_nums[res_idx], 3, stride=1, padding=1, bias=False),
                                                     nn.InstanceNorm3d(filter_nums[res_idx], affine=affine),
-                                                    nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True))    
+                                                    nn.Upsample(scale_factor=2, mode="trilinear", align_corners=True))    
                 
             else:
                 self.stem_down[str(res_idx)] = nn.Sequential(
-                    nn.Upsample(scale_factor=1/(2**res_idx), mode='trilinear', align_corners=True),
-                    # Interpolate(scale_factor=1/(2**res_idx), mode='trilinear', align_corners=True),
+                    nn.Upsample(scale_factor=1/(2**res_idx), mode="trilinear", align_corners=True),
+                    # Interpolate(scale_factor=1/(2**res_idx), mode="trilinear", align_corners=True),
                     nn.Conv3d(in_channels, filter_nums[res_idx], 3, stride=1, padding=1, bias=False),
                     nn.InstanceNorm3d(filter_nums[res_idx], affine=affine)
                 )                
@@ -118,7 +118,7 @@ class AutoUnet(nn.Module):
                                                     nn.Conv3d(filter_nums[res_idx],filter_nums[res_idx], 3, stride=1, padding=1, bias=False),
                                                     nn.InstanceNorm3d(filter_nums[res_idx], affine=affine),
                                                     nn.Conv3d(filter_nums[res_idx],num_classes, 1),
-                                                    nn.Upsample(scale_factor=2**res_idx, mode='trilinear', align_corners=True))  
+                                                    nn.Upsample(scale_factor=2**res_idx, mode="trilinear", align_corners=True))  
                                        
         # define NAS search space
         if code is None:
@@ -150,7 +150,7 @@ class AutoUnet(nn.Module):
         self.log_alpha_a = torch.nn.Parameter(torch.zeros(num_blocks, len(code2out))\
                                             .normal_(0, 0.01).cuda().requires_grad_())
         self.fix_a_grad_mask = torch.ones_like(self.log_alpha_a)
-        self._arch_param_names = ['log_alpha_a', 'log_alpha_c']
+        self._arch_param_names = ["log_alpha_a", "log_alpha_c"]
 
     def weight_parameters(self):
         return [param for name, param in self.named_parameters() if name not in self._arch_param_names]        
@@ -190,7 +190,7 @@ class AutoUnet(nn.Module):
             _node_out[self.code2out[res_idx]] += _path_activation[res_idx]
             _node_in[self.code2in[res_idx]] += _path_activation[res_idx]
         init = (_node_in >= 1).astype(int)
-        node_activation = (_node_out >= 1).astype(int) # node_activation must be numpy array since it's used as dict key
+        node_activation = (_node_out >= 1).astype(int) # node_activation must be numpy array since it"s used as dict key
         node_a[0] = node_activation
         for blk_idx in range(1, self.num_blocks):
             child_path = []
@@ -300,7 +300,7 @@ class AutoUnet(nn.Module):
     def get_topology_entropy(self, probs):
         """ Get topology entropy loss
         """
-        if hasattr(self,'node2in'):
+        if hasattr(self,"node2in"):
             node2in = self.node2in
             node2out = self.node2out
         else:

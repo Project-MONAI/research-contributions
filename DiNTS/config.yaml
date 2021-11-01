@@ -32,7 +32,7 @@ core:
   num_tta: 1
   optimizer: AdamW
   output_classes: 2
-  overlap_ratio: 0.750
+  overlap_ratio: 0.675
   patch_size: 96,96,96
   random_seed: 888
   spacing: 1.0,1.0,1.0

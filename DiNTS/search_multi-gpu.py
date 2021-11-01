@@ -181,7 +181,7 @@ def main():
     foreground_crop_margin = int(config_core["foreground_crop_margin"])
     input_channels = config_core["input_channels"]
     intensity_norm = config_core["intensity_norm"]
-    intensity_range = list(map(float, config_core["intensity_range"].split(',')))
+    intensity_range = list(map(float, config_core["intensity_range"].split(",")))
     label_interpolation = config_core["label_interpolation"]
     learning_rate = config_core["learning_rate"]
     learning_rate_gamma = config_core["learning_rate_gamma"]
@@ -197,11 +197,11 @@ def main():
     optim_string = config_core["optimizer"]
     output_classes = config_core["output_classes"]
     overlap_ratio = config_core["overlap_ratio"]
-    patch_size = tuple(map(int, config_core["patch_size"].split(',')))
-    patch_size_valid = tuple(map(int, config_core["infer_patch_size"].split(',')))
+    patch_size = tuple(map(int, config_core["patch_size"].split(",")))
+    patch_size_valid = tuple(map(int, config_core["infer_patch_size"].split(",")))
     # patch_size_valid = patch_size
-    # scale_intensity_range = list(map(float, config_core["scale_intensity_range"].split(',')))
-    spacing = list(map(float, config_core["spacing"].split(',')))
+    # scale_intensity_range = list(map(float, config_core["scale_intensity_range"].split(",")))
+    spacing = list(map(float, config_core["spacing"].split(",")))
 
     # augmentation
     config_aug = config["augmentation_monai"]
@@ -330,9 +330,9 @@ def main():
     # model = model.to(device)
 
     ckpt = torch.load(args.arch_ckpt)
-    node_a = ckpt['node_a']
-    code_a = ckpt['code_a']
-    code_c = ckpt['code_c']
+    node_a = ckpt["node_a"]
+    code_a = ckpt["code_a"]
+    code_c = ckpt["code_c"]
 
     model = AutoUnet(
         in_channels=input_channels,
@@ -434,6 +434,8 @@ def main():
         with open(os.path.join(args.output_root, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
 
+    dataloader_a_iterator = iter(train_loader_a)
+
     start_time = time.time()
     for epoch in range(num_epochs // num_epochs_per_validation):
         # if learning_rate_final > -0.000001 and learning_rate_final < learning_rate:
@@ -453,13 +455,14 @@ def main():
         if dist.get_rank() == 0:
             print("-" * 10)
             print(f"epoch {epoch * num_epochs_per_validation + 1}/{num_epochs}")
-            print('learning rate is set to {}'.format(lr))
+            print("learning rate is set to {}".format(lr))
 
         model.train()
         epoch_loss = 0
         loss_torch = torch.zeros(2, dtype=torch.float, device=device)
         step = 0
         # train_sampler.set_epoch(epoch)
+
         for batch_data in train_loader_w:
             step += 1
             inputs, labels = batch_data["image"].to(device), batch_data["label"].to(device)
@@ -468,10 +471,10 @@ def main():
             for param in model.parameters():
                 param.grad = None
 
-            for _ in model.weight_parameters():
+            for _ in model.module.weight_parameters():
                 _.requires_grad = True
-            model.log_alpha_a.requires_grad = False
-            model.log_alpha_c.requires_grad = False
+            model.module.log_alpha_a.requires_grad = False
+            model.module.log_alpha_c.requires_grad = False
 
             if amp:
                 with autocast():
@@ -507,17 +510,16 @@ def main():
                 writer.add_scalar("train_loss", loss.item(), epoch_len * epoch + step)
 
             try:
-                sample_a = next(dataloader_a)
+                sample_a = next(dataloader_a_iterator)
             except StopIteration:
-                dataloader_a_iter = iter(dataloader_a)
-                sample_a = next(dataloader_a_iter)
+                dataloader_a_iterator = iter(train_loader_a)
+                sample_a = next(dataloader_a_iterator)
+            inputs_search, labels_search = sample_a["image"].to(device), sample_a["label"].to(device)
 
-            inputs_search, labels_search = sample_a['image'].cuda(), sample_a['label'].cuda()
-
-            for _ in model.weight_parameters():
+            for _ in model.module.weight_parameters():
                 _.requires_grad = False
-            model.log_alpha_a.requires_grad = True
-            model.log_alpha_c.requires_grad = True
+            model.module.log_alpha_a.requires_grad = True
+            model.module.log_alpha_c.requires_grad = True
 
              # linear increase topology and memory loss
             entropy_alpha_c = torch.tensor(0.).cuda()
@@ -527,14 +529,18 @@ def main():
             memory_loss = torch.tensor(0.).cuda()
             topology_loss = torch.tensor(0.).cuda()
 
-            probs_a, code_prob_a = model.get_prob_a(child=True)
+            probs_a, code_prob_a = model.module.get_prob_a(child=True)
             entropy_alpha_a = -((probs_a)*torch.log(probs_a + 1e-5)).mean()
-            entropy_alpha_c = -(F.softmax(model.log_alpha_c/model.ef,dim=-1)*F.log_softmax(model.log_alpha_c/model.ef, dim=-1)).mean()
-            topology_loss =  model.get_topology_entropy(probs_a)
-            memory_full = model.get_memory_usage(image.shape, True, cell_memory=args.cell_memory)
-            memory_usage = model.get_memory_usage(image.shape)
-            if args.use_memory:
-                memory_loss = torch.abs(args.memory - memory_usage/memory_full)
+            entropy_alpha_c = -(F.softmax(model.module.log_alpha_c/model.module.ef,dim=-1)*F.log_softmax(model.module.log_alpha_c/model.module.ef, dim=-1)).mean()
+            topology_loss =  model.module.get_topology_entropy(probs_a)
+
+            # memory_full = model.module.get_memory_usage(inputs.shape, True, cell_memory=args.cell_memory)
+            memory_full = model.module.get_memory_usage(inputs.shape, True, cell_memory=False)
+            memory_usage = model.module.get_memory_usage(inputs.shape)
+
+            # if args.use_memory:
+            #     memory_loss = torch.abs(args.memory - memory_usage/memory_full)
+            memory_loss = torch.abs(0.80 - memory_usage/memory_full)
 
             arch_optimizer_a.zero_grad()
             arch_optimizer_c.zero_grad()
@@ -547,13 +553,15 @@ def main():
                     else:
                         loss = loss_func(outputs_search[-1], labels_search)
 
-                    loss += weights * (args.entropy * (entropy_alpha_a + entropy_alpha_c) + memory_loss \
-                                                    + args.topology * topology_loss)
+                    # loss += weights * (args.entropy * (entropy_alpha_a + entropy_alpha_c) + memory_loss \
+                    #                                 + args.topology * topology_loss)
+                    loss += 1.0 * (1.0 * (entropy_alpha_a + entropy_alpha_c) + memory_loss \
+                                                    + 0.001 * topology_loss)
 
                 scaler.scale(loss).backward()
                 arch_optimizer_a.mask = code_a
                 scaler.step(arch_optimizer_a)
-                arch_optimizer_c.mask = model.mask_c(code_c, code_a)
+                arch_optimizer_c.mask = model.module.mask_c(code_c, code_a)
                 scaler.step(arch_optimizer_c)
                 scaler.update()
             else:
@@ -563,13 +571,15 @@ def main():
                 else:
                     loss = loss_func(outputs_search[-1], labels_search)
 
-                loss += weights * (args.entropy * (entropy_alpha_a + entropy_alpha_c) + memory_loss \
-                                                + args.topology * topology_loss)
+                # loss += weights * (args.entropy * (entropy_alpha_a + entropy_alpha_c) + memory_loss \
+                #                                 + args.topology * topology_loss)
+                loss += 1.0 * (1.0 * (entropy_alpha_a + entropy_alpha_c) + memory_loss \
+                                + 0.001 * topology_loss)
 
                 loss.backward()
                 arch_optimizer_a.mask = code_a
                 arch_optimizer_a.step()
-                arch_optimizer_c.mask = model.mask_c(code_c, code_a)
+                arch_optimizer_c.mask = model.module.mask_c(code_c, code_a)
                 arch_optimizer_c.step()
 
         # synchronizes all processes and reduce results
@@ -639,13 +649,12 @@ def main():
                     val_outputs = val_outputs[None, ...]
                     val_labels = post_label(val_labels[0, ...])
                     val_labels = val_labels[None, ...]
-                    # val_outputs = post_processing(val_outputs)
 
                     value = compute_meandice(
-                                y_pred=val_outputs,
-                                y=val_labels,
-                                include_background=False
-                            )
+                        y_pred=val_outputs,
+                        y=val_labels,
+                        include_background=False
+                    )
 
                     print(_index + 1, "/", len(val_loader), value)
                     
@@ -681,26 +690,30 @@ def main():
                     if avg_metric > best_metric:
                         best_metric = avg_metric
                         best_metric_epoch = epoch + 1
-                        torch.save(
-                            {
-                                'node_a': node_a_d,
-                                'code_a': code_a_d,
-                                'code_a_max': code_a_max_d,
-                                'code_c': code_c_d,
-                                'iter_num': iter_num,
-                                'epochs': epochs,
-                                'best_dsc': best_dsc,
-                                'best_path': best_path                        
-                            }, os.path.join(args.output_root, 'search_code_' + str(idx_iter) + '.pth')
-                        )
-                        print("saved new best metric model")
+                        best_metric_iterations = idx_iter
 
-                        dict_file = {}
-                        dict_file["best_avg_dice_score"] = float(best_metric)
-                        dict_file["best_avg_dice_score_epoch"] = int(best_metric_epoch)
-                        dict_file["best_avg_dice_score_iteration"] = int(idx_iter)
-                        with open(os.path.join(args.output_root, "progress.yaml"), "w") as out_file:
-                            documents = yaml.dump(dict_file, stream=out_file)
+                    node_a_d, code_a_d, code_c_d, code_a_max_d = model.module.decode()
+                    torch.save(
+                        {
+                            "node_a": node_a_d,
+                            "code_a": code_a_d,
+                            "code_a_max": code_a_max_d,
+                            "code_c": code_c_d,
+                            "iter_num": idx_iter,
+                            "epochs": epoch + 1,
+                            "best_dsc": best_metric,
+                            "best_path": best_metric_iterations
+                        },
+                        os.path.join(args.output_root, "search_code_" + str(idx_iter) + ".pth"),
+                    )
+                    print("saved new best metric model")
+
+                    dict_file = {}
+                    dict_file["best_avg_dice_score"] = float(best_metric)
+                    dict_file["best_avg_dice_score_epoch"] = int(best_metric_epoch)
+                    dict_file["best_avg_dice_score_iteration"] = int(idx_iter)
+                    with open(os.path.join(args.output_root, "progress.yaml"), "w") as out_file:
+                        documents = yaml.dump(dict_file, stream=out_file)
 
                     print(
                         "current epoch: {} current mean dice: {:.4f} best mean dice: {:.4f} at epoch {}".format(
