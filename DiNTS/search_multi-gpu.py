@@ -10,6 +10,7 @@ import numpy as np
 import os
 import pandas as pd
 import pathlib
+import random
 import shutil
 import sys
 import tempfile
@@ -260,8 +261,15 @@ def main():
         files.append({"image": str_img, "label": str_seg})
     
     train_files = files
-    train_files = partition_dataset(data=train_files, shuffle=True, num_partitions=dist.get_world_size(), even_divisible=True)[dist.get_rank()]
     print("train_files:", len(train_files))
+
+    random.shuffle(train_files)
+    train_files_w = train_files[:len(train_files)//2]
+    train_files_w = partition_dataset(data=train_files_w, shuffle=True, num_partitions=dist.get_world_size(), even_divisible=True)[dist.get_rank()]
+    print("train_files_w:", len(train_files_w))
+    train_files_a = train_files[len(train_files)//2:]
+    train_files_a = partition_dataset(data=train_files_a, shuffle=True, num_partitions=dist.get_world_size(), even_divisible=True)[dist.get_rank()]
+    print("train_files_a:", len(train_files_a))
 
     # validation data
     files = []
@@ -286,20 +294,22 @@ def main():
     val_transforms = creating_transforms_validation(foreground_crop_margin, label_interpolation_transform, patch_size, intensity_range, intensity_norm_transforms, device)
 
     if True:
-        # train_ds = monai.data.CacheDataset(data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8)
-        train_ds = DupCacheDataset(                                                                                                                                                                                                                                   
-            data=train_files,
-            transform=train_transforms,
-            cache_rate=1.0,
-            num_workers=8,
-            times=num_epochs_per_validation,
-        )
+        train_ds_a = monai.data.CacheDataset(data=train_files_a, transform=train_transforms, cache_rate=1.0, num_workers=8)
+        train_ds_w = monai.data.CacheDataset(data=train_files_w, transform=train_transforms, cache_rate=1.0, num_workers=8)
+        # train_ds = DupCacheDataset(                                                                                                                                                                                                                                   
+        #     data=train_files,
+        #     transform=train_transforms,
+        #     cache_rate=1.0,
+        #     num_workers=8,
+        #     times=num_epochs_per_validation,
+        # )
         val_ds = monai.data.CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2)
     else:
         train_ds = monai.data.Dataset(data=train_files, transform=train_transforms)
         val_ds = monai.data.Dataset(data=val_files, transform=val_transforms)
 
-    train_loader = DataLoader(train_ds, batch_size=num_images_per_batch, shuffle=True, num_workers=8, pin_memory=torch.cuda.is_available())
+    train_loader_a = DataLoader(train_ds_a, batch_size=num_images_per_batch, shuffle=True, num_workers=8, pin_memory=torch.cuda.is_available())
+    train_loader_w = DataLoader(train_ds_w, batch_size=num_images_per_batch, shuffle=True, num_workers=8, pin_memory=torch.cuda.is_available())
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=torch.cuda.is_available())
     
     # train_loader = ThreadDataLoader(train_ds, num_workers=0, batch_size=num_images_per_batch, shuffle=True)
@@ -357,21 +367,25 @@ def main():
     loss_func = loss_class(**loss_dict)
 
     # optimizer
-    optim_name, optim_dict = parse_monai_specs(optim_string)
-    optim_dict["lr"] = learning_rate
-    optim_dict["params"] = model.parameters()
-    if dist.get_rank() == 0:
-        print("\noptimizer: " + optim_name)
-        for _key in optim_dict.keys():
-            print("  {0}:\t{1}".format(_key, optim_dict[_key]))
+    # optim_name, optim_dict = parse_monai_specs(optim_string)
+    # optim_dict["lr"] = learning_rate
+    # optim_dict["params"] = model.parameters()
+    # if dist.get_rank() == 0:
+    #     print("\noptimizer: " + optim_name)
+    #     for _key in optim_dict.keys():
+    #         print("  {0}:\t{1}".format(_key, optim_dict[_key]))
 
-    if optim_name.lower() == "novograd":
-        optim_class = getattr(monai.optimizers, optim_name)
-    else:
-        optim_class = getattr(torch.optim, optim_name)
-    optimizer = optim_class(**optim_dict)
+    # if optim_name.lower() == "novograd":
+    #     optim_class = getattr(monai.optimizers, optim_name)
+    # else:
+    #     optim_class = getattr(torch.optim, optim_name)
+    # optimizer = optim_class(**optim_dict)
 
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
+    optimizer = torch.optim.Adam(model.weight_parameters(), lr=learning_rate)
+    arch_optimizer_a = torch.optim.Adam([model.log_alpha_a], lr=learning_rate, betas=(0.5, 0.999), weight_decay=0.0)
+    arch_optimizer_c = torch.optim.Adam([model.log_alpha_c], lr=learning_rate, betas=(0.5, 0.999), weight_decay=0.0)
+
+    # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
     print()
 
@@ -446,13 +460,18 @@ def main():
         loss_torch = torch.zeros(2, dtype=torch.float, device=device)
         step = 0
         # train_sampler.set_epoch(epoch)
-        for batch_data in train_loader:
+        for batch_data in train_loader_w:
             step += 1
             inputs, labels = batch_data["image"].to(device), batch_data["label"].to(device)
 
             # optimizer.zero_grad()
             for param in model.parameters():
                 param.grad = None
+
+            for _ in model.weight_parameters():
+                _.requires_grad = True
+            model.log_alpha_a.requires_grad = False
+            model.log_alpha_c.requires_grad = False
 
             if amp:
                 with autocast():
@@ -480,12 +499,78 @@ def main():
             epoch_loss += loss.item()
             loss_torch[0] += loss.item()
             loss_torch[1] += 1.0
-            epoch_len = len(train_loader)
+            epoch_len = len(train_loader_w)
             idx_iter += 1
 
             if dist.get_rank() == 0:
                 print("[{0}] ".format(str(datetime.now())[:19]) + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
                 writer.add_scalar("train_loss", loss.item(), epoch_len * epoch + step)
+
+            try:
+                sample_a = next(dataloader_a)
+            except StopIteration:
+                dataloader_a_iter = iter(dataloader_a)
+                sample_a = next(dataloader_a_iter)
+
+            inputs_search, labels_search = sample_a['image'].cuda(), sample_a['label'].cuda()
+
+            for _ in model.weight_parameters():
+                _.requires_grad = False
+            model.log_alpha_a.requires_grad = True
+            model.log_alpha_c.requires_grad = True
+
+             # linear increase topology and memory loss
+            entropy_alpha_c = torch.tensor(0.).cuda()
+            entropy_alpha_a = torch.tensor(0.).cuda()
+            memory_full = torch.tensor(0.).cuda()
+            memory_usage = torch.tensor(0.).cuda()
+            memory_loss = torch.tensor(0.).cuda()
+            topology_loss = torch.tensor(0.).cuda()
+
+            probs_a, code_prob_a = model.get_prob_a(child=True)
+            entropy_alpha_a = -((probs_a)*torch.log(probs_a + 1e-5)).mean()
+            entropy_alpha_c = -(F.softmax(model.log_alpha_c/model.ef,dim=-1)*F.log_softmax(model.log_alpha_c/model.ef, dim=-1)).mean()
+            topology_loss =  model.get_topology_entropy(probs_a)
+            memory_full = model.get_memory_usage(image.shape, True, cell_memory=args.cell_memory)
+            memory_usage = model.get_memory_usage(image.shape)
+            if args.use_memory:
+                memory_loss = torch.abs(args.memory - memory_usage/memory_full)
+
+            arch_optimizer_a.zero_grad()
+            arch_optimizer_c.zero_grad()
+
+            if amp:
+                with autocast():
+                    outputs_search = model(inputs_search, [node_a, code_a, code_c], ds=False)
+                    if output_classes == 2:
+                        loss = loss_func(torch.flip(outputs_search[-1], dims=[1]), 1 - labels_search)
+                    else:
+                        loss = loss_func(outputs_search[-1], labels_search)
+
+                    loss += weights * (args.entropy * (entropy_alpha_a + entropy_alpha_c) + memory_loss \
+                                                    + args.topology * topology_loss)
+
+                scaler.scale(loss).backward()
+                arch_optimizer_a.mask = code_a
+                scaler.step(arch_optimizer_a)
+                arch_optimizer_c.mask = model.mask_c(code_c, code_a)
+                scaler.step(arch_optimizer_c)
+                scaler.update()
+            else:
+                outputs_search = model(inputs_search, [node_a, code_a, code_c], ds=False)
+                if output_classes == 2:
+                    loss = loss_func(torch.flip(outputs_search[-1], dims=[1]), 1 - labels_search)
+                else:
+                    loss = loss_func(outputs_search[-1], labels_search)
+
+                loss += weights * (args.entropy * (entropy_alpha_a + entropy_alpha_c) + memory_loss \
+                                                + args.topology * topology_loss)
+
+                loss.backward()
+                arch_optimizer_a.mask = code_a
+                arch_optimizer_a.step()
+                arch_optimizer_c.mask = model.mask_c(code_c, code_a)
+                arch_optimizer_c.step()
 
         # synchronizes all processes and reduce results
         dist.barrier()

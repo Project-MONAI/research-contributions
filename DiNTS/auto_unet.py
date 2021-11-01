@@ -152,12 +152,8 @@ class AutoUnet(nn.Module):
         self.fix_a_grad_mask = torch.ones_like(self.log_alpha_a)
         self._arch_param_names = ['log_alpha_a', 'log_alpha_c']
 
-
-
-
     def weight_parameters(self):
         return [param for name, param in self.named_parameters() if name not in self._arch_param_names]        
-
           
     def get_code_c(self, use_max=False):
         log_alpha = self.log_alpha_c

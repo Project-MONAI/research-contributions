@@ -21,10 +21,10 @@ then
     export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 fi
 
-for FOLD in 0 1 2 3 4
+for FOLD in 0
 do
-    CHECKPOINT_ROOT="Fold${FOLD}"
-    CHECKPOINT="Legacy/${CHECKPOINT_ROOT}/best_metric_model.pth"
+    CHECKPOINT_ROOT="Search_Fold${FOLD}"
+    CHECKPOINT="${CHECKPOINT_ROOT}/best_metric_model.pth"
     JSON_KEY="training"
 
     python -m torch.distributed.launch \
