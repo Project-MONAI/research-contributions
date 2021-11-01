@@ -31,6 +31,7 @@ from monai.transforms import (
     RandShiftIntensityd,
     RandScaleIntensityd,
     RandSpatialCropd,
+    RandSpatialCropSamplesd,
     RandFlipd,
     RandRotate90d,
     RandZoomd,
@@ -305,9 +306,14 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
             ),
             Lambdad(
                 keys=["label4crop"],
-                func=lambda x: np.concatenate(tuple([np.ones(shape=x.shape, dtype=x.dtype),] + [ndimage.binary_dilation((x==_k).astype(x.dtype), iterations=48).astype(x.dtype) for _k in range(1, output_classes)]), axis=0),
+                func=lambda x: np.concatenate(tuple([ndimage.binary_dilation((x==_k).astype(x.dtype), iterations=48).astype(x.dtype) for _k in range(output_classes)]), axis=0),
                 overwrite=True,
             ),
+            # Lambdad(
+            #     keys=["label4crop"],
+            #     func=lambda x: np.concatenate(tuple([np.ones(shape=x.shape, dtype=x.dtype),] + [ndimage.binary_dilation((x==_k).astype(x.dtype), iterations=48).astype(x.dtype) for _k in range(1, output_classes)]), axis=0),
+            #     overwrite=True,
+            # ),
             # Lambdad(
             #     keys=["label4crop"],
             #     func=lambda x: print(x.shape, x.dtype),
@@ -509,49 +515,49 @@ def creating_transforms_validation(foreground_crop_margin, label_interpolation_t
     return val_transforms
 
 
-def creating_transforms_testing_legacy(foreground_crop_margin, label_interpolation_transform, scale_intensity_range):
-    test_transforms = Compose(
-        [
-            LoadImaged(
-                keys=["image", "label"],
-                as_closest_canonical=True
-            ),
-            CustomAddChanneld(
-                keys=["image", "label"]
-            )
-        ] +
-        label_interpolation_transform +
-        [
-            CustomCropForegroundd(
-                keys=["image", "label"],
-                source_key="label",
-                margin=foreground_crop_margin
-            ),
-            CastToTyped(
-                keys=["image", "label"],
-                dtype=(np.float32, np.uint8)
-            ),
-            # RandShiftIntensityd(
-            #     keys=["image"],
-            #     offsets=0.0,
-            #     prob=0.001
-            # ),
-            CastToTyped(keys=["image"], dtype=(np.float32)),
-            # ThresholdIntensityd(keys=["image"], threshold=scale_intensity_range[0], above=True, cval=scale_intensity_range[0]),
-            # ThresholdIntensityd(keys=["image"], threshold=scale_intensity_range[1], above=False, cval=scale_intensity_range[1]),
-            # Lambdad(keys=["image"], func=lambda x: x - scale_intensity_range[0]),
-            NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
-            CastToTyped(
-                keys=["image", "label"],
-                dtype=(np.float32, np.uint8)
-            ),
-            ToTensord(
-                keys=["image", "label"]
-            )
-        ]
-    )
+# def creating_transforms_testing_legacy(foreground_crop_margin, label_interpolation_transform, scale_intensity_range):
+#     test_transforms = Compose(
+#         [
+#             LoadImaged(
+#                 keys=["image", "label"],
+#                 as_closest_canonical=True
+#             ),
+#             CustomAddChanneld(
+#                 keys=["image", "label"]
+#             )
+#         ] +
+#         label_interpolation_transform +
+#         [
+#             CustomCropForegroundd(
+#                 keys=["image", "label"],
+#                 source_key="label",
+#                 margin=foreground_crop_margin
+#             ),
+#             CastToTyped(
+#                 keys=["image", "label"],
+#                 dtype=(np.float32, np.uint8)
+#             ),
+#             # RandShiftIntensityd(
+#             #     keys=["image"],
+#             #     offsets=0.0,
+#             #     prob=0.001
+#             # ),
+#             CastToTyped(keys=["image"], dtype=(np.float32)),
+#             # ThresholdIntensityd(keys=["image"], threshold=scale_intensity_range[0], above=True, cval=scale_intensity_range[0]),
+#             # ThresholdIntensityd(keys=["image"], threshold=scale_intensity_range[1], above=False, cval=scale_intensity_range[1]),
+#             # Lambdad(keys=["image"], func=lambda x: x - scale_intensity_range[0]),
+#             NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
+#             CastToTyped(
+#                 keys=["image", "label"],
+#                 dtype=(np.float32, np.uint8)
+#             ),
+#             ToTensord(
+#                 keys=["image", "label"]
+#             )
+#         ]
+#     )
 
-    return test_transforms
+#     return test_transforms
 
 
 # def creating_transforms_testing(foreground_crop_margin, scale_intensity_range, spacing):
@@ -577,7 +583,7 @@ def creating_transforms_testing(foreground_crop_margin, intensity_range, intensi
             LoadImaged(keys=["image"]),
             EnsureChannelFirstd(keys=["image"]),
             Orientationd(keys=["image"], axcodes="RAS"),
-            CropForegroundd(keys=["image"], source_key="image", select_fn=lambda x: x >= intensity_range[0], margin=foreground_crop_margin),
+            # CropForegroundd(keys=["image"], source_key="image", select_fn=lambda x: x >= intensity_range[0], margin=foreground_crop_margin),
             CastToTyped(keys=["image"], dtype=(np.float32)),
             Spacingd(keys=["image"], pixdim=spacing, mode=["bilinear"], align_corners=[True]),
         ] + 

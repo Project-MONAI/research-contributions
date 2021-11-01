@@ -596,7 +596,18 @@ def main():
                     if avg_metric > best_metric:
                         best_metric = avg_metric
                         best_metric_epoch = epoch + 1
-                        torch.save(model.state_dict(), os.path.join(args.output_root, "best_metric_model.pth"))
+                        torch.save(
+                            {
+                                'node_a': node_a_d,
+                                'code_a': code_a_d,
+                                'code_a_max': code_a_max_d,
+                                'code_c': code_c_d,
+                                'iter_num': iter_num,
+                                'epochs': epochs,
+                                'best_dsc': best_dsc,
+                                'best_path': best_path                        
+                            }, os.path.join(args.output_root, 'search_code_' + str(idx_iter) + '.pth')
+                        )
                         print("saved new best metric model")
 
                         dict_file = {}

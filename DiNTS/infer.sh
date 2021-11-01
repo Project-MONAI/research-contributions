@@ -21,11 +21,11 @@ then
     export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 fi
 
-for FOLD in 0 1 2 4
+for FOLD in 0
 do
-    CHECKPOINT_ROOT="Fold${FOLD}"
-    CHECKPOINT="Legacy/${CHECKPOINT_ROOT}/best_metric_model.pth"
-    JSON_KEY="training"
+    CHECKPOINT="Legacy/Fold${FOLD}/best_metric_model.pth"
+    JSON_KEY="test"
+    OUTPUT_ROOT="Seg_Fold${FOLD}_${JSON_KEY}"
 
     python -m torch.distributed.launch \
         --nproc_per_node=${NUM_GPUS_PER_NODE} \
@@ -33,13 +33,12 @@ do
         --node_rank=0 \
         --master_addr=localhost \
         --master_port=1234 \
-        train_multi-gpu.py  --arch_ckpt=${ARCH_CKPT} \
+        infer_multi-gpu.py  --arch_ckpt=${ARCH_CKPT} \
                             --checkpoint=${CHECKPOINT} \
                             --config=${CONFIG} \
-                            --fold=${FOLD} \
                             --json=${JSON_PATH} \
                             --json_key=${JSON_KEY} \
-                            --num_folds=${NUM_FOLDS} \
-                            --output_root=${CHECKPOINT_ROOT} \
+                            --output_root=${OUTPUT_ROOT} \
+                            --prob \
                             --root=${DATA_ROOT}
 done
