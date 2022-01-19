@@ -93,26 +93,6 @@ def check_list_tuple(a):
     return a
 
 
-# def parse_monai_network_specs(network_string):
-#     string_parts = network_string.split("|")
-#     network_name = string_parts[0]
-
-#     network_dict = {}        
-#     for _k in range(1, len(string_parts)):
-#         part = string_parts[_k]
-#         part_split = part.split("~")
-#         _key = part_split[0]
-#         _val = part_split[1]
-
-#         _val_parts = _val.split(",")
-#         if len(_val_parts) == 1:
-#             network_dict[_key] = check_number(_val)
-#         else:
-#             network_dict[_key] = [check_number(_item) for _item in _val_parts]
-
-#     return network_name, network_dict
-
-
 def parse_monai_specs(component_string):
     string_parts = component_string.split("|")
     component_name = string_parts[0]

@@ -29,18 +29,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 
-from dints import DiNTS
+# from dints import DiNTS
 from datetime import datetime
 from glob import glob
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
+from torch.utils.tensorboard import SummaryWriter
 from monai.data import (
     DataLoader,
     ThreadDataLoader,
     decollate_batch,
 )
 # from torch.utils.data.distributed import DistributedSampler
-from torch.utils.tensorboard import SummaryWriter
 from monai.transforms import (
     apply_transform,
     AsDiscrete,
@@ -49,56 +49,56 @@ from monai.transforms import (
     Randomizable,
     Transform,
 )
-from monai.data import Dataset, create_test_image_3d, DistributedSampler, list_data_collate, partition_dataset
+from monai.data import (
+    Dataset,
+    create_test_image_3d,
+    DistributedSampler,
+    list_data_collate,
+    partition_dataset,
+)
 from monai.inferers import sliding_window_inference
 # from monai.losses import DiceLoss, FocalLoss, GeneralizedDiceLoss
 from monai.metrics import compute_meandice
 from monai.utils import set_determinism
 from transforms import (
-    creating_label_interpolation_transform,
     creating_transforms_training,
     creating_transforms_validation,
-    str2aug
 )
-from utils import (
-    # BoundaryLoss,
-    parse_monai_specs,
-    # parse_monai_transform_specs,
-)
+from utils import parse_monai_specs
 
 
-class DupCacheDataset(monai.data.CacheDataset):                                                                                                                                                                                                                          
-    def __init__(self, times: int, **kwargs):                                                                                                                                                                                                                 
-        super().__init__(**kwargs)                                                                                                                                                                                                                            
-        self.times = times                                                                                                                                                                                                                                    
+# class DupCacheDataset(monai.data.CacheDataset):                                                                                                                                                                                                                          
+#     def __init__(self, times: int, **kwargs):                                                                                                                                                                                                                 
+#         super().__init__(**kwargs)                                                                                                                                                                                                                            
+#         self.times = times                                                                                                                                                                                                                                    
                                                                                                                                                                                                                                                               
-    def __len__(self):                                                                                                                                                                                                                                        
-        return self.times * super().__len__()                                                                                                                                                                                                                 
+#     def __len__(self):                                                                                                                                                                                                                                        
+#         return self.times * super().__len__()                                                                                                                                                                                                                 
                                                                                                                                                                                                                                                               
-    def _transform(self, index: int):                                                                                                                                                                                                                         
-        # print("index", index)                                                                                                                                                                                                                               
-        index = index // self.times                                                                                                                                                                                                                           
-        if index % len(self) >= self.cache_num:  # support negative index                                                                                                                                                                                     
-            # no cache for this index, execute all the transforms directly                                                                                                                                                                                    
-            return super()._transform(index)                                                                                                                                                                                                                  
-        # load data from cache and execute from the first random transform                                                                                                                                                                                    
-        start_run = False                                                                                                                                                                                                                                     
-        if self._cache is None:                                                                                                                                                                                                                               
-            self._cache = self._fill_cache()                                                                                                                                                                                                                  
-        data = self._cache[index]                                                                                                                                                                                                                             
-        if not isinstance(self.transform, Compose):                                                                                                                                                                                                           
-            raise ValueError("transform must be an instance of monai.transforms.Compose.")                                                                                                                                                                    
-        for _transform in self.transform.transforms:                                                                                                                                                                                                          
-            if start_run or isinstance(_transform, Randomizable) or not isinstance(_transform, Transform):                                                                                                                                                    
-                # only need to deep copy data on first non-deterministic transform                                                                                                                                                                            
-                if not start_run:                                                                                                                                                                                                                             
-                    start_run = True                                                                                                                                                                                                                          
-                    data = copy.deepcopy(data)                                                                                                                                                                                                                     
-                data = apply_transform(_transform, data)                                                                                                                                                                                                      
-        return data                                                                                                                                                                                                                                           
+#     def _transform(self, index: int):                                                                                                                                                                                                                         
+#         # print("index", index)                                                                                                                                                                                                                               
+#         index = index // self.times                                                                                                                                                                                                                           
+#         if index % len(self) >= self.cache_num:  # support negative index                                                                                                                                                                                     
+#             # no cache for this index, execute all the transforms directly                                                                                                                                                                                    
+#             return super()._transform(index)                                                                                                                                                                                                                  
+#         # load data from cache and execute from the first random transform                                                                                                                                                                                    
+#         start_run = False                                                                                                                                                                                                                                     
+#         if self._cache is None:                                                                                                                                                                                                                               
+#             self._cache = self._fill_cache()                                                                                                                                                                                                                  
+#         data = self._cache[index]                                                                                                                                                                                                                             
+#         if not isinstance(self.transform, Compose):                                                                                                                                                                                                           
+#             raise ValueError("transform must be an instance of monai.transforms.Compose.")                                                                                                                                                                    
+#         for _transform in self.transform.transforms:                                                                                                                                                                                                          
+#             if start_run or isinstance(_transform, Randomizable) or not isinstance(_transform, Transform):                                                                                                                                                    
+#                 # only need to deep copy data on first non-deterministic transform                                                                                                                                                                            
+#                 if not start_run:                                                                                                                                                                                                                             
+#                     start_run = True                                                                                                                                                                                                                          
+#                     data = copy.deepcopy(data)                                                                                                                                                                                                                     
+#                 data = apply_transform(_transform, data)                                                                                                                                                                                                      
+#         return data                                                                                                                                                                                                                                           
                                                                                                                                                                                                                                                               
-    def __item__(self, index: int):                                                                                                                                                                                                                           
-        return super().__item__(index // self.times)
+#     def __item__(self, index: int):                                                                                                                                                                                                                           
+#         return super().__item__(index // self.times)
 
 
 def main():
@@ -188,27 +188,25 @@ def main():
     foreground_crop_margin = int(config_core["foreground_crop_margin"])
     input_channels = config_core["input_channels"]
     intensity_norm = config_core["intensity_norm"]
-    # intensity_range = list(map(float, config_core["intensity_range"].split(',')))
-    label_interpolation = config_core["label_interpolation"]
+    interpolation = config_core["interpolation"]
     learning_rate = config_core["learning_rate"]
-    learning_rate_gamma = config_core["learning_rate_gamma"]
-    learning_rate_step_size = config_core["learning_rate_step_size"]
-    loss_string = config_core["loss"]
+    learning_rate_milestones = np.array(list(map(float, config_core["learning_rate_milestones"].split(','))))
+    # learning_rate_gamma = config_core["learning_rate_gamma"]
+    # learning_rate_step_size = config_core["learning_rate_step_size"]
+    # loss_string = config_core["loss"]
     num_images_per_batch = config_core["num_images_per_batch"]
     num_epochs = config_core["num_epochs"]
     num_epochs_per_validation = config_core["num_epochs_per_validation"]
     num_folds = int(args.num_folds)
     num_patches_per_image = config_core["num_patches_per_image"]
     num_sw_batch_size = config_core["num_sw_batch_size"]
-    num_tta = config_core["num_tta"]
-    optim_string = config_core["optimizer"]
     output_classes = config_core["output_classes"]
     overlap_ratio = config_core["overlap_ratio"]
     patch_size = tuple(map(int, config_core["patch_size"].split(',')))
     patch_size_valid = tuple(map(int, config_core["infer_patch_size"].split(',')))
     # patch_size_valid = patch_size
     # scale_intensity_range = list(map(float, config_core["scale_intensity_range"].split(',')))
-    spacing = list(map(float, config_core["spacing"].split(',')))
+    # spacing = list(map(float, config_core["spacing"].split(',')))
 
     # augmentation
     config_aug = config["augmentation_monai"]
@@ -219,6 +217,8 @@ def main():
 
     # initialize the distributed training process, every GPU runs in a process
     dist.init_process_group(backend="nccl", init_method="env://")
+    dist.barrier()
+    world_size = dist.get_world_size()
 
     # augmentation
     num_augmentations = len(config_aug.keys())
@@ -247,6 +247,20 @@ def main():
         transform_class = getattr(monai.transforms, transform_name)
         transform_func = transform_class(**transform_dict)
         intensity_norm_transforms.append(transform_func)
+
+    # interpolation (re-sampling)
+    interpolation = interpolation.split("||")
+    interpolation_transforms = []
+    for _k in range(len(interpolation)):
+        transform_string = interpolation[_k]
+        transform_name, transform_dict = parse_monai_specs(transform_string)
+        if dist.get_rank() == 0:
+            print("\ninterpolation {0:d}:\t{1:s}".format(_k + 1, transform_name))
+            for _key in transform_dict.keys():
+                print("  {0}:\t{1}".format(_key, transform_dict[_key]))
+        transform_class = getattr(monai.transforms, transform_name)
+        transform_func = transform_class(**transform_dict)
+        interpolation_transforms.append(transform_func)
 
     # data
     with open(args.json, "r") as f:
@@ -289,92 +303,79 @@ def main():
     device = torch.device(f"cuda:{args.local_rank}")
     torch.cuda.set_device(device)
 
-    label_interpolation_transform = creating_label_interpolation_transform(label_interpolation, spacing, output_classes)
-    train_transforms = creating_transforms_training(foreground_crop_margin, label_interpolation_transform, num_patches_per_image, patch_size, intensity_norm_transforms, augmenations, device, output_classes)
-    val_transforms = creating_transforms_validation(foreground_crop_margin, label_interpolation_transform, patch_size, intensity_norm_transforms, device)
+    train_transforms = creating_transforms_training(foreground_crop_margin, interpolation_transforms, num_patches_per_image, patch_size, intensity_norm_transforms, augmenations, device, output_classes)
+    val_transforms = creating_transforms_validation(foreground_crop_margin, interpolation_transforms, patch_size, intensity_norm_transforms, device)
 
-    if True:
-        # train_ds = monai.data.CacheDataset(data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8)
-        train_ds = DupCacheDataset(                                                                                                                                                                                                                                   
-            data=train_files,
-            transform=train_transforms,
-            cache_rate=1.0,
-            num_workers=8,
-            times=num_epochs_per_validation,
-        )
-        val_ds = monai.data.CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2)
-    else:
-        train_ds = monai.data.Dataset(data=train_files, transform=train_transforms)
-        val_ds = monai.data.Dataset(data=val_files, transform=val_transforms)
+    # train_ds = monai.data.Dataset(data=train_files, transform=train_transforms)
+    # val_ds = monai.data.Dataset(data=val_files, transform=val_transforms)
 
-    train_loader = DataLoader(train_ds, batch_size=num_images_per_batch, shuffle=True, num_workers=8, pin_memory=torch.cuda.is_available())
-    val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=torch.cuda.is_available())
+    train_ds = monai.data.CacheDataset(data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8)
+    val_ds = monai.data.CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2)
+
+    # train_loader = DataLoader(train_ds, batch_size=num_images_per_batch, shuffle=True, num_workers=8, pin_memory=torch.cuda.is_available())
+    # val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=torch.cuda.is_available())
     
-    # train_loader = ThreadDataLoader(train_ds, num_workers=0, batch_size=num_images_per_batch, shuffle=True)
-    # val_loader = ThreadDataLoader(val_ds, num_workers=0, batch_size=1, shuffle=False)
-
-    # monai network
-    # config_network = config["network_monai"]
-    # network_string = config_network["network"]
-    # network_name, network_dict = parse_monai_specs(network_string)
-    # network_dict["in_channels"] = input_channels
-    # network_dict["out_channels"] = output_classes
-    # if dist.get_rank() == 0:
-    #     print("\nnetwork: " + network_name)
-    #     for _key in network_dict.keys():
-    #         print("  {0}:\t{1}".format(_key, network_dict[_key]))
-    # network_class = getattr(monai.networks.nets, network_name)
-    # model = network_class(**network_dict)
-    # model = model.to(device)
+    train_loader = ThreadDataLoader(train_ds, num_workers=0, batch_size=num_images_per_batch, shuffle=True)
+    val_loader = ThreadDataLoader(val_ds, num_workers=0, batch_size=1, shuffle=False)
 
     ckpt = torch.load(args.arch_ckpt)
     node_a = ckpt['node_a']
-    code_a = ckpt['code_a']
-    code_c = ckpt['code_c']
+    arch_code_a = ckpt['arch_code_a']
+    arch_code_c = ckpt['arch_code_c']
 
-    model = DiNTS(
-        in_channels=input_channels,
-        num_classes=output_classes,
-        cell_ops=5,
+    dints_space = monai.networks.nets.TopologyInstance(
+        channel_mul=1.0,
         num_blocks=12,
         num_depths=4,
-        channel_mul=1.0,
-        use_stem=True,
-        code=[node_a, code_a, code_c]
+        use_downsample=True,
+        arch_code=[arch_code_a, arch_code_c],
+        device=device,
+    )
+
+    model = monai.networks.nets.DiNTS(
+        dints_space=dints_space,
+        in_channels=input_channels,
+        num_classes=output_classes,
+        use_downsample=True,
+        node_a=node_a,
     )
     
-    code_a = torch.from_numpy(code_a).to(torch.float32).cuda()
-    code_c = F.one_hot(torch.from_numpy(code_c), model.cell_ops).to(torch.float32).cuda()
+    # code_a = torch.from_numpy(code_a).to(torch.float32).cuda()
+    # code_c = F.one_hot(torch.from_numpy(code_c), model.cell_ops).to(torch.float32).cuda()
     model = model.to(device)
-
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
-    post_pred = Compose([EnsureType(), AsDiscrete(argmax=True, to_onehot=True, num_classes=output_classes)])
-    post_label = Compose([EnsureType(), AsDiscrete(to_onehot=True, num_classes=output_classes)])
+    post_pred = Compose(
+        [
+            EnsureType(),
+            AsDiscrete(argmax=True, to_onehot=output_classes),
+        ]
+    )
+    post_label = Compose(
+        [
+            EnsureType(),
+            AsDiscrete(to_onehot=output_classes),
+        ]
+    )
 
     # loss function
-    loss_name, loss_dict = parse_monai_specs(loss_string)
-    if dist.get_rank() == 0:
-        print("\nloss: " + loss_name)
-        for _key in loss_dict.keys():
-            print("  {0}:\t{1}".format(_key, loss_dict[_key]))
-    loss_class = getattr(monai.losses, loss_name)
-    loss_func = loss_class(**loss_dict)
+    loss_func = monai.losses.DiceCELoss(
+        include_background=False,
+        to_onehot_y=True,
+        softmax=True,
+        squared_pred=True,
+        batch=True,
+        smooth_nr=0.00001,
+        smooth_dr=0.00001,
+    )
 
     # optimizer
-    optim_name, optim_dict = parse_monai_specs(optim_string)
-    optim_dict["lr"] = learning_rate
-    optim_dict["params"] = model.parameters()
-    if dist.get_rank() == 0:
-        print("\noptimizer: " + optim_name)
-        for _key in optim_dict.keys():
-            print("  {0}:\t{1}".format(_key, optim_dict[_key]))
-
-    if optim_name.lower() == "novograd":
-        optim_class = getattr(monai.optimizers, optim_name)
-    else:
-        optim_class = getattr(torch.optim, optim_name)
-    optimizer = optim_class(**optim_dict)
+    optimizer = torch.optim.SGD(
+        model.parameters(),
+        lr=learning_rate * world_size,
+        momentum=0.9,
+        weight_decay=0.00004
+    )
 
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
@@ -408,16 +409,16 @@ def main():
     idx_iter = 0
     metric_values = list()
 
-    if num_tta == 0 or num_tta == 1:
-        flip_tta = []
-    elif num_tta == 4:
-        flip_tta = [[2], [3], [4]]
-    elif num_tta == 8:
-        flip_tta = [[2], [3], [4], (2, 3), (2, 4), (3, 4), (2, 3, 4)]
+    # if num_tta == 0 or num_tta == 1:
+    #     flip_tta = []
+    # elif num_tta == 4:
+    #     flip_tta = [[2], [3], [4]]
+    # elif num_tta == 8:
+    #     flip_tta = [[2], [3], [4], (2, 3), (2, 4), (3, 4), (2, 3, 4)]
 
-    if dist.get_rank() == 0:
-        print("num_tta", num_tta)
-        print("flip_tta", flip_tta)
+    # if dist.get_rank() == 0:
+    #     print("num_tta", num_tta)
+    #     print("flip_tta", flip_tta)
 
     if dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(args.output_root, "Events"))
@@ -426,24 +427,15 @@ def main():
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
 
     start_time = time.time()
-    for epoch in range(num_epochs // num_epochs_per_validation):
-        # if learning_rate_final > -0.000001 and learning_rate_final < learning_rate:
-        #     # lr = learning_rate - epoch / (num_epochs - 1) * (learning_rate - learning_rate_final)
-        #     lr = (learning_rate - learning_rate_final) * (1 - epoch / (num_epochs - 1)) ** 0.9 + learning_rate_final
-        #     for param_group in optimizer.param_groups:
-        #         param_group["lr"] = lr
-        # else:
-        #     lr = learning_rate
-        
-        # lr = learning_rate * (learning_rate_gamma ** (epoch // learning_rate_step_size))
-        # for param_group in optimizer.param_groups:
-        #     param_group["lr"] = lr
-
-        lr = optimizer.param_groups[0]["lr"]
+    for epoch in range(num_epochs):
+        decay = 0.5 ** np.sum([epoch / num_epochs > learning_rate_milestones])
+        lr = learning_rate * decay
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = lr
 
         if dist.get_rank() == 0:
             print("-" * 10)
-            print(f"epoch {epoch * num_epochs_per_validation + 1}/{num_epochs}")
+            print(f"epoch {epoch + 1}/{num_epochs}")
             print('learning rate is set to {}'.format(lr))
 
         model.train()
@@ -461,21 +453,21 @@ def main():
 
             if amp:
                 with autocast():
-                    outputs = model(inputs, [node_a, code_a, code_c])
+                    outputs = model(inputs)
                     if output_classes == 2:
-                        loss = loss_func(torch.flip(outputs[-1], dims=[1]), 1 - labels)
+                        loss = loss_func(torch.flip(outputs, dims=[1]), 1 - labels)
                     else:
-                        loss = loss_func(outputs[-1], labels)
+                        loss = loss_func(outputs, labels)
 
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
             else:
-                outputs = model(inputs, [node_a, code_a, code_c])
+                outputs = model(inputs)
                 if output_classes == 2:
-                    loss = loss_func(torch.flip(outputs[-1], dims=[1]), 1 - labels)
+                    loss = loss_func(torch.flip(outputs, dims=[1]), 1 - labels)
                 else:
-                    loss = loss_func(outputs[-1], labels)
+                    loss = loss_func(outputs, labels)
                 loss.backward()
                 optimizer.step()
 
@@ -497,8 +489,8 @@ def main():
             loss_torch_epoch = loss_torch[0] / loss_torch[1]
             print(f"epoch {(epoch + 1) * num_epochs_per_validation} average loss: {loss_torch_epoch:.4f}, best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}")
 
-        # if (epoch + 1) % val_interval == 0:
-        if True:
+        if (epoch + 1) % val_interval == 0:
+        # if True:
             torch.cuda.empty_cache()
             model.eval()
             with torch.no_grad():
@@ -518,37 +510,16 @@ def main():
                     roi_size = patch_size_valid
                     sw_batch_size = num_sw_batch_size
 
-                    # test time augmentation
                     ct = 1.0
                     with torch.cuda.amp.autocast():
                         pred = sliding_window_inference(
                             val_images,
                             roi_size,
                             sw_batch_size,
-                            lambda x: model(x, [node_a, code_a, code_c])[-1],
+                            lambda x: model(x),
                             mode="gaussian",
                             overlap=overlap_ratio,
                         )
-
-                    for dims in flip_tta:
-                        with torch.cuda.amp.autocast():
-                            flip_pred = torch.flip(
-                                sliding_window_inference(
-                                    torch.flip(
-                                        val_images,
-                                        dims=dims
-                                    ),
-                                    roi_size,
-                                    sw_batch_size,
-                                    lambda x: model(x, [node_a, code_a, code_c])[-1],
-                                    mode="gaussian",
-                                    overlap=overlap_ratio,
-                                ),
-                                dims=dims,
-                            )
-
-                        pred += flip_pred
-                        ct += 1.0
 
                     val_outputs = pred / ct
 
@@ -556,13 +527,12 @@ def main():
                     val_outputs = val_outputs[None, ...]
                     val_labels = post_label(val_labels[0, ...])
                     val_labels = val_labels[None, ...]
-                    # val_outputs = post_processing(val_outputs)
 
                     value = compute_meandice(
-                                y_pred=val_outputs,
-                                y=val_labels,
-                                include_background=False
-                            )
+                        y_pred=val_outputs,
+                        y=val_labels,
+                        include_background=False
+                    )
 
                     print(_index + 1, "/", len(val_loader), value)
                     

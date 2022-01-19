@@ -67,95 +67,95 @@ class CorrectLabelAffined(MapTransform):
         return d
 
 
-def str2aug(str_aug):
+# def str2aug(str_aug):
 
-    if str_aug == "RandShiftIntensity":
-        aug = RandShiftIntensityd(
-                  keys=["image"],
-                  offsets=0.1,
-                  prob=0.1
-              )
-    elif str_aug == "RandFlip":
-        aug = RandFlipd(
-                  keys=["image", "label"],
-                  prob=0.5
-              )
-    elif str_aug == "RandRotate90":
-        aug = RandRotate90d(
-                  keys=["image", "label"],
-                  prob=0.1
-              )
-    else:
-        aug = None
+#     if str_aug == "RandShiftIntensity":
+#         aug = RandShiftIntensityd(
+#                   keys=["image"],
+#                   offsets=0.1,
+#                   prob=0.1
+#               )
+#     elif str_aug == "RandFlip":
+#         aug = RandFlipd(
+#                   keys=["image", "label"],
+#                   prob=0.5
+#               )
+#     elif str_aug == "RandRotate90":
+#         aug = RandRotate90d(
+#                   keys=["image", "label"],
+#                   prob=0.1
+#               )
+#     else:
+#         aug = None
 
-    return aug
+#     return aug
 
 
-def creating_label_interpolation_transform(method, spacing, output_classes):
-    if method.lower() == "nearest":
-        transform = [
-            Spacingd(
-                keys=["image", "label"],
-                pixdim=spacing,
-                mode=("bilinear", "nearest"),
-                align_corners=(True, True)
-                )
-        ]
-    elif method.lower() == "linear":
-        transform = [
-            # multi-class to one-hot
-            AddChanneld(
-                keys=["label"]
-            ),
-            ToTensord(
-                keys=["label"]
-            ),
-            AsDiscreted(
-                keys=["label"],
-                to_onehot=True,
-                n_classes=output_classes
-            ),
-            ToNumpyd(
-                keys=["label"]
-            ),
-            SqueezeDimd(
-                keys=["label"],
-                dim=0
-            ),
-            CastToTyped(
-                keys=["image", "label"],
-                dtype=(np.float16, np.float16)
-            ),
-            # re-sampling
-            Spacingd(
-                keys=["image", "label"],
-                pixdim=spacing,
-                mode=("bilinear", "bilinear"),
-                align_corners=(True, True)
-            ),
-            # one-hot to multi-class
-            AddChanneld(
-                keys=["label"]
-            ),
-            ToTensord(
-                keys=["label"]
-            ),
-            AsDiscreted(
-                keys=["label"],
-                argmax=True
-            ),
-            ToNumpyd(
-                keys=["label"]
-            ),
-            SqueezeDimd(
-                keys=["label"],
-                dim=0
-            )
-        ]
-    elif method.lower() == "raw":
-        transform = []
+# def creating_label_interpolation_transform(method, spacing, output_classes):
+#     if method.lower() == "nearest":
+#         transform = [
+#             Spacingd(
+#                 keys=["image", "label"],
+#                 pixdim=spacing,
+#                 mode=("bilinear", "nearest"),
+#                 align_corners=(True, True)
+#                 )
+#         ]
+#     elif method.lower() == "linear":
+#         transform = [
+#             # multi-class to one-hot
+#             AddChanneld(
+#                 keys=["label"]
+#             ),
+#             ToTensord(
+#                 keys=["label"]
+#             ),
+#             AsDiscreted(
+#                 keys=["label"],
+#                 to_onehot=True,
+#                 n_classes=output_classes
+#             ),
+#             ToNumpyd(
+#                 keys=["label"]
+#             ),
+#             SqueezeDimd(
+#                 keys=["label"],
+#                 dim=0
+#             ),
+#             CastToTyped(
+#                 keys=["image", "label"],
+#                 dtype=(np.float16, np.float16)
+#             ),
+#             # re-sampling
+#             Spacingd(
+#                 keys=["image", "label"],
+#                 pixdim=spacing,
+#                 mode=("bilinear", "bilinear"),
+#                 align_corners=(True, True)
+#             ),
+#             # one-hot to multi-class
+#             AddChanneld(
+#                 keys=["label"]
+#             ),
+#             ToTensord(
+#                 keys=["label"]
+#             ),
+#             AsDiscreted(
+#                 keys=["label"],
+#                 argmax=True
+#             ),
+#             ToNumpyd(
+#                 keys=["label"]
+#             ),
+#             SqueezeDimd(
+#                 keys=["label"],
+#                 dim=0
+#             )
+#         ]
+#     elif method.lower() == "raw":
+#         transform = []
 
-    return transform
+#     return transform
 
 
 # def creating_transforms_training(foreground_crop_margin, label_interpolation_transform, num_patches_per_image, patch_size, scale_intensity_range, augmenations):
@@ -533,105 +533,105 @@ def creating_transforms_testing(foreground_crop_margin, intensity_norm_transform
     return test_transforms
 
 
-def creating_transforms_offline_validation(keys):
-    transforms_offline_validation = Compose(
-        [
-            LoadImaged(keys=keys),
-            EnsureChannelFirstd(keys=keys),
-            Orientationd(keys=keys, axcodes="RAS"),
-            ToTensord(keys=keys)
-        ]
-    )
-    return transforms_offline_validation
+# def creating_transforms_offline_validation(keys):
+#     transforms_offline_validation = Compose(
+#         [
+#             LoadImaged(keys=keys),
+#             EnsureChannelFirstd(keys=keys),
+#             Orientationd(keys=keys, axcodes="RAS"),
+#             ToTensord(keys=keys)
+#         ]
+#     )
+#     return transforms_offline_validation
 
 
-def creating_transforms_ensemble(keys):
-    transforms_ensemble = Compose(
-        [
-            LoadImaged(keys=keys),
-            EnsureChannelFirstd(keys=keys),
-            ToTensord(keys=keys)
-        ]
-    )
-    return transforms_ensemble
+# def creating_transforms_ensemble(keys):
+#     transforms_ensemble = Compose(
+#         [
+#             LoadImaged(keys=keys),
+#             EnsureChannelFirstd(keys=keys),
+#             ToTensord(keys=keys)
+#         ]
+#     )
+#     return transforms_ensemble
 
 
-class CustomCropForegroundd(MapTransform):
-    """
-    Dictionary-based version :py:class:`monai.transforms.CropForeground`.
-    Crop only the foreground object of the expected images.
-    The typical usage is to help training and evaluation if the valid part is small in the whole medical image.
-    The valid part can be determined by any field in the data with `source_key`, for example:
-    - Select values > 0 in image field as the foreground and crop on all fields specified by `keys`.
-    - Select label = 3 in label field as the foreground to crop on all fields specified by `keys`.
-    - Select label > 0 in the third channel of a One-Hot label field as the foreground to crop all `keys` fields.
-    Users can define arbitrary function to select expected foreground from the whole source image or specified
-    channels. And it can also add margin to every dim of the bounding box of foreground object.
-    """
+# class CustomCropForegroundd(MapTransform):
+#     """
+#     Dictionary-based version :py:class:`monai.transforms.CropForeground`.
+#     Crop only the foreground object of the expected images.
+#     The typical usage is to help training and evaluation if the valid part is small in the whole medical image.
+#     The valid part can be determined by any field in the data with `source_key`, for example:
+#     - Select values > 0 in image field as the foreground and crop on all fields specified by `keys`.
+#     - Select label = 3 in label field as the foreground to crop on all fields specified by `keys`.
+#     - Select label > 0 in the third channel of a One-Hot label field as the foreground to crop all `keys` fields.
+#     Users can define arbitrary function to select expected foreground from the whole source image or specified
+#     channels. And it can also add margin to every dim of the bounding box of foreground object.
+#     """
 
-    def __init__(
-        self,
-        keys: KeysCollection,
-        source_key: str,
-        select_fn: Callable = lambda x: x > 0,
-        channel_indices: Optional[IndexSelection] = None,
-        margin: int = 0,
-        start_coord_key: str = "foreground_start_coord",
-        end_coord_key: str = "foreground_end_coord",
-    ) -> None:
-        """
-        Args:
-            keys: keys of the corresponding items to be transformed.
-                See also: :py:class:`monai.transforms.compose.MapTransform`
-            source_key: data source to generate the bounding box of foreground, can be image or label, etc.
-            select_fn: function to select expected foreground, default is to select values > 0.
-            channel_indices: if defined, select foreground only on the specified channels
-                of image. if None, select foreground on the whole image.
-            margin: add margin value to spatial dims of the bounding box, if only 1 value provided, use it for all dims.
-            start_coord_key: key to record the start coordinate of spatial bounding box for foreground.
-            end_coord_key: key to record the end coordinate of spatial bounding box for foreground.
-        """
-        super().__init__(keys)
-        self.source_key = source_key
-        self.select_fn = select_fn
-        self.channel_indices = ensure_tuple(channel_indices) if channel_indices is not None else None
-        self.margin = margin
-        self.start_coord_key = start_coord_key
-        self.end_coord_key = end_coord_key
+#     def __init__(
+#         self,
+#         keys: KeysCollection,
+#         source_key: str,
+#         select_fn: Callable = lambda x: x > 0,
+#         channel_indices: Optional[IndexSelection] = None,
+#         margin: int = 0,
+#         start_coord_key: str = "foreground_start_coord",
+#         end_coord_key: str = "foreground_end_coord",
+#     ) -> None:
+#         """
+#         Args:
+#             keys: keys of the corresponding items to be transformed.
+#                 See also: :py:class:`monai.transforms.compose.MapTransform`
+#             source_key: data source to generate the bounding box of foreground, can be image or label, etc.
+#             select_fn: function to select expected foreground, default is to select values > 0.
+#             channel_indices: if defined, select foreground only on the specified channels
+#                 of image. if None, select foreground on the whole image.
+#             margin: add margin value to spatial dims of the bounding box, if only 1 value provided, use it for all dims.
+#             start_coord_key: key to record the start coordinate of spatial bounding box for foreground.
+#             end_coord_key: key to record the end coordinate of spatial bounding box for foreground.
+#         """
+#         super().__init__(keys)
+#         self.source_key = source_key
+#         self.select_fn = select_fn
+#         self.channel_indices = ensure_tuple(channel_indices) if channel_indices is not None else None
+#         self.margin = margin
+#         self.start_coord_key = start_coord_key
+#         self.end_coord_key = end_coord_key
 
-    def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
-        d = dict(data)
-        box_start, box_end = generate_spatial_bounding_box(
-            d[self.source_key], self.select_fn, self.channel_indices, self.margin
-        )
-        d[self.start_coord_key] = box_start
-        d[self.end_coord_key] = box_end
-        cropper = SpatialCrop(roi_start=box_start, roi_end=box_end)
-        for key in self.keys:
-            d["shape_before_cropping"] = d[key].shape
-            d[key] = cropper(d[key])
-        return d
+#     def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
+#         d = dict(data)
+#         box_start, box_end = generate_spatial_bounding_box(
+#             d[self.source_key], self.select_fn, self.channel_indices, self.margin
+#         )
+#         d[self.start_coord_key] = box_start
+#         d[self.end_coord_key] = box_end
+#         cropper = SpatialCrop(roi_start=box_start, roi_end=box_end)
+#         for key in self.keys:
+#             d["shape_before_cropping"] = d[key].shape
+#             d[key] = cropper(d[key])
+#         return d
 
 
-class CustomAddChanneld(MapTransform):
-    """
-    Dictionary-based wrapper of :py:class:`monai.transforms.AddChannel`.
-    """
+# class CustomAddChanneld(MapTransform):
+#     """
+#     Dictionary-based wrapper of :py:class:`monai.transforms.AddChannel`.
+#     """
 
-    def __init__(self, keys: KeysCollection) -> None:
-        """
-        Args:
-            keys: keys of the corresponding items to be transformed.
-                See also: :py:class:`monai.transforms.compose.MapTransform`
-        """
-        super().__init__(keys)
-        self.adder = AddChannel()
+#     def __init__(self, keys: KeysCollection) -> None:
+#         """
+#         Args:
+#             keys: keys of the corresponding items to be transformed.
+#                 See also: :py:class:`monai.transforms.compose.MapTransform`
+#         """
+#         super().__init__(keys)
+#         self.adder = AddChannel()
 
-    def __call__(
-        self, data: Mapping[Hashable, Union[np.ndarray, torch.Tensor]]
-    ) -> Dict[Hashable, Union[np.ndarray, torch.Tensor]]:
-        d = dict(data)
-        for key in self.keys:
-            d[key] = self.adder(d[key])
-            d[key + "_orig_shape"] = d[key].shape
-        return d
+#     def __call__(
+#         self, data: Mapping[Hashable, Union[np.ndarray, torch.Tensor]]
+#     ) -> Dict[Hashable, Union[np.ndarray, torch.Tensor]]:
+#         d = dict(data)
+#         for key in self.keys:
+#             d[key] = self.adder(d[key])
+#             d[key + "_orig_shape"] = d[key].shape
+#         return d
