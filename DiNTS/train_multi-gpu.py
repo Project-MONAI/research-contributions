@@ -29,7 +29,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 
-# from dints import DiNTS
 from datetime import datetime
 from glob import glob
 from torch import nn
@@ -40,7 +39,6 @@ from monai.data import (
     ThreadDataLoader,
     decollate_batch,
 )
-# from torch.utils.data.distributed import DistributedSampler
 from monai.transforms import (
     apply_transform,
     AsDiscrete,
@@ -57,7 +55,6 @@ from monai.data import (
     partition_dataset,
 )
 from monai.inferers import sliding_window_inference
-# from monai.losses import DiceLoss, FocalLoss, GeneralizedDiceLoss
 from monai.metrics import compute_meandice
 from monai.utils import set_determinism
 from transforms import (
@@ -65,40 +62,6 @@ from transforms import (
     creating_transforms_validation,
 )
 from utils import parse_monai_specs
-
-
-# class DupCacheDataset(monai.data.CacheDataset):                                                                                                                                                                                                                          
-#     def __init__(self, times: int, **kwargs):                                                                                                                                                                                                                 
-#         super().__init__(**kwargs)                                                                                                                                                                                                                            
-#         self.times = times                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                              
-#     def __len__(self):                                                                                                                                                                                                                                        
-#         return self.times * super().__len__()                                                                                                                                                                                                                 
-                                                                                                                                                                                                                                                              
-#     def _transform(self, index: int):                                                                                                                                                                                                                         
-#         # print("index", index)                                                                                                                                                                                                                               
-#         index = index // self.times                                                                                                                                                                                                                           
-#         if index % len(self) >= self.cache_num:  # support negative index                                                                                                                                                                                     
-#             # no cache for this index, execute all the transforms directly                                                                                                                                                                                    
-#             return super()._transform(index)                                                                                                                                                                                                                  
-#         # load data from cache and execute from the first random transform                                                                                                                                                                                    
-#         start_run = False                                                                                                                                                                                                                                     
-#         if self._cache is None:                                                                                                                                                                                                                               
-#             self._cache = self._fill_cache()                                                                                                                                                                                                                  
-#         data = self._cache[index]                                                                                                                                                                                                                             
-#         if not isinstance(self.transform, Compose):                                                                                                                                                                                                           
-#             raise ValueError("transform must be an instance of monai.transforms.Compose.")                                                                                                                                                                    
-#         for _transform in self.transform.transforms:                                                                                                                                                                                                          
-#             if start_run or isinstance(_transform, Randomizable) or not isinstance(_transform, Transform):                                                                                                                                                    
-#                 # only need to deep copy data on first non-deterministic transform                                                                                                                                                                            
-#                 if not start_run:                                                                                                                                                                                                                             
-#                     start_run = True                                                                                                                                                                                                                          
-#                     data = copy.deepcopy(data)                                                                                                                                                                                                                     
-#                 data = apply_transform(_transform, data)                                                                                                                                                                                                      
-#         return data                                                                                                                                                                                                                                           
-                                                                                                                                                                                                                                                              
-#     def __item__(self, index: int):                                                                                                                                                                                                                           
-#         return super().__item__(index // self.times)
 
 
 def main():
