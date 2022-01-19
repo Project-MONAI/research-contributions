@@ -164,12 +164,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # # disable logging for processes except 0 on every node
-    # if args.local_rank != 0:
-    #     f = open(os.devnull, "w")
-    #     sys.stdout = sys.stderr = f
-
-    monai.config.print_config()
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
     if not os.path.exists(args.output_root):
@@ -191,9 +185,6 @@ def main():
     interpolation = config_core["interpolation"]
     learning_rate = config_core["learning_rate"]
     learning_rate_milestones = np.array(list(map(float, config_core["learning_rate_milestones"].split(','))))
-    # learning_rate_gamma = config_core["learning_rate_gamma"]
-    # learning_rate_step_size = config_core["learning_rate_step_size"]
-    # loss_string = config_core["loss"]
     num_images_per_batch = config_core["num_images_per_batch"]
     num_epochs = config_core["num_epochs"]
     num_epochs_per_validation = config_core["num_epochs_per_validation"]
@@ -204,9 +195,6 @@ def main():
     overlap_ratio = config_core["overlap_ratio"]
     patch_size = tuple(map(int, config_core["patch_size"].split(',')))
     patch_size_valid = tuple(map(int, config_core["infer_patch_size"].split(',')))
-    # patch_size_valid = patch_size
-    # scale_intensity_range = list(map(float, config_core["scale_intensity_range"].split(',')))
-    # spacing = list(map(float, config_core["spacing"].split(',')))
 
     # augmentation
     config_aug = config["augmentation_monai"]
@@ -340,8 +328,6 @@ def main():
         node_a=node_a,
     )
     
-    # code_a = torch.from_numpy(code_a).to(torch.float32).cuda()
-    # code_c = F.one_hot(torch.from_numpy(code_c), model.cell_ops).to(torch.float32).cuda()
     model = model.to(device)
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
@@ -408,17 +394,6 @@ def main():
     epoch_loss_values = list()
     idx_iter = 0
     metric_values = list()
-
-    # if num_tta == 0 or num_tta == 1:
-    #     flip_tta = []
-    # elif num_tta == 4:
-    #     flip_tta = [[2], [3], [4]]
-    # elif num_tta == 8:
-    #     flip_tta = [[2], [3], [4], (2, 3), (2, 4), (3, 4), (2, 3, 4)]
-
-    # if dist.get_rank() == 0:
-    #     print("num_tta", num_tta)
-    #     print("flip_tta", flip_tta)
 
     if dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(args.output_root, "Events"))

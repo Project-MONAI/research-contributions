@@ -19,35 +19,35 @@ from skimage import measure
 from skimage.transform import resize
 
 
-def parse_network_specs(network_specs_str):
+# def parse_network_specs(network_specs_str):
 
-    network_specs = []
-    network_specs_dict = {}
+#     network_specs = []
+#     network_specs_dict = {}
 
-    num_layers = len(network_specs_str)
-    for _i in range(num_layers):
-        layer_specs_str = network_specs_str[_i]
-        layer_specs_str_parts = layer_specs_str.split("_")
+#     num_layers = len(network_specs_str)
+#     for _i in range(num_layers):
+#         layer_specs_str = network_specs_str[_i]
+#         layer_specs_str_parts = layer_specs_str.split("_")
 
-        id = layer_specs_str_parts[0].replace("id", "")
-        level = int(layer_specs_str_parts[1].replace("lv", ""))
-        prev_str_parts = layer_specs_str_parts[3].split(",")
-        prev = []
-        for _j in range(len(prev_str_parts)):
-            if prev_str_parts[_j].lower() == "none":
-                prev.append(None)
-            else:
-                prev.append(int(prev_str_parts[_j]))
-        prev = tuple(prev)
-        out = True if layer_specs_str_parts[4].lower() == "true" else False
+#         id = layer_specs_str_parts[0].replace("id", "")
+#         level = int(layer_specs_str_parts[1].replace("lv", ""))
+#         prev_str_parts = layer_specs_str_parts[3].split(",")
+#         prev = []
+#         for _j in range(len(prev_str_parts)):
+#             if prev_str_parts[_j].lower() == "none":
+#                 prev.append(None)
+#             else:
+#                 prev.append(int(prev_str_parts[_j]))
+#         prev = tuple(prev)
+#         out = True if layer_specs_str_parts[4].lower() == "true" else False
 
-        layer_specs = (level, layer_specs_str_parts[2], prev, out)
-        network_specs_dict[id] = layer_specs
+#         layer_specs = (level, layer_specs_str_parts[2], prev, out)
+#         network_specs_dict[id] = layer_specs
 
-    for _i in range(num_layers):
-        network_specs.append(network_specs_dict[str(_i)])
+#     for _i in range(num_layers):
+#         network_specs.append(network_specs_dict[str(_i)])
 
-    return network_specs
+#     return network_specs
 
 
 def check_number(a):
@@ -138,53 +138,53 @@ def parse_monai_specs(component_string):
 #     return component_name, component_dict
 
 
-def custom_compute_meandice(
-    y_pred: torch.Tensor,
-    y: torch.Tensor,
-    include_background: bool = True,
-) -> torch.Tensor:
-    """Computes Dice score metric from full size Tensor and collects average.
+# def custom_compute_meandice(
+#     y_pred: torch.Tensor,
+#     y: torch.Tensor,
+#     include_background: bool = True,
+# ) -> torch.Tensor:
+#     """Computes Dice score metric from full size Tensor and collects average.
 
-    Args:
-        y_pred: input data to compute, typical segmentation model output.
-            It must be one-hot format and first dim is batch, example shape: [16, 3, 32, 32]. The values
-            should be binarized.
-        y: ground truth to compute mean dice metric. It must be one-hot format and first dim is batch.
-            The values should be binarized.
-        include_background: whether to skip Dice computation on the first channel of
-            the predicted output. Defaults to True.
+#     Args:
+#         y_pred: input data to compute, typical segmentation model output.
+#             It must be one-hot format and first dim is batch, example shape: [16, 3, 32, 32]. The values
+#             should be binarized.
+#         y: ground truth to compute mean dice metric. It must be one-hot format and first dim is batch.
+#             The values should be binarized.
+#         include_background: whether to skip Dice computation on the first channel of
+#             the predicted output. Defaults to True.
 
-    Returns:
-        Dice scores per batch and per class, (shape [batch_size, n_classes]).
+#     Returns:
+#         Dice scores per batch and per class, (shape [batch_size, n_classes]).
 
-    Raises:
-        ValueError: when `y_pred` and `y` have different shapes.
+#     Raises:
+#         ValueError: when `y_pred` and `y` have different shapes.
 
-    """
+#     """
 
-    if not include_background:
-        y_pred, y = ignore_background(
-            y_pred=y_pred,
-            y=y,
-        )
+#     if not include_background:
+#         y_pred, y = ignore_background(
+#             y_pred=y_pred,
+#             y=y,
+#         )
 
-    y = y.float()
-    y_pred = y_pred.float()
+#     y = y.float()
+#     y_pred = y_pred.float()
 
-    if y.shape != y_pred.shape:
-        raise ValueError("y_pred and y should have same shapes.")
+#     if y.shape != y_pred.shape:
+#         raise ValueError("y_pred and y should have same shapes.")
 
-    # reducing only spatial dimensions (not batch nor channels)
-    n_len = len(y_pred.shape)
-    reduce_axis = list(range(2, n_len))
-    intersection = torch.sum(y * y_pred, dim=reduce_axis)
+#     # reducing only spatial dimensions (not batch nor channels)
+#     n_len = len(y_pred.shape)
+#     reduce_axis = list(range(2, n_len))
+#     intersection = torch.sum(y * y_pred, dim=reduce_axis)
 
-    y_o = torch.sum(y, reduce_axis)
-    y_pred_o = torch.sum(y_pred, dim=reduce_axis)
-    denominator = y_o + y_pred_o
+#     y_o = torch.sum(y, reduce_axis)
+#     y_pred_o = torch.sum(y_pred, dim=reduce_axis)
+#     denominator = y_o + y_pred_o
 
-    f = torch.where(y_o > 0, (2.0 * intersection) / denominator, torch.tensor(float("nan"), device=y_o.device))
-    return f  # returns array of Dice with shape: [batch, n_classes]
+#     f = torch.where(y_o > 0, (2.0 * intersection) / denominator, torch.tensor(float("nan"), device=y_o.device))
+#     return f  # returns array of Dice with shape: [batch, n_classes]
 
 
 def keep_largest_cc(nda):
