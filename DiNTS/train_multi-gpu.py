@@ -159,9 +159,6 @@ def main():
     patch_size = tuple(map(int, config_core["patch_size"].split(',')))
     patch_size_valid = tuple(map(int, config_core["infer_patch_size"].split(',')))
 
-    # augmentation
-    config_aug = config["augmentation_monai"]
-
     # deterministic training
     if determ:
         set_determinism(seed=config_core["random_seed"])
@@ -172,6 +169,7 @@ def main():
     world_size = dist.get_world_size()
 
     # augmentation
+    config_aug = config["augmentation_monai"]
     num_augmentations = len(config_aug.keys())
     augmenations = []
     for _k in range(num_augmentations):
@@ -246,6 +244,7 @@ def main():
             continue
 
         files.append({"image": str_img, "label": str_seg})
+
     val_files = files
     val_files = partition_dataset(data=val_files, shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
     print("val_files:", len(val_files))
@@ -257,15 +256,17 @@ def main():
     train_transforms = creating_transforms_training(foreground_crop_margin, interpolation_transforms, num_patches_per_image, patch_size, intensity_norm_transforms, augmenations, device, output_classes)
     val_transforms = creating_transforms_validation(foreground_crop_margin, interpolation_transforms, patch_size, intensity_norm_transforms, device)
 
+    ## alternative Dataset
     # train_ds = monai.data.Dataset(data=train_files, transform=train_transforms)
     # val_ds = monai.data.Dataset(data=val_files, transform=val_transforms)
 
     train_ds = monai.data.CacheDataset(data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8)
     val_ds = monai.data.CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2)
 
+    ## alternative DataLoader
     # train_loader = DataLoader(train_ds, batch_size=num_images_per_batch, shuffle=True, num_workers=8, pin_memory=torch.cuda.is_available())
     # val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=torch.cuda.is_available())
-    
+
     train_loader = ThreadDataLoader(train_ds, num_workers=0, batch_size=num_images_per_batch, shuffle=True)
     val_loader = ThreadDataLoader(val_ds, num_workers=0, batch_size=1, shuffle=False)
 
