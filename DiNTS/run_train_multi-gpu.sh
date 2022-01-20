@@ -1,7 +1,11 @@
 #!/bin/bash
 clear
 
-TASK="Task09_Spleen"
+# TASK="Task01_BrainTumour"
+TASK="Task03_Liver"
+# TASK="Task04_Hippocampus"
+# TASK="Task07_Pancreas"
+# TASK="Task09_Spleen"
 
 ARCH_CKPT="arch_code_cvpr.pth"
 CONFIG="configs/config_${TASK}.yaml"
