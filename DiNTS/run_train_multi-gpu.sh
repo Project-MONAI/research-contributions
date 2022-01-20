@@ -1,9 +1,9 @@
 #!/bin/bash
 clear
 
-# TASK="Task01_BrainTumour"
+TASK="Task01_BrainTumour"
 # TASK="Task02_Heart"
-TASK="Task03_Liver"
+# TASK="Task03_Liver"
 # TASK="Task04_Hippocampus"
 # TASK="Task05_Prostate"
 # TASK="Task06_Lung"
@@ -34,7 +34,7 @@ fi
 
 for FOLD in 0 1 2 3 4
 do
-    CHECKPOINT_ROOT="models/${TASK}_Fold${FOLD}"
+    CHECKPOINT_ROOT="models/${TASK}/Fold${FOLD}"
     CHECKPOINT="${CHECKPOINT_ROOT}/best_metric_model.pth"
     JSON_KEY="training"
 

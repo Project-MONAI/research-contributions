@@ -327,8 +327,6 @@ def main():
         weight_decay=0.00004
     )
 
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
-
     print()
 
     if torch.cuda.device_count() > 1:
@@ -426,7 +424,7 @@ def main():
         loss_torch = loss_torch.tolist()
         if dist.get_rank() == 0:
             loss_torch_epoch = loss_torch[0] / loss_torch[1]
-            print(f"epoch {(epoch + 1) * num_epochs_per_validation} average loss: {loss_torch_epoch:.4f}, best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}")
+            print(f"epoch {epoch + 1} average loss: {loss_torch_epoch:.4f}, best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}")
 
         if (epoch + 1) % val_interval == 0:
         # if True:
@@ -519,14 +517,14 @@ def main():
 
                     print(
                         "current epoch: {} current mean dice: {:.4f} best mean dice: {:.4f} at epoch {}".format(
-                            (epoch + 1) * num_epochs_per_validation, avg_metric, best_metric, best_metric_epoch
+                            epoch + 1, avg_metric, best_metric, best_metric_epoch
                         )
                     )
 
                     current_time = time.time()
                     elapsed_time = (current_time - start_time) / 60.0
                     with open(os.path.join(args.output_root, "accuracy_history.csv"), "a") as f:
-                        f.write("{0:d}\t{1:.5f}\t{2:.5f}\t{3:.5f}\t{4:.1f}\t{5:d}\n".format((epoch + 1) * num_epochs_per_validation, avg_metric, loss_torch_epoch, lr, elapsed_time, idx_iter))
+                        f.write("{0:d}\t{1:.5f}\t{2:.5f}\t{3:.5f}\t{4:.1f}\t{5:d}\n".format(epoch + 1, avg_metric, loss_torch_epoch, lr, elapsed_time, idx_iter))
 
                 dist.barrier()
 
