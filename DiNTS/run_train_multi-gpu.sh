@@ -1,10 +1,10 @@
 #!/bin/bash
 clear
 
-TASK="Task01_BrainTumour"
+# TASK="Task01_BrainTumour"
 # TASK="Task02_Heart"
 # TASK="Task03_Liver"
-# TASK="Task04_Hippocampus"
+TASK="Task04_Hippocampus"
 # TASK="Task05_Prostate"
 # TASK="Task06_Lung"
 # TASK="Task07_Pancreas"

@@ -426,8 +426,7 @@ def main():
             loss_torch_epoch = loss_torch[0] / loss_torch[1]
             print(f"epoch {epoch + 1} average loss: {loss_torch_epoch:.4f}, best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}")
 
-        if (epoch + 1) % val_interval == 0:
-        # if True:
+        if (epoch + 1) % val_interval == 0 or (epoch + 1) == num_epochs:
             torch.cuda.empty_cache()
             model.eval()
             with torch.no_grad():

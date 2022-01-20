@@ -68,14 +68,14 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
         [
             CastToTyped(
                 keys=["image"],
-                dtype=(torch.float32)
+                dtype=(torch.float32),
             ),
         ] +
         intensity_norm_transforms +
         [
             CastToTyped(
                 keys=["image", "label"],
-                dtype=(np.float16, np.uint8)
+                dtype=(np.float16, np.uint8),
             ),
             CopyItemsd(
                 keys=["label"],
@@ -93,13 +93,13 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
             RandShiftIntensityd(
                 keys=["image"],
                 offsets=0.0,
-                prob=0.001
+                prob=0.001,
             ),
             CastToTyped(keys=["image"], dtype=(torch.float32)),
             SpatialPadd(
                 keys=["image", "label", "label4crop"],
                 spatial_size=patch_size,
-                mode=["reflect", "constant", "constant"]
+                mode=["reflect", "constant", "constant"],
             ),
             RandCropByLabelClassesd(
                 keys=["image", "label"],
@@ -107,7 +107,7 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
                 num_classes=output_classes,
                 ratios=[1,] * output_classes,
                 spatial_size=patch_size,
-                num_samples=num_patches_per_image
+                num_samples=num_patches_per_image,
             ),
             Lambdad(keys=["label4crop"], func=lambda x: 0),
         ] + 
@@ -115,7 +115,7 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
         [
             CastToTyped(
                 keys=["image", "label"],
-                dtype=(torch.float32, torch.uint8)
+                dtype=(torch.float32, torch.uint8),
             ),
             ToTensord(
                 keys=["image", "label"]
@@ -137,14 +137,14 @@ def creating_transforms_validation(foreground_crop_margin, label_interpolation_t
         [
             CastToTyped(
                 keys=["image"],
-                dtype=(torch.float32)
+                dtype=(torch.float32),
             ),
         ] +
         intensity_norm_transforms +
         [
             CastToTyped(
                 keys=["image", "label"],
-                dtype=(np.float16, np.uint8)
+                dtype=(np.float16, np.uint8),
             ),
             EnsureTyped(
                 keys=["image", "label"]
@@ -152,11 +152,11 @@ def creating_transforms_validation(foreground_crop_margin, label_interpolation_t
             RandShiftIntensityd(
                 keys=["image"],
                 offsets=0.0,
-                prob=0.001
+                prob=0.001,
             ),
             CastToTyped(
                 keys=["image", "label"],
-                dtype=(torch.float32, torch.uint8)
+                dtype=(torch.float32, torch.uint8),
             ),
             ToTensord(
                 keys=["image", "label"]
