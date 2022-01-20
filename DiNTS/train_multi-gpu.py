@@ -249,7 +249,6 @@ def main():
     val_files = partition_dataset(data=val_files, shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
     print("val_files:", len(val_files))
 
-    # network architecture
     device = torch.device(f"cuda:{args.local_rank}")
     torch.cuda.set_device(device)
 
@@ -379,12 +378,11 @@ def main():
         epoch_loss = 0
         loss_torch = torch.zeros(2, dtype=torch.float, device=device)
         step = 0
-        # train_sampler.set_epoch(epoch)
+
         for batch_data in train_loader:
             step += 1
             inputs, labels = batch_data["image"].to(device), batch_data["label"].to(device)
 
-            # optimizer.zero_grad()
             for param in model.parameters():
                 param.grad = None
 
