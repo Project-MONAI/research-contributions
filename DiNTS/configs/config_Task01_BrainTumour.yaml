@@ -21,8 +21,8 @@ core:
   interpolation: Identityd|keys~image,label
   learning_rate: 0.025
   learning_rate_milestones: 0.2,0.4,0.6,0.8
-  num_epochs: 211
-  num_epochs_per_validation: 10
+  num_epochs: 1695
+  num_epochs_per_validation: 80
   num_images_per_batch: 2
   num_patches_per_image: 1
   num_sw_batch_size: 6
