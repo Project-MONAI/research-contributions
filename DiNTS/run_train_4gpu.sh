@@ -8,7 +8,7 @@ TASK=${1}
 
 ARCH_CKPT="arch_code_cvpr.pth"
 CONFIG="configs/config_${TASK}.yaml"
-DATA_ROOT="/home/dongy/Data/MSD/NGC/${TASK}"
+DATA_ROOT="/workspace/data_msd/${TASK}"
 JSON_PATH="${DATA_ROOT}/dataset.json"
 NUM_FOLDS=5
 
