@@ -3,14 +3,8 @@ clear
 
 TASK=${1}
 
-# TASK="Task01_BrainTumour"
-# TASK="Task03_Liver"
-# TASK="Task04_Hippocampus"
-# TASK="Task06_Lung"
-# TASK="Task07_Pancreas"
-# TASK="Task08_HepaticVessel"
-# TASK="Task09_Spleen"
-# TASK="Task10_Colon"
+# TASK="Task02_Heart"
+# TASK="Task05_Prostate"
 
 ARCH_CKPT="arch_code_cvpr.pth"
 CONFIG="configs/config_${TASK}.yaml"
@@ -18,7 +12,7 @@ DATA_ROOT="/home/dongy/Data/MSD/NGC/${TASK}"
 JSON_PATH="${DATA_ROOT}/dataset.json"
 NUM_FOLDS=5
 
-NUM_GPUS_PER_NODE=8
+NUM_GPUS_PER_NODE=4
 NUM_NODES=1
 
 if [ ${NUM_GPUS_PER_NODE} -eq 2 ]
