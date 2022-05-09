@@ -1,6 +1,6 @@
 ## Convolutional Neural Networks for Automatic Craniofacial Reconstruction
 
-[![Dataset Creation](https://github.com/Jianningli/research-contributions/blob/master/SkullRec/figs/dataset.png)]
+[Dataset Creation](https://github.com/Jianningli/research-contributions/blob/master/SkullRec/figs/dataset.png)
 
 
 
