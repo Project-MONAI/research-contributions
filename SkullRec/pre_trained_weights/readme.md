@@ -1,5 +1,8 @@
 ## Examplary Skull Reconstruction Results Using the Pre-trained Model
 
+Download the pre-trained weights [here]( https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/skull_rec_best_metric_model.pth).
+The (auto-encoder) network was trained on 429-79 (79 images for validation) skull images from the (pre-processed dataset)[https://files.icg.tugraz.at/f/9642058af1744b4b961b/?dl=1] 
+
 ### cranial reconstruction (input-pred-gt)
 Cranial reconstruction is relatively easy, since the cranium contains no subtle and complex structures.
 
