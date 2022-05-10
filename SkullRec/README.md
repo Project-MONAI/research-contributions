@@ -95,5 +95,34 @@ python monaiSkull.py --test # test, generate predictions (complete skulls) for t
 
 An Tensorflow equivalent implementation of an auto-encoder network for skull shape completion can be found at: [Github Repo](https://github.com/Jianningli/autoimplant), [Paper](https://link.springer.com/content/pdf/10.1007/978-3-030-60946-7.pdf#page=86)
 
+### Reference
+If you use the dataset and/or the pre-trained model in your research, please consider citing the following:
+
+
+
+```
+@article{li2021mug500+,
+  title={MUG500+: Database of 500 high-resolution healthy human skulls and 29 craniotomy skulls and implants},
+  author={Li, Jianning and Krall, Marcell and Trummer, Florian and Memon, Afaque Rafique and Pepe, Antonio and Gsaxner, Christina and Jin, Yuan and Chen, Xiaojun and Deutschmann, Hannes and Zefferer, Ulrike and others},
+  journal={Data in Brief},
+  volume={39},
+  pages={107524},
+  year={2021},
+  publisher={Elsevier}
+}
+
+```
+and,
+
+```
+@incollection{li2020baseline,
+  title={A baseline approach for AutoImplant: the MICCAI 2020 cranial implant design challenge},
+  author={Li, Jianning and Pepe, Antonio and Gsaxner, Christina and Campe, Gord von and Egger, Jan},
+  booktitle={Multimodal Learning for Clinical Decision Support and Clinical Image-Based Procedures},
+  pages={75--84},
+  year={2020},
+  publisher={Springer}
+}
+```
 
 
