@@ -94,7 +94,7 @@ python monaiSkull.py --phase test # test, generate predictions (complete skulls)
 ``` Python
 # change the test_images directory if you want to test on your own skull data
 python monaiSkull.py --phase test
-``` Python
+``` 
 
 ### Reference
 If you use the dataset and/or the pre-trained model in your research, please consider citing the following:
