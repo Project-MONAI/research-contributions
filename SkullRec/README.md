@@ -90,8 +90,11 @@ python monaiSkull.py --phase test # test, generate predictions (complete skulls)
 1. Clone this repository
 2. Download the pre-processed dataset
 3. Move the dataset folders into the current directory of the repository
-4. Evaluate on the test set (or your own skull data pre-processed the same way as the dataset): python monaiSkull.py --phase test
-
+4. Evaluate on the test set (or your own skull data pre-processed the same way as the dataset):
+``` Python
+# change the test_images directory if you want to test on your own skull data
+python monaiSkull.py --phase test
+``` Python
 
 ### Reference
 If you use the dataset and/or the pre-trained model in your research, please consider citing the following:
