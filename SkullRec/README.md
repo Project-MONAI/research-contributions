@@ -2,8 +2,6 @@
 
 <img src="https://github.com/Jianningli/research-contributions/blob/master/SkullRec/figs/dataset.png" alt="dataset" width="600"/>
 
-The MONAI codes are adapted from the [MONAI 3D Spleen segmentation example](https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/spleen_segmentation_3d.ipynb)
-
 
 ### Prepare the dataset
 
@@ -76,7 +74,9 @@ for file in files:
 
 
 
-### Train a CNN using MONAI
+### Train a CNN using MONAI for Skull Reconstruction
+
+The MONAI codes are adapted from the [MONAI 3D Spleen segmentation example](https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/spleen_segmentation_3d.ipynb)
 
 * Training Your MONAI Model 
  
