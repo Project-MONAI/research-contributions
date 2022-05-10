@@ -39,7 +39,7 @@ cranialDefects.py  #create defects around the cranium
 
 ``` Python
 #codes attributes to the stack overflow anser: 
-#[Nrrd to Nifti file conversion](https://stackoverflow.com/questions/47761353/nrrd-to-nifti-file-conversion)
+#https://stackoverflow.com/questions/47761353/nrrd-to-nifti-file-conversion
 import vtk
 
 def readnrrd(filename):
