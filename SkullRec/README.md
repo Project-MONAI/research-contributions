@@ -26,12 +26,12 @@ for path in pathlist:
 
 * Denoise and Crop the Skulls
 
-The denoising codes come from [this repository](https://github.com/Jianningli/autoimplant/blob/master/src/pre_post_processing.py). The axial dimension of all the skull images are cropped to 256.
+The denoising codes come from [this repository](https://github.com/Jianningli/autoimplant/blob/master/src/pre_post_processing.py). The axial dimension of all the skull images are cropped to 256. If the axial dimension is smaller than 256, zero padding can be used.
 
 
 * Create Facial and Cranial Defects on the Skulls 
 ``` Python
-facialDefects.py  #create defects around the face <br/>
+facialDefects.py  #create defects around the face 
 cranialDefects.py  #create defects around the cranium
 ```
 * Convert NRRDs to Nifty (for MONAI Dataset loader)
@@ -68,7 +68,14 @@ for file in files:
  * Split Training and Test Set
  Except the 21 corrupted files in MUG500+ dataset
 
+* Alternatively, you can directly download the training-ready datasets from [here]()
+
+
+
 ### Train a CNN using MONAI
+
+
+
 
 
 
