@@ -68,7 +68,7 @@ for file in files:
 ```
 
  * Split Training and Test Set
- Except the 21 corrupted files in MUG500+ dataset
+
 
 * Alternatively, you can directly download the training-ready datasets from [here](https://files.icg.tugraz.at/f/9642058af1744b4b961b/?dl=1)
 
@@ -77,6 +77,17 @@ for file in files:
 ### Train a CNN using MONAI for Skull Reconstruction
 
 The MONAI codes are adapted from the [MONAI 3D Spleen segmentation example](https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/spleen_segmentation_3d.ipynb)
+
+#### Software and Hardware Requirements
+
+The codes are tested with the following software and hardware
+```
+software:
+monai: 0.8.1
+pytorch: 1.11.0
+hardware:
+NVIDIA GeForce RTX 3090 (24GB RAM)
+```
 
 * Training Your MONAI Model 
  
@@ -95,6 +106,7 @@ python monaiSkull.py --phase test # test, generate predictions (complete skulls)
 # change the test_images directory if you want to test on your own skull data
 python monaiSkull.py --phase test
 ``` 
+
 
 ### Reference
 If you use the dataset and/or the pre-trained model in your research, please consider citing the following:
