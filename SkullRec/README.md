@@ -30,9 +30,10 @@ The denoising codes come from [this repository](https://github.com/Jianningli/au
 
 
 * Create Facial and Cranial Defects on the Skulls 
-facialDefects.py: create defects around the face <br/>
-cranialDefects.py: create defects around the cranium
-
+``` Python
+facialDefects.py  #create defects around the face <br/>
+cranialDefects.py  #create defects around the cranium
+```
 * Convert NRRDs to Nifty (for MONAI Dataset loader)
 codes attributes to the stack overflow anser: [Nrrd to Nifti file conversion](https://stackoverflow.com/questions/47761353/nrrd-to-nifti-file-conversion)
 ``` Python
