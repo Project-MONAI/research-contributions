@@ -35,8 +35,9 @@ facialDefects.py  #create defects around the face
 cranialDefects.py  #create defects around the cranium
 ```
 * Convert NRRDs to Nifty (for MONAI Dataset loader)
-codes attributes to the stack overflow anser: [Nrrd to Nifti file conversion](https://stackoverflow.com/questions/47761353/nrrd-to-nifti-file-conversion)
+
 ``` Python
+#codes attributes to the stack overflow anser: [Nrrd to Nifti file conversion](https://stackoverflow.com/questions/47761353/nrrd-to-nifti-file-conversion)
 import vtk
 
 def readnrrd(filename):
@@ -74,8 +75,13 @@ for file in files:
 
 ### Train a CNN using MONAI
 
+* Training Your MONAI Model 
+ 
+```Python
+python monaiSkull.py --train # Training
+python monaiSkull.py --test # test, generate predictions (complete skulls) for test data
 
-
+```
 
 
 
@@ -85,6 +91,4 @@ for file in files:
 An Tensorflow equivalent implementation of an auto-encoder network for skull shape completion can be found at: [Github Repo](https://github.com/Jianningli/autoimplant), [Paper](https://link.springer.com/content/pdf/10.1007/978-3-030-60946-7.pdf#page=86)
 
 
-```
 
-```
