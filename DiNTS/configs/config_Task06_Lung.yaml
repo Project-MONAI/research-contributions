@@ -1,0 +1,32 @@
+augmentation_monai:
+  aug_0: RandRotated|keys~image,label|range_x~0.3|range_y~0.3|range_z~0.3|mode~bilinear,nearest|prob~0.2
+  aug_1: RandZoomd|keys~image,label|min_zoom~0.8|max_zoom~1.2|mode~trilinear,nearest|align_corners~True,None|prob~0.16
+  aug_2: RandGaussianSmoothd|keys~image|sigma_x~0.5,1.15|sigma_y~0.5,1.15|sigma_z~0.5,1.15|prob~0.15
+  aug_3: RandScaleIntensityd|keys~image|factors~0.3|prob~0.5
+  aug_4: RandShiftIntensityd|keys~image|offsets~0.1|prob~0.5
+  aug_5: RandGaussianNoised|keys~image|std~0.01|prob~0.15
+  aug_6: RandFlipd|keys~image,label|spatial_axis~0|prob~0.5
+  aug_7: RandFlipd|keys~image,label|spatial_axis~1|prob~0.5
+  aug_8: RandFlipd|keys~image,label|spatial_axis~2|prob~0.5
+core:
+  amp: true
+  deterministic: false
+  foreground_crop_margin: 0
+  infer_num_sw_batch_size: 6
+  infer_num_tta: 1
+  infer_overlap_ratio: 0.625
+  infer_patch_size: 96,96,96
+  input_channels: 1
+  intensity_norm: ScaleIntensityRanged|keys~image|a_min~-1000.0|a_max~1000.0|b_min~0.0|b_max~1.0|clip~True
+  interpolation: Spacingd|keys~image,label|pixdim~1.0,1.0,1.0|mode~bilinear,nearest|align_corners~True,True
+  learning_rate: 0.025
+  learning_rate_milestones: 0.2,0.4,0.6,0.8
+  num_epochs: 12800
+  num_epochs_per_validation: 625
+  num_images_per_batch: 2
+  num_patches_per_image: 1
+  num_sw_batch_size: 6
+  output_classes: 2
+  overlap_ratio: 0.625
+  patch_size: 96,96,96
+  random_seed: 888
