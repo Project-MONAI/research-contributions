@@ -39,10 +39,8 @@ from monai.data import (
     list_data_collate,
     partition_dataset,
 )
-from monai.transforms import (
-    AsDiscrete,  # BatchInverseTransform,; Invertd,
-    KeepLargestConnectedComponent,
-)
+from monai.transforms import AsDiscrete  # BatchInverseTransform,; Invertd,
+from monai.transforms import KeepLargestConnectedComponent
 
 # from monai.inferers import sliding_window_inference
 # from monai.losses import DiceLoss, FocalLoss, GeneralizedDiceLoss
