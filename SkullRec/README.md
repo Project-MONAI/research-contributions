@@ -81,8 +81,8 @@ The MONAI codes are adapted from the [MONAI 3D Spleen segmentation example](http
 * Training Your MONAI Model 
  
 ```Python
-python monaiSkull.py --train # Training
-python monaiSkull.py --test # test, generate predictions (complete skulls) for test data
+python monaiSkull.py --phase train # Training
+python monaiSkull.py --phase test # test, generate predictions (complete skulls) for test data
 
 ```
 
@@ -90,7 +90,7 @@ python monaiSkull.py --test # test, generate predictions (complete skulls) for t
 1. Clone this repository
 2. Download the pre-processed dataset
 3. Move the dataset folders into the current directory of the repository
-4. Evaluate on the test set (or your own skull data pre-processed the same way as the dataset)
+4. Evaluate on the test set (or your own skull data pre-processed the same way as the dataset): python monaiSkull.py --phase test
 
 
 ### Reference
