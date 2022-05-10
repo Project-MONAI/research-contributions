@@ -70,7 +70,7 @@ for file in files:
  * Split Training and Test Set
  Except the 21 corrupted files in MUG500+ dataset
 
-* Alternatively, you can directly download the training-ready datasets from [here]()
+* Alternatively, you can directly download the training-ready datasets from [here](https://files.icg.tugraz.at/f/9642058af1744b4b961b/?dl=1)
 
 
 
@@ -88,8 +88,8 @@ python monaiSkull.py --phase test # test, generate predictions (complete skulls)
 
 * Alternatively, you can try out the pre-trained model 
 1. Clone this repository
-2. Download the pre-processed dataset
-3. Move the dataset folders into the current directory of the repository
+2. Download the [pre-processed dataset](https://files.icg.tugraz.at/f/9642058af1744b4b961b/?dl=1)
+3. Unzip and move dataset folder into the current directory of the repository
 4. Evaluate on the test set (or your own skull data pre-processed the same way as the dataset):
 ``` Python
 # change the test_images directory if you want to test on your own skull data
