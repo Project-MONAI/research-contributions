@@ -13,11 +13,10 @@ from collections import OrderedDict
 from typing import List
 
 import torch
-from torch import nn
-from torchgpipe.skip import Namespace, pop, skippable, stash
-
 from monai.networks.blocks import Convolution, UpSample
 from monai.networks.layers.factories import Act, Conv, Norm
+from torch import nn
+from torchgpipe.skip import Namespace, pop, skippable, stash
 
 
 @skippable(stash=["skip"], pop=[])
@@ -99,7 +98,14 @@ class DoubleConv(nn.Module):
                 norm=norm_1,
                 bias=False,
             ),
-            Convolution(spatial_dims, out_channels, out_channels, act=act_2, norm=norm_2, conv_only=conv_only),
+            Convolution(
+                spatial_dims,
+                out_channels,
+                out_channels,
+                act=act_2,
+                norm=norm_2,
+                conv_only=conv_only,
+            ),
         )
 
     def forward(self, x):
@@ -107,7 +113,14 @@ class DoubleConv(nn.Module):
 
 
 class UNetPipe(nn.Sequential):
-    def __init__(self, spatial_dims: int, in_channels: int, out_channels: int, n_feat: int = 32, depth: int = 4):
+    def __init__(
+        self,
+        spatial_dims: int,
+        in_channels: int,
+        out_channels: int,
+        n_feat: int = 32,
+        depth: int = 4,
+    ):
         """
         A UNet-like architecture for model parallelism.
 
@@ -139,13 +152,7 @@ class UNetPipe(nn.Sequential):
         encoder_layers.append(
             nn.Sequential(
                 OrderedDict(
-                    [
-                        (
-                            "Conv",
-                            init_conv,
-                        ),
-                        ("skip", Stash().isolate(namespaces[0])),
-                    ]
+                    [("Conv", init_conv), ("skip", Stash().isolate(namespaces[0]))]
                 )
             )
         )
@@ -154,7 +161,9 @@ class UNetPipe(nn.Sequential):
             if i == depth:
                 layer_dict = OrderedDict([("Down", down_conv)])
             else:
-                layer_dict = OrderedDict([("Down", down_conv), ("skip", Stash().isolate(namespaces[i]))])
+                layer_dict = OrderedDict(
+                    [("Down", down_conv), ("skip", Stash().isolate(namespaces[i]))]
+                )
             encoder_layers.append(nn.Sequential(layer_dict))
         encoder = nn.Sequential(*encoder_layers)
 
@@ -166,8 +175,16 @@ class UNetPipe(nn.Sequential):
                 [
                     ("Up", UpSample(spatial_dims, in_ch, out_ch, 2, True)),
                     ("skip", PopCat().isolate(namespaces[i - 1])),
-                    ("Conv1x1x1", Conv[Conv.CONV, spatial_dims](out_ch * 2, in_ch, kernel_size=1)),
-                    ("Conv", DoubleConv(spatial_dims, in_ch, out_ch, stride=1, conv_only=True)),
+                    (
+                        "Conv1x1x1",
+                        Conv[Conv.CONV, spatial_dims](out_ch * 2, in_ch, kernel_size=1),
+                    ),
+                    (
+                        "Conv",
+                        DoubleConv(
+                            spatial_dims, in_ch, out_ch, stride=1, conv_only=True
+                        ),
+                    ),
                 ]
             )
             decoder_layers.append(nn.Sequential(layer_dict))
@@ -178,7 +195,9 @@ class UNetPipe(nn.Sequential):
                 ("RELU", Act[Act.LEAKYRELU](inplace=False)),
                 (
                     "out",
-                    Conv[Conv.CONV, spatial_dims](in_ch, out_channels, kernel_size=3, padding=1),
+                    Conv[Conv.CONV, spatial_dims](
+                        in_ch, out_channels, kernel_size=3, padding=1
+                    ),
                 ),
             ]
         )

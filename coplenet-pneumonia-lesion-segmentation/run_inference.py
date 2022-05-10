@@ -12,18 +12,18 @@
 import os
 from glob import glob
 
+import monai
 import numpy as np
 import torch
 from coplenet import CopleNet
-
-import monai
 from monai.data import NiftiSaver
 from monai.inferers import sliding_window_inference
 from monai.transforms import AddChanneld, Compose, LoadNiftid, Orientationd, ToTensord
 
 IMAGE_FOLDER = os.path.join(".", "images")
 MODEL_FILE = os.path.join(".", "model", "coplenet_pretrained_monai_dict.pt")
-OUTPUT_FOLDER = os.path.join(".", "output")  # writer will create this folder if it doesn't exist.
+# writer will create this folder if it doesn't exist.
+OUTPUT_FOLDER = os.path.join(".", "output")
 
 
 def main():
@@ -35,7 +35,8 @@ def main():
         [
             LoadNiftid("img"),
             AddChanneld("img"),
-            Orientationd("img", "SPL"),  # coplenet works on the plane defined by the last two axes
+            # coplenet works on the plane defined by the last two axes
+            Orientationd("img", "SPL"),
             ToTensord("img"),
         ]
     )

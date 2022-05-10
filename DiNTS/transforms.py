@@ -11,7 +11,6 @@
 
 import numpy as np
 import torch
-
 from monai.transforms import (
     CastToTyped,
     Compose,
@@ -24,17 +23,17 @@ from monai.transforms import (
     LoadImaged,
     NormalizeIntensityd,
     Orientationd,
-    ScaleIntensityRanged,
     RandCropByLabelClassesd,
+    RandFlipd,
     RandGaussianNoised,
     RandGaussianSmoothd,
-    RandShiftIntensityd,
+    RandRotate90d,
     RandScaleIntensityd,
+    RandShiftIntensityd,
     RandSpatialCropd,
     RandSpatialCropSamplesd,
-    RandFlipd,
-    RandRotate90d,
     RandZoomd,
+    ScaleIntensityRanged,
     Spacingd,
     SpatialPadd,
     SqueezeDimd,
@@ -56,45 +55,46 @@ class CorrectLabelAffined(MapTransform):
         return d
 
 
-def creating_transforms_training(foreground_crop_margin, label_interpolation_transform, num_patches_per_image, patch_size, intensity_norm_transforms, augmenations, device, output_classes):
+def creating_transforms_training(
+    foreground_crop_margin,
+    label_interpolation_transform,
+    num_patches_per_image,
+    patch_size,
+    intensity_norm_transforms,
+    augmenations,
+    device,
+    output_classes,
+):
     train_transforms = Compose(
         [
             LoadImaged(keys=["image", "label"]),
             CorrectLabelAffined(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"]),
             Orientationd(keys=["image", "label"], axcodes="RAS"),
-        ] +
-        label_interpolation_transform +
-        [
-            CastToTyped(
-                keys=["image"],
-                dtype=(torch.float32),
-            ),
-        ] +
-        intensity_norm_transforms +
-        [
-            CastToTyped(
-                keys=["image", "label"],
-                dtype=(np.float16, np.uint8),
-            ),
-            CopyItemsd(
-                keys=["label"],
-                times=1,
-                names=["label4crop"],
-            ),
+        ]
+        + label_interpolation_transform
+        + [CastToTyped(keys=["image"], dtype=(torch.float32))]
+        + intensity_norm_transforms
+        + [
+            CastToTyped(keys=["image", "label"], dtype=(np.float16, np.uint8)),
+            CopyItemsd(keys=["label"], times=1, names=["label4crop"]),
             Lambdad(
                 keys=["label4crop"],
-                func=lambda x: np.concatenate(tuple([ndimage.binary_dilation((x==_k).astype(x.dtype), iterations=48).astype(x.dtype) for _k in range(output_classes)]), axis=0),
+                func=lambda x: np.concatenate(
+                    tuple(
+                        [
+                            ndimage.binary_dilation(
+                                (x == _k).astype(x.dtype), iterations=48
+                            ).astype(x.dtype)
+                            for _k in range(output_classes)
+                        ]
+                    ),
+                    axis=0,
+                ),
                 overwrite=True,
             ),
-            EnsureTyped(
-                keys=["image", "label"]
-            ),
-            RandShiftIntensityd(
-                keys=["image"],
-                offsets=0.0,
-                prob=0.001,
-            ),
+            EnsureTyped(keys=["image", "label"]),
+            RandShiftIntensityd(keys=["image"], offsets=0.0, prob=0.001),
             CastToTyped(keys=["image"], dtype=(torch.float32)),
             SpatialPadd(
                 keys=["image", "label", "label4crop"],
@@ -105,79 +105,63 @@ def creating_transforms_training(foreground_crop_margin, label_interpolation_tra
                 keys=["image", "label"],
                 label_key="label4crop",
                 num_classes=output_classes,
-                ratios=[1,] * output_classes,
+                ratios=[1] * output_classes,
                 spatial_size=patch_size,
                 num_samples=num_patches_per_image,
             ),
             Lambdad(keys=["label4crop"], func=lambda x: 0),
-        ] + 
-        augmenations + 
-        [
-            CastToTyped(
-                keys=["image", "label"],
-                dtype=(torch.float32, torch.uint8),
-            ),
-            ToTensord(
-                keys=["image", "label"]
-            )
+        ]
+        + augmenations
+        + [
+            CastToTyped(keys=["image", "label"], dtype=(torch.float32, torch.uint8)),
+            ToTensord(keys=["image", "label"]),
         ]
     )
     return train_transforms
 
 
-def creating_transforms_validation(foreground_crop_margin, label_interpolation_transform, patch_size, intensity_norm_transforms, device):
+def creating_transforms_validation(
+    foreground_crop_margin,
+    label_interpolation_transform,
+    patch_size,
+    intensity_norm_transforms,
+    device,
+):
     val_transforms = Compose(
         [
             LoadImaged(keys=["image", "label"]),
             CorrectLabelAffined(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"]),
             Orientationd(keys=["image", "label"], axcodes="RAS"),
-        ] +
-        label_interpolation_transform +
-        [
-            CastToTyped(
-                keys=["image"],
-                dtype=(torch.float32),
-            ),
-        ] +
-        intensity_norm_transforms +
-        [
-            CastToTyped(
-                keys=["image", "label"],
-                dtype=(np.float16, np.uint8),
-            ),
-            EnsureTyped(
-                keys=["image", "label"]
-            ),
-            RandShiftIntensityd(
-                keys=["image"],
-                offsets=0.0,
-                prob=0.001,
-            ),
-            CastToTyped(
-                keys=["image", "label"],
-                dtype=(torch.float32, torch.uint8),
-            ),
-            ToTensord(
-                keys=["image", "label"]
-            )
+        ]
+        + label_interpolation_transform
+        + [CastToTyped(keys=["image"], dtype=(torch.float32))]
+        + intensity_norm_transforms
+        + [
+            CastToTyped(keys=["image", "label"], dtype=(np.float16, np.uint8)),
+            EnsureTyped(keys=["image", "label"]),
+            RandShiftIntensityd(keys=["image"], offsets=0.0, prob=0.001),
+            CastToTyped(keys=["image", "label"], dtype=(torch.float32, torch.uint8)),
+            ToTensord(keys=["image", "label"]),
         ]
     )
     return val_transforms
 
 
-def creating_transforms_testing(foreground_crop_margin, intensity_norm_transforms, spacing):
+def creating_transforms_testing(
+    foreground_crop_margin, intensity_norm_transforms, spacing
+):
     test_transforms = Compose(
         [
             LoadImaged(keys=["image"]),
             EnsureChannelFirstd(keys=["image"]),
             Orientationd(keys=["image"], axcodes="RAS"),
             CastToTyped(keys=["image"], dtype=(np.float32)),
-            Spacingd(keys=["image"], pixdim=spacing, mode=["bilinear"], align_corners=[True]),
-        ] + 
-        intensity_norm_transforms +
-        [
-            ToTensord(keys=["image"]),
+            Spacingd(
+                keys=["image"], pixdim=spacing, mode=["bilinear"], align_corners=[True]
+            ),
         ]
+        + intensity_norm_transforms
+        + [ToTensord(keys=["image"])]
     )
     return test_transforms

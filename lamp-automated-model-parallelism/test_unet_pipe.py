@@ -17,7 +17,13 @@ from unet_pipe import UNetPipe
 
 TEST_CASES = [
     [  # 1-channel 3D, batch 12
-        {"spatial_dims": 3, "out_channels": 2, "in_channels": 1, "depth": 3, "n_feat": 8},
+        {
+            "spatial_dims": 3,
+            "out_channels": 2,
+            "in_channels": 1,
+            "depth": 3,
+            "n_feat": 8,
+        },
         torch.randn(12, 1, 32, 64, 48),
         (12, 2, 32, 64, 48),
     ],

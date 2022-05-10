@@ -16,15 +16,20 @@ from argparse import ArgumentParser
 import numpy as np
 import torch
 from data_utils import get_filenames, load_data_and_mask
-from torchgpipe import GPipe
-from torchgpipe.balance import balance_by_size
-from unet_pipe import UNetPipe, flatten_sequential
-
 from monai.data import Dataset, list_data_collate
 from monai.losses import DiceLoss, FocalLoss
 from monai.metrics import compute_meandice
-from monai.transforms import AddChannelDict, Compose, Rand3DElasticd, RandCropByPosNegLabeld, SpatialPadd
+from monai.transforms import (
+    AddChannelDict,
+    Compose,
+    Rand3DElasticd,
+    RandCropByPosNegLabeld,
+    SpatialPadd,
+)
 from monai.utils import first
+from torchgpipe import GPipe
+from torchgpipe.balance import balance_by_size
+from unet_pipe import UNetPipe, flatten_sequential
 
 N_CLASSES = 10
 TRAIN_PATH = "./data/HaN/train/"  # training data folder
@@ -62,9 +67,12 @@ class ImageLabelDataset:
             mask0 = np.logical_or(mask0, mask)
             mask_list.append(mask.reshape(class_shape))
         mask0 = 1 - mask0
-        data["label"] = np.concatenate([mask0] + mask_list, axis=0).astype(np.uint8)  # shape (C H W D)
+        data["label"] = np.concatenate([mask0] + mask_list, axis=0).astype(
+            np.uint8
+        )  # shape (C H W D)
         # setting flags
-        data["with_complete_groundtruth"] = flagvect  # flagvec is a boolean indicator for complete annotation
+        # flagvec is a boolean indicator for complete annotation
+        data["with_complete_groundtruth"] = flagvect
         return data
 
     def __len__(self):
@@ -100,16 +108,24 @@ def train(n_feat, crop_size, bs, ep, optimizer="rmsprop", lr=5e-4, pretrain=None
             ]
         )
         train_dataset = Dataset(train_images, transform=train_transform)
-        # when bs > 1, the loader assumes that the full image sizes are the same across the dataset
-        train_dataloader = torch.utils.data.DataLoader(train_dataset, num_workers=4, batch_size=bs, shuffle=True)
+        # when bs > 1, the loader assumes that the full image sizes are the
+        # same across the dataset
+        train_dataloader = torch.utils.data.DataLoader(
+            train_dataset, num_workers=4, batch_size=bs, shuffle=True
+        )
     else:
-        # draw balanced foreground/background window samples according to the ground truth label
+        # draw balanced foreground/background window samples according to the
+        # ground truth label
         train_transform = Compose(
             [
                 AddChannelDict(keys="image"),
-                SpatialPadd(keys=("image", "label"), spatial_size=crop_size),  # ensure image size >= crop_size
+                SpatialPadd(keys=("image", "label"), spatial_size=crop_size),
+                # ensure image size >= crop_size
                 RandCropByPosNegLabeld(
-                    keys=("image", "label"), label_key="label", spatial_size=crop_size, num_samples=bs
+                    keys=("image", "label"),
+                    label_key="label",
+                    spatial_size=crop_size,
+                    num_samples=bs,
                 ),
                 Rand3DElasticd(
                     keys=("image", "label"),
@@ -126,30 +142,51 @@ def train(n_feat, crop_size, bs, ep, optimizer="rmsprop", lr=5e-4, pretrain=None
                 ),
             ]
         )
-        train_dataset = Dataset(train_images, transform=train_transform)  # each dataset item is a list of windows
-        train_dataloader = torch.utils.data.DataLoader(  # stack each dataset item into a single tensor
-            train_dataset, num_workers=4, batch_size=1, shuffle=True, collate_fn=list_data_collate
+        # each dataset item is a list of windows
+        train_dataset = Dataset(train_images, transform=train_transform)
+        train_dataloader = (
+            torch.utils.data.DataLoader(  # stack each dataset item into a single tensor
+                train_dataset,
+                num_workers=4,
+                batch_size=1,
+                shuffle=True,
+                collate_fn=list_data_collate,
+            )
         )
     first_sample = first(train_dataloader)
     print(first_sample["image"].shape)
 
     # starting validation set loader
     val_transform = Compose([AddChannelDict(keys="image")])
-    val_dataset = Dataset(ImageLabelDataset(VAL_PATH, n_class=N_CLASSES), transform=val_transform)
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, num_workers=1, batch_size=1)
+    val_dataset = Dataset(
+        ImageLabelDataset(VAL_PATH, n_class=N_CLASSES), transform=val_transform
+    )
+    val_dataloader = torch.utils.data.DataLoader(
+        val_dataset, num_workers=1, batch_size=1
+    )
     print(val_dataset[0]["image"].shape)
-    print(f"training images: {len(train_dataloader)}, validation images: {len(val_dataloader)}")
+    print(
+        f"training images: {len(train_dataloader)}, validation images: {len(val_dataloader)}"
+    )
 
-    model = UNetPipe(spatial_dims=3, in_channels=1, out_channels=N_CLASSES, n_feat=n_feat)
+    model = UNetPipe(
+        spatial_dims=3, in_channels=1, out_channels=N_CLASSES, n_feat=n_feat
+    )
     model = flatten_sequential(model)
-    lossweight = torch.from_numpy(np.array([2.22, 1.31, 1.99, 1.13, 1.93, 1.93, 1.0, 1.0, 1.90, 1.98], np.float32))
+    lossweight = torch.from_numpy(
+        np.array([2.22, 1.31, 1.99, 1.13, 1.93, 1.93, 1.0, 1.0, 1.90, 1.98], np.float32)
+    )
 
     if optimizer.lower() == "rmsprop":
         optimizer = torch.optim.RMSprop(model.parameters(), lr=lr)  # lr = 5e-4
     elif optimizer.lower() == "momentum":
-        optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9)  # lr = 1e-4 for finetuning
+        optimizer = torch.optim.SGD(
+            model.parameters(), lr=lr, momentum=0.9
+        )  # lr = 1e-4 for finetuning
     else:
-        raise ValueError(f"Unknown optimizer type {optimizer}. (options are 'rmsprop' and 'momentum').")
+        raise ValueError(
+            f"Unknown optimizer type {optimizer}. (options are 'rmsprop' and 'momentum')."
+        )
 
     # config GPipe
     x = first_sample["image"].float()
@@ -189,14 +226,23 @@ def train(n_feat, crop_size, bs, ep, optimizer="rmsprop", lr=5e-4, pretrain=None
             optimizer.zero_grad()
             o = model(x_train).to(0, non_blocking=True).float()
 
-            loss = (dice_loss_func(o, y_train.to(o)) * flagvec.to(o) * lossweight.to(o)).mean()
-            loss += 0.5 * (focal_loss_func(o, y_train.to(o)) * flagvec.to(o) * lossweight.to(o)).mean()
+            loss = (
+                dice_loss_func(o, y_train.to(o)) * flagvec.to(o) * lossweight.to(o)
+            ).mean()
+            loss += (
+                0.5
+                * (
+                    focal_loss_func(o, y_train.to(o)) * flagvec.to(o) * lossweight.to(o)
+                ).mean()
+            )
             loss.backward()
             optimizer.step()
             trainloss += loss.item()
 
             if b_idx % 20 == 0:
-                print(f"Train Epoch: {epoch} [{b_idx}/{len(train_dataloader)}] \tLoss: {loss.item()}")
+                print(
+                    f"Train Epoch: {epoch} [{b_idx}/{len(train_dataloader)}] \tLoss: {loss.item()}"
+                )
         print(f"epoch {epoch} TRAIN loss {trainloss / len(train_dataloader)}")
 
         if epoch % 10 == 0:
@@ -210,17 +256,31 @@ def train(n_feat, crop_size, bs, ep, optimizer="rmsprop", lr=5e-4, pretrain=None
                 with torch.no_grad():
                     x_val = torch.autograd.Variable(x_val.cuda())
                 o = model(x_val).to(0, non_blocking=True)
-                loss = compute_meandice(o, y_val.to(o), mutually_exclusive=True, include_background=False)
-                val_loss = [l.item() + tl if l == l else tl for l, tl in zip(loss[0], val_loss)]
+                loss = compute_meandice(
+                    o, y_val.to(o), mutually_exclusive=True, include_background=False
+                )
+                val_loss = [
+                    l.item() + tl if l == l else tl for l, tl in zip(loss[0], val_loss)
+                ]
                 n_val = [n + 1 if l == l else n for l, n in zip(loss[0], n_val)]
             val_loss = [l / n for l, n in zip(val_loss, n_val)]
-            print("validation scores %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % tuple(val_loss))
+            print(
+                "validation scores %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f"
+                % tuple(val_loss)
+            )
             for c in range(1, 10):
                 if best_val_loss[c - 1] < val_loss[c - 1]:
                     best_val_loss[c - 1] = val_loss[c - 1]
-                    state = {"epoch": epoch, "weight": model.state_dict(), "score_" + str(c): best_val_loss[c - 1]}
+                    state = {
+                        "epoch": epoch,
+                        "weight": model.state_dict(),
+                        "score_" + str(c): best_val_loss[c - 1],
+                    }
                     torch.save(state, f"{model_name}" + str(c))
-            print("best validation scores %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f" % tuple(best_val_loss))
+            print(
+                "best validation scores %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f"
+                % tuple(best_val_loss)
+            )
 
     print("total time", time.time() - b_time)
 
@@ -232,7 +292,9 @@ if __name__ == "__main__":
     parser.add_argument("--bs", type=int, default=1, dest="bs")  # batch size
     parser.add_argument("--ep", type=int, default=150, dest="ep")  # number of epochs
     parser.add_argument("--lr", type=float, default=5e-4, dest="lr")  # learning rate
-    parser.add_argument("--optimizer", type=str, default="rmsprop", dest="optimizer")  # type of optimizer
+    parser.add_argument(
+        "--optimizer", type=str, default="rmsprop", dest="optimizer"
+    )  # type of optimizer
     parser.add_argument("--pretrain", type=str, default=None, dest="pretrain")
     args = parser.parse_args()
 
