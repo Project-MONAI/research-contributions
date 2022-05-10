@@ -11,18 +11,54 @@ The MONAI codes are adapted from the [MONAI 3D Spleen segmentation example](http
 * Download the MUG500+ Dataset: [[Data Repo](https://figshare.com/articles/dataset/MUG500_Repository/9616319)], [[Descriptor](https://www.sciencedirect.com/science/article/pii/S2352340921008003)]
 
 
-* Unzip and Extract the .NRRD files into one folder
+* Unzip and Extract the .NRRDs into one folder
 
 ``` Python
 from pathlib import Path
 import shutil
-pathlist = Path('./9616319/0_labelsTr').glob('**/*.nrrd')
+pathlist = Path('./9616319').glob('**/*.nrrd')
 for path in pathlist:
-     # because path is object not string
      path_in_str = str(path)
      shutil.copyfile(path_in_str, './complete_nrrds/'+path_in_str[-10:-5]+'.nrrd')
      print(path_in_str)
+     
 ```
+* Create Facial and Cranial Defects on the Skulls 
+facialDefects.py
+cranialDefects.py
+
+* Convert NRRDs to Nifty (for MONAI Dataset loader)
+codes attributes to the stack overflow anser: [Nrrd to Nifti file conversion](https://stackoverflow.com/questions/47761353/nrrd-to-nifti-file-conversion)
+``` Python
+import vtk
+
+def readnrrd(filename):
+    """Read image in nrrd format."""
+    reader = vtk.vtkNrrdReader()
+    reader.SetFileName(filename)
+    reader.Update()
+    info = reader.GetInformation()
+    return reader.GetOutput(), info
+
+def writenifti(image,filename, info):
+    """Write nifti file."""
+    writer = vtk.vtkNIFTIImageWriter()
+    writer.SetInputData(image)
+    writer.SetFileName(filename)
+    writer.SetInformation(info)
+    writer.Write()
+
+
+baseDir = './complete_nrrds/'
+files = glob(baseDir+'/*.nrrd')
+print(files)
+for file in files:
+  m, info = readnrrd(file)
+  fname=baseDir+'nifty/'+file[-10:-5]+ '.nii.gz'
+  writenifti(m,fname,info)
+```
+
+ 
 
 ### Train a CNN using MONAI
 
