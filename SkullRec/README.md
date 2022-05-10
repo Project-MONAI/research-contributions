@@ -86,9 +86,11 @@ python monaiSkull.py --test # test, generate predictions (complete skulls) for t
 
 ```
 
-
-
-#### alternatively, you can try out the pre-trained model
+* Alternatively, you can try out the pre-trained model 
+1. Clone this repository
+2. Download the pre-processed dataset
+3. Move the dataset folders into the current directory of the repository
+4. Evaluate on the test set (or your own skull data pre-processed the same way as the dataset)
 
 
 An Tensorflow equivalent implementation of an auto-encoder network for skull shape completion can be found at: [Github Repo](https://github.com/Jianningli/autoimplant), [Paper](https://link.springer.com/content/pdf/10.1007/978-3-030-60946-7.pdf#page=86)
