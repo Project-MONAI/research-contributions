@@ -22,7 +22,6 @@ import time
 from datetime import datetime
 from glob import glob
 
-import monai
 import nibabel as nib
 import numpy as np
 import pandas as pd
@@ -31,6 +30,13 @@ import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 import yaml
+from torch import nn
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.tensorboard import SummaryWriter
+from transforms import creating_transforms_training, creating_transforms_validation
+from utils import parse_monai_specs
+
+import monai
 from monai.data import (
     DataLoader,
     Dataset,
@@ -43,54 +49,21 @@ from monai.data import (
 )
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_meandice
-from monai.transforms import (
-    AsDiscrete,
-    Compose,
-    EnsureType,
-    Randomizable,
-    Transform,
-    apply_transform,
-)
+from monai.transforms import AsDiscrete, Compose, EnsureType, Randomizable, Transform, apply_transform
 from monai.utils import set_determinism
-from torch import nn
-from torch.nn.parallel import DistributedDataParallel
-from torch.utils.tensorboard import SummaryWriter
-from transforms import creating_transforms_training, creating_transforms_validation
-from utils import parse_monai_specs
 
 
 def main():
     parser = argparse.ArgumentParser(description="training")
     parser.add_argument("--arch_ckpt", action="store", required=True, help="data root")
-    parser.add_argument(
-        "--checkpoint", type=str, default=None, help="checkpoint full path"
-    )
+    parser.add_argument("--checkpoint", type=str, default=None, help="checkpoint full path")
     parser.add_argument("--config", action="store", required=True, help="configuration")
-    parser.add_argument(
-        "--fold",
-        action="store",
-        required=True,
-        help="fold index in N-fold cross-validation",
-    )
-    parser.add_argument(
-        "--json", action="store", required=True, help="full path of .json file"
-    )
-    parser.add_argument(
-        "--json_key",
-        action="store",
-        required=True,
-        help="selected key in .json data list",
-    )
+    parser.add_argument("--fold", action="store", required=True, help="fold index in N-fold cross-validation")
+    parser.add_argument("--json", action="store", required=True, help="full path of .json file")
+    parser.add_argument("--json_key", action="store", required=True, help="selected key in .json data list")
     parser.add_argument("--local_rank", required=int, help="local process rank")
-    parser.add_argument(
-        "--num_folds",
-        action="store",
-        required=True,
-        help="number of folds in cross-validation",
-    )
-    parser.add_argument(
-        "--output_root", action="store", required=True, help="output root"
-    )
+    parser.add_argument("--num_folds", action="store", required=True, help="number of folds in cross-validation")
+    parser.add_argument("--output_root", action="store", required=True, help="output root")
     parser.add_argument("--root", action="store", required=True, help="data root")
     args = parser.parse_args()
 
@@ -114,9 +87,7 @@ def main():
     intensity_norm = config_core["intensity_norm"]
     interpolation = config_core["interpolation"]
     learning_rate = config_core["learning_rate"]
-    learning_rate_milestones = np.array(
-        list(map(float, config_core["learning_rate_milestones"].split(",")))
-    )
+    learning_rate_milestones = np.array(list(map(float, config_core["learning_rate_milestones"].split(","))))
     num_images_per_batch = config_core["num_images_per_batch"]
     num_epochs = config_core["num_epochs"]
     num_epochs_per_validation = config_core["num_epochs_per_validation"]
@@ -159,9 +130,7 @@ def main():
         transform_string = intensity_norm[_k]
         transform_name, transform_dict = parse_monai_specs(transform_string)
         if dist.get_rank() == 0:
-            print(
-                "\nintensity normalization {0:d}:\t{1:s}".format(_k + 1, transform_name)
-            )
+            print("\nintensity normalization {0:d}:\t{1:s}".format(_k + 1, transform_name))
             for _key in transform_dict.keys():
                 print("  {0}:\t{1}".format(_key, transform_dict[_key]))
         transform_class = getattr(monai.transforms, transform_name)
@@ -187,10 +156,7 @@ def main():
         json_data = json.load(f)
 
     split = len(json_data[args.json_key]) // num_folds
-    list_train = (
-        json_data[args.json_key][: (split * fold)]
-        + json_data[args.json_key][(split * (fold + 1)) :]
-    )
+    list_train = json_data[args.json_key][: (split * fold)] + json_data[args.json_key][(split * (fold + 1)) :]
     list_valid = json_data[args.json_key][(split * fold) : (split * (fold + 1))]
 
     # training data
@@ -206,10 +172,7 @@ def main():
 
     train_files = files
     train_files = partition_dataset(
-        data=train_files,
-        shuffle=True,
-        num_partitions=dist.get_world_size(),
-        even_divisible=True,
+        data=train_files, shuffle=True, num_partitions=dist.get_world_size(), even_divisible=True
     )[dist.get_rank()]
     print("train_files:", len(train_files))
 
@@ -226,10 +189,7 @@ def main():
 
     val_files = files
     val_files = partition_dataset(
-        data=val_files,
-        shuffle=False,
-        num_partitions=dist.get_world_size(),
-        even_divisible=False,
+        data=val_files, shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False
     )[dist.get_rank()]
     print("val_files:", len(val_files))
 
@@ -247,31 +207,21 @@ def main():
         output_classes,
     )
     val_transforms = creating_transforms_validation(
-        foreground_crop_margin,
-        interpolation_transforms,
-        patch_size,
-        intensity_norm_transforms,
-        device,
+        foreground_crop_margin, interpolation_transforms, patch_size, intensity_norm_transforms, device
     )
 
     # alternative Dataset
     # train_ds = monai.data.Dataset(data=train_files, transform=train_transforms)
     # val_ds = monai.data.Dataset(data=val_files, transform=val_transforms)
 
-    train_ds = monai.data.CacheDataset(
-        data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8
-    )
-    val_ds = monai.data.CacheDataset(
-        data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2
-    )
+    train_ds = monai.data.CacheDataset(data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8)
+    val_ds = monai.data.CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2)
 
     # alternative DataLoader
     # train_loader = DataLoader(train_ds, batch_size=num_images_per_batch, shuffle=True, num_workers=8, pin_memory=torch.cuda.is_available())
     # val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=torch.cuda.is_available())
 
-    train_loader = ThreadDataLoader(
-        train_ds, num_workers=0, batch_size=num_images_per_batch, shuffle=True
-    )
+    train_loader = ThreadDataLoader(train_ds, num_workers=0, batch_size=num_images_per_batch, shuffle=True)
     val_loader = ThreadDataLoader(val_ds, num_workers=0, batch_size=1, shuffle=False)
 
     ckpt = torch.load(args.arch_ckpt)
@@ -299,9 +249,7 @@ def main():
     model = model.to(device)
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
-    post_pred = Compose(
-        [EnsureType(), AsDiscrete(argmax=True, to_onehot=output_classes)]
-    )
+    post_pred = Compose([EnsureType(), AsDiscrete(argmax=True, to_onehot=output_classes)])
     post_label = Compose([EnsureType(), AsDiscrete(to_onehot=output_classes)])
 
     # loss function
@@ -316,12 +264,7 @@ def main():
     )
 
     # optimizer
-    optimizer = torch.optim.SGD(
-        model.parameters(),
-        lr=learning_rate * world_size,
-        momentum=0.9,
-        weight_decay=0.00004,
-    )
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate * world_size, momentum=0.9, weight_decay=0.00004)
 
     print()
 
@@ -329,9 +272,7 @@ def main():
         if dist.get_rank() == 0:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
 
-        model = DistributedDataParallel(
-            model, device_ids=[device], find_unused_parameters=True
-        )
+        model = DistributedDataParallel(model, device_ids=[device], find_unused_parameters=True)
 
     if args.checkpoint is not None and os.path.isfile(args.checkpoint):
         print("[info] fine-tuning pre-trained checkpoint {0:s}".format(args.checkpoint))
@@ -381,9 +322,7 @@ def main():
 
         for batch_data in train_loader:
             step += 1
-            inputs, labels = batch_data["image"].to(device), batch_data["label"].to(
-                device
-            )
+            inputs, labels = batch_data["image"].to(device), batch_data["label"].to(device)
 
             for param in model.parameters():
                 param.grad = None
@@ -415,10 +354,7 @@ def main():
             idx_iter += 1
 
             if dist.get_rank() == 0:
-                print(
-                    "[{0}] ".format(str(datetime.now())[:19])
-                    + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}"
-                )
+                print("[{0}] ".format(str(datetime.now())[:19]) + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
                 writer.add_scalar("train_loss", loss.item(), epoch_len * epoch + step)
 
         # synchronizes all processes and reduce results
@@ -435,9 +371,7 @@ def main():
             torch.cuda.empty_cache()
             model.eval()
             with torch.no_grad():
-                metric = torch.zeros(
-                    (output_classes - 1) * 2, dtype=torch.float, device=device
-                )
+                metric = torch.zeros((output_classes - 1) * 2, dtype=torch.float, device=device)
                 metric_sum = 0.0
                 metric_count = 0
                 metric_mat = []
@@ -471,9 +405,7 @@ def main():
                     val_labels = post_label(val_labels[0, ...])
                     val_labels = val_labels[None, ...]
 
-                    value = compute_meandice(
-                        y_pred=val_outputs, y=val_labels, include_background=False
-                    )
+                    value = compute_meandice(y_pred=val_outputs, y=val_labels, include_background=False)
 
                     print(_index + 1, "/", len(val_loader), value)
 
@@ -499,10 +431,7 @@ def main():
                 metric = metric.tolist()
                 if dist.get_rank() == 0:
                     for _c in range(output_classes - 1):
-                        print(
-                            "evaluation metric - class {0:d}:".format(_c + 1),
-                            metric[2 * _c] / metric[2 * _c + 1],
-                        )
+                        print("evaluation metric - class {0:d}:".format(_c + 1), metric[2 * _c] / metric[2 * _c + 1])
                     avg_metric = 0
                     for _c in range(output_classes - 1):
                         avg_metric += metric[2 * _c] / metric[2 * _c + 1]
@@ -512,19 +441,14 @@ def main():
                     if avg_metric > best_metric:
                         best_metric = avg_metric
                         best_metric_epoch = epoch + 1
-                        torch.save(
-                            model.state_dict(),
-                            os.path.join(args.output_root, "best_metric_model.pth"),
-                        )
+                        torch.save(model.state_dict(), os.path.join(args.output_root, "best_metric_model.pth"))
                         print("saved new best metric model")
 
                         dict_file = {}
                         dict_file["best_avg_dice_score"] = float(best_metric)
                         dict_file["best_avg_dice_score_epoch"] = int(best_metric_epoch)
                         dict_file["best_avg_dice_score_iteration"] = int(idx_iter)
-                        with open(
-                            os.path.join(args.output_root, "progress.yaml"), "w"
-                        ) as out_file:
+                        with open(os.path.join(args.output_root, "progress.yaml"), "w") as out_file:
                             documents = yaml.dump(dict_file, stream=out_file)
 
                     print(
@@ -535,17 +459,10 @@ def main():
 
                     current_time = time.time()
                     elapsed_time = (current_time - start_time) / 60.0
-                    with open(
-                        os.path.join(args.output_root, "accuracy_history.csv"), "a"
-                    ) as f:
+                    with open(os.path.join(args.output_root, "accuracy_history.csv"), "a") as f:
                         f.write(
                             "{0:d}\t{1:.5f}\t{2:.5f}\t{3:.5f}\t{4:.1f}\t{5:d}\n".format(
-                                epoch + 1,
-                                avg_metric,
-                                loss_torch_epoch,
-                                lr,
-                                elapsed_time,
-                                idx_iter,
+                                epoch + 1, avg_metric, loss_torch_epoch, lr, elapsed_time, idx_iter
                             )
                         )
 
@@ -553,9 +470,7 @@ def main():
 
             torch.cuda.empty_cache()
 
-    print(
-        f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}"
-    )
+    print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
 
     if dist.get_rank() == 0:
         writer.close()

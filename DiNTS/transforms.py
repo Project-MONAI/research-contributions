@@ -11,6 +11,8 @@
 
 import numpy as np
 import torch
+from scipy import ndimage
+
 from monai.transforms import (
     CastToTyped,
     Compose,
@@ -42,7 +44,6 @@ from monai.transforms import (
     ToTensord,
 )
 from monai.transforms.transform import MapTransform
-from scipy import ndimage
 
 
 class CorrectLabelAffined(MapTransform):
@@ -83,9 +84,7 @@ def creating_transforms_training(
                 func=lambda x: np.concatenate(
                     tuple(
                         [
-                            ndimage.binary_dilation(
-                                (x == _k).astype(x.dtype), iterations=48
-                            ).astype(x.dtype)
+                            ndimage.binary_dilation((x == _k).astype(x.dtype), iterations=48).astype(x.dtype)
                             for _k in range(output_classes)
                         ]
                     ),
@@ -97,9 +96,7 @@ def creating_transforms_training(
             RandShiftIntensityd(keys=["image"], offsets=0.0, prob=0.001),
             CastToTyped(keys=["image"], dtype=(torch.float32)),
             SpatialPadd(
-                keys=["image", "label", "label4crop"],
-                spatial_size=patch_size,
-                mode=["reflect", "constant", "constant"],
+                keys=["image", "label", "label4crop"], spatial_size=patch_size, mode=["reflect", "constant", "constant"]
             ),
             RandCropByLabelClassesd(
                 keys=["image", "label"],
@@ -112,20 +109,13 @@ def creating_transforms_training(
             Lambdad(keys=["label4crop"], func=lambda x: 0),
         ]
         + augmenations
-        + [
-            CastToTyped(keys=["image", "label"], dtype=(torch.float32, torch.uint8)),
-            ToTensord(keys=["image", "label"]),
-        ]
+        + [CastToTyped(keys=["image", "label"], dtype=(torch.float32, torch.uint8)), ToTensord(keys=["image", "label"])]
     )
     return train_transforms
 
 
 def creating_transforms_validation(
-    foreground_crop_margin,
-    label_interpolation_transform,
-    patch_size,
-    intensity_norm_transforms,
-    device,
+    foreground_crop_margin, label_interpolation_transform, patch_size, intensity_norm_transforms, device
 ):
     val_transforms = Compose(
         [
@@ -148,18 +138,14 @@ def creating_transforms_validation(
     return val_transforms
 
 
-def creating_transforms_testing(
-    foreground_crop_margin, intensity_norm_transforms, spacing
-):
+def creating_transforms_testing(foreground_crop_margin, intensity_norm_transforms, spacing):
     test_transforms = Compose(
         [
             LoadImaged(keys=["image"]),
             EnsureChannelFirstd(keys=["image"]),
             Orientationd(keys=["image"], axcodes="RAS"),
             CastToTyped(keys=["image"], dtype=(np.float32)),
-            Spacingd(
-                keys=["image"], pixdim=spacing, mode=["bilinear"], align_corners=[True]
-            ),
+            Spacingd(keys=["image"], pixdim=spacing, mode=["bilinear"], align_corners=[True]),
         ]
         + intensity_norm_transforms
         + [ToTensord(keys=["image"])]

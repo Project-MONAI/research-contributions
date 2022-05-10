@@ -25,12 +25,18 @@ from datetime import datetime
 from glob import glob
 from pathlib import Path
 
-import monai
 import nibabel as nib
 import numpy as np
 import pandas as pd
 import torch
 import yaml
+from scipy import ndimage as ndi
+
+# from monai.utils.enums import InverseKeys
+from transforms import creating_transforms_ensemble, str2aug
+from utils import keep_largest_cc, parse_monai_specs  # parse_monai_transform_specs,
+
+import monai
 from monai.data import (
     DataLoader,
     Dataset,
@@ -46,33 +52,18 @@ from monai.transforms import KeepLargestConnectedComponent
 # from monai.losses import DiceLoss, FocalLoss, GeneralizedDiceLoss
 # from monai.metrics import compute_meandice
 from monai.utils import set_determinism
-from scipy import ndimage as ndi
-
-# from monai.utils.enums import InverseKeys
-from transforms import creating_transforms_ensemble, str2aug
-from utils import keep_largest_cc, parse_monai_specs  # parse_monai_transform_specs,
 
 
 def main():
     parser = argparse.ArgumentParser(description="inference")
-    parser.add_argument(
-        "--algorithm", type=str, default=None, help="ensemble algorithm"
-    )
+    parser.add_argument("--algorithm", type=str, default=None, help="ensemble algorithm")
     parser.add_argument("--checkpoint", type=str, default=None, help="checkpoint")
     parser.add_argument("--config", action="store", required=True, help="configuration")
     parser.add_argument("--local_rank", required=int, help="local process rank")
-    parser.add_argument(
-        "--input_root", action="store", required=True, help="input root"
-    )
-    parser.add_argument(
-        "--original_root", action="store", required=True, help="orignal dataset root"
-    )
-    parser.add_argument(
-        "--output_root", action="store", required=True, help="output root"
-    )
-    parser.add_argument(
-        "--post", default=False, action="store_true", help="post-processing"
-    )
+    parser.add_argument("--input_root", action="store", required=True, help="input root")
+    parser.add_argument("--original_root", action="store", required=True, help="orignal dataset root")
+    parser.add_argument("--output_root", action="store", required=True, help="output root")
+    parser.add_argument("--post", default=False, action="store_true", help="post-processing")
     parser.add_argument("--dir_list", nargs="*", type=str, default=[])
     args = parser.parse_args()
 
@@ -135,9 +126,7 @@ def main():
 
     for _i in range(num_folds):
         list_filenames = []
-        for root, dirs, files in os.walk(
-            os.path.join(args.input_root, args.dir_list[_i])
-        ):
+        for root, dirs, files in os.walk(os.path.join(args.input_root, args.dir_list[_i])):
             for basename in files:
                 if "_prob1.nii" in basename:
                     filename = os.path.join(root, basename)
@@ -155,10 +144,7 @@ def main():
             volume_list = []
             for _k in range(1, output_classes):
                 volume_list.append(
-                    os.path.join(
-                        args.input_root,
-                        all_filenames[_j][_i].replace("_prob1", "_prob" + str(_k)),
-                    )
+                    os.path.join(args.input_root, all_filenames[_j][_i].replace("_prob1", "_prob" + str(_k)))
                 )
             case_dict["fold" + str(_j)] = volume_list
         # print(case_dict)
@@ -166,10 +152,7 @@ def main():
 
     ensemble_files = files
     ensemble_files = partition_dataset(
-        data=ensemble_files,
-        shuffle=False,
-        num_partitions=dist.get_world_size(),
-        even_divisible=False,
+        data=ensemble_files, shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False
     )[dist.get_rank()]
     print("ensemble_files", len(ensemble_files))
 
@@ -177,9 +160,7 @@ def main():
     ensemble_transforms = creating_transforms_ensemble(keys=key_list)
 
     ensemble_ds = monai.data.Dataset(data=ensemble_files, transform=ensemble_transforms)
-    ensemble_loader = DataLoader(
-        ensemble_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=False
-    )
+    ensemble_loader = DataLoader(ensemble_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=False)
 
     start_time = time.time()
     for ensemble_data in ensemble_loader:
@@ -213,15 +194,11 @@ def main():
             print(np.amax(nda_out), np.amin(nda_out), np.mean(nda_out))
         # resize to orignal data size
         # find orignal data
-        file_basename = ensemble_data["fold0_meta_dict"]["filename_or_obj"][0].split(
-            os.sep
-        )[-1]
+        file_basename = ensemble_data["fold0_meta_dict"]["filename_or_obj"][0].split(os.sep)[-1]
         original_data_path = list(Path(args.original_root).glob(file_basename))[0]
         original_data = nib.load(original_data_path)
         # get affine matrix
-        seg_affine = (
-            ensemble_data["fold0_meta_dict"]["original_affine"].numpy().squeeze()
-        )
+        seg_affine = ensemble_data["fold0_meta_dict"]["original_affine"].numpy().squeeze()
         img_affine = original_data.affine
         img_shape = original_data.shape
         T = np.matmul(np.linalg.inv(seg_affine), img_affine)
@@ -244,8 +221,7 @@ def main():
 
         out_img = nib.Nifti1Image(nda_out, out_affine)
         out_filename = os.path.join(
-            args.output_root,
-            ensemble_data["fold0_meta_dict"]["filename_or_obj"][0].split(os.sep)[-1],
+            args.output_root, ensemble_data["fold0_meta_dict"]["filename_or_obj"][0].split(os.sep)[-1]
         )
         out_filename = out_filename.replace("_prob1", "")
         print("out_filename", out_filename)

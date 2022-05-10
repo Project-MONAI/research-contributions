@@ -6,6 +6,7 @@ import tempfile
 
 import matplotlib.pyplot as plt
 import torch
+
 from monai.data import DataLoader, Dataset, decollate_batch
 from monai.handlers.utils import from_engine
 from monai.inferers import Inferer, SimpleInferer
@@ -37,22 +38,13 @@ root_dir = tempfile.mkdtemp() if directory is None else directory
 print(root_dir)
 
 
-train_images = sorted(
-    glob.glob(os.path.join("./dataset/train/defective_skull/", "*.nii.gz"))
-)
-train_labels = sorted(
-    glob.glob(os.path.join("./dataset/train/complete_skull/", "*.nii.gz"))
-)
-data_dicts = [
-    {"image": image_name, "label": label_name}
-    for image_name, label_name in zip(train_images, train_labels)
-]
+train_images = sorted(glob.glob(os.path.join("./dataset/train/defective_skull/", "*.nii.gz")))
+train_labels = sorted(glob.glob(os.path.join("./dataset/train/complete_skull/", "*.nii.gz")))
+data_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in zip(train_images, train_labels)]
 train_files, val_files = data_dicts[:-79], data_dicts[-79:]
 
 
-test_images = sorted(
-    glob.glob(os.path.join("./dataset/test/defects_cranial/", "*.nii.gz"))
-)
+test_images = sorted(glob.glob(os.path.join("./dataset/test/defects_cranial/", "*.nii.gz")))
 
 test_data = [{"image": image} for image in test_images]
 
@@ -183,20 +175,14 @@ if __name__ == "__main__":
             step = 0
             for batch_data in train_loader:
                 step += 1
-                inputs, labels = (
-                    batch_data["image"].to(device),
-                    batch_data["label"].to(device),
-                )
+                inputs, labels = (batch_data["image"].to(device), batch_data["label"].to(device))
                 optimizer.zero_grad()
                 outputs = model(inputs)
                 loss = loss_function(outputs, labels)
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
-                print(
-                    f"{step}/{len(train_ds) // train_loader.batch_size}, "
-                    f"train_loss: {loss.item():.4f}"
-                )
+                print(f"{step}/{len(train_ds) // train_loader.batch_size}, " f"train_loss: {loss.item():.4f}")
             epoch_loss /= step
             epoch_loss_values.append(epoch_loss)
             print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
@@ -206,19 +192,12 @@ if __name__ == "__main__":
                 with torch.no_grad():
                     inferer = SimpleInferer()
                     for val_data in val_loader:
-                        val_inputs, val_labels = (
-                            val_data["image"].to(device),
-                            val_data["label"].to(device),
-                        )
+                        val_inputs, val_labels = (val_data["image"].to(device), val_data["label"].to(device))
 
                         val_outputs = inferer(val_inputs, model)
 
-                        val_outputs = [
-                            post_pred(i) for i in decollate_batch(val_outputs)
-                        ]
-                        val_labels = [
-                            post_label(i) for i in decollate_batch(val_labels)
-                        ]
+                        val_outputs = [post_pred(i) for i in decollate_batch(val_outputs)]
+                        val_labels = [post_label(i) for i in decollate_batch(val_labels)]
                         # compute metric for current iteration
                         dice_metric(y_pred=val_outputs, y=val_labels)
 
@@ -231,10 +210,7 @@ if __name__ == "__main__":
                     if metric > best_metric:
                         best_metric = metric
                         best_metric_epoch = epoch + 1
-                        torch.save(
-                            model.state_dict(),
-                            os.path.join(root_dir, "best_metric_model.pth"),
-                        )
+                        torch.save(model.state_dict(), os.path.join(root_dir, "best_metric_model.pth"))
                         print("saved new best metric model")
                     print(
                         f"current epoch: {epoch + 1} current mean dice: {metric:.4f}"
@@ -242,17 +218,12 @@ if __name__ == "__main__":
                         f"at epoch: {best_metric_epoch}"
                     )
 
-        print(
-            f"train completed, best_metric: {best_metric:.4f} "
-            f"at epoch: {best_metric_epoch}"
-        )
+        print(f"train completed, best_metric: {best_metric:.4f} " f"at epoch: {best_metric_epoch}")
 
     elif args.phase == "test":
         print("**************generating predictions on the test set***************")
         weights_dir = "./pre_trained_weights/"
-        model.load_state_dict(
-            torch.load(os.path.join(weights_dir, "best_metric_model.pth"))
-        )
+        model.load_state_dict(torch.load(os.path.join(weights_dir, "best_metric_model.pth")))
         model.eval()
         with torch.no_grad():
             for test_data in test_org_loader:

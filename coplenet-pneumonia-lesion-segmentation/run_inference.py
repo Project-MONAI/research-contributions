@@ -12,10 +12,11 @@
 import os
 from glob import glob
 
-import monai
 import numpy as np
 import torch
 from coplenet import CopleNet
+
+import monai
 from monai.data import NiftiSaver
 from monai.inferers import sliding_window_inference
 from monai.transforms import AddChanneld, Compose, LoadNiftid, Orientationd, ToTensord

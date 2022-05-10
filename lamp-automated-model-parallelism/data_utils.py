@@ -12,6 +12,7 @@
 import os
 
 import numpy as np
+
 from monai.transforms import DivisiblePad
 
 STRUCTURES = (

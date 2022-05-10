@@ -20,13 +20,8 @@ Adapted from https://github.com/HiLab-git/COPLE-Net
 
 import torch
 import torch.nn as nn
-from monai.networks.blocks import (
-    Convolution,
-    MaxAvgPool,
-    ResidualSELayer,
-    SimpleASPP,
-    UpSample,
-)
+
+from monai.networks.blocks import Convolution, MaxAvgPool, ResidualSELayer, SimpleASPP, UpSample
 from monai.networks.layers.factories import Act, Norm
 from monai.utils import ensure_tuple_rep
 
@@ -37,23 +32,9 @@ class ConvBNActBlock(nn.Module):
     def __init__(self, in_channels, out_channels, dropout_p, spatial_dims: int = 2):
         super().__init__()
         self.conv_conv_se = nn.Sequential(
-            Convolution(
-                spatial_dims,
-                in_channels,
-                out_channels,
-                kernel_size=3,
-                norm=Norm.BATCH,
-                act=Act.LEAKYRELU,
-            ),
+            Convolution(spatial_dims, in_channels, out_channels, kernel_size=3, norm=Norm.BATCH, act=Act.LEAKYRELU),
             nn.Dropout(dropout_p),
-            Convolution(
-                spatial_dims,
-                out_channels,
-                out_channels,
-                kernel_size=3,
-                norm=Norm.BATCH,
-                act=Act.LEAKYRELU,
-            ),
+            Convolution(spatial_dims, out_channels, out_channels, kernel_size=3, norm=Norm.BATCH, act=Act.LEAKYRELU),
             ResidualSELayer(spatial_dims=spatial_dims, in_channels=out_channels, r=2),
         )
 
@@ -69,9 +50,7 @@ class DownBlock(nn.Module):
     def __init__(self, in_channels, out_channels, dropout_p, spatial_dims: int = 2):
         super().__init__()
         self.max_avg_pool = MaxAvgPool(spatial_dims=spatial_dims, kernel_size=2)
-        self.conv = ConvBNActBlock(
-            2 * in_channels, out_channels, dropout_p, spatial_dims=spatial_dims
-        )
+        self.conv = ConvBNActBlock(2 * in_channels, out_channels, dropout_p, spatial_dims=spatial_dims)
 
     def forward(self, x):
         x_pool = self.max_avg_pool(x)
@@ -81,26 +60,10 @@ class DownBlock(nn.Module):
 class UpBlock(nn.Module):
     """Upssampling followed by ConvBNActBlock"""
 
-    def __init__(
-        self,
-        in_channels1,
-        in_channels2,
-        out_channels,
-        bilinear=True,
-        dropout_p=0.5,
-        spatial_dims: int = 2,
-    ):
+    def __init__(self, in_channels1, in_channels2, out_channels, bilinear=True, dropout_p=0.5, spatial_dims: int = 2):
         super().__init__()
-        self.up = UpSample(
-            spatial_dims,
-            in_channels1,
-            in_channels2,
-            scale_factor=2,
-            with_conv=not bilinear,
-        )
-        self.conv = ConvBNActBlock(
-            in_channels2 * 2, out_channels, dropout_p, spatial_dims=spatial_dims
-        )
+        self.up = UpSample(spatial_dims, in_channels1, in_channels2, scale_factor=2, with_conv=not bilinear)
+        self.conv = ConvBNActBlock(in_channels2 * 2, out_channels, dropout_p, spatial_dims=spatial_dims)
 
     def forward(self, x1, x2):
         x_cat = torch.cat([x2, self.up(x1)], dim=1)
@@ -145,63 +108,21 @@ class CopleNet(nn.Module):
         self.down3 = DownBlock(ft_chns[2], ft_chns[3], dropout[3], spatial_dims)
         self.down4 = DownBlock(ft_chns[3], ft_chns[4], dropout[4], spatial_dims)
 
-        self.bridge0 = Convolution(
-            spatial_dims,
-            ft_chns[0],
-            f0_half,
-            kernel_size=1,
-            norm=Norm.BATCH,
-            act=Act.LEAKYRELU,
-        )
-        self.bridge1 = Convolution(
-            spatial_dims,
-            ft_chns[1],
-            f1_half,
-            kernel_size=1,
-            norm=Norm.BATCH,
-            act=Act.LEAKYRELU,
-        )
-        self.bridge2 = Convolution(
-            spatial_dims,
-            ft_chns[2],
-            f2_half,
-            kernel_size=1,
-            norm=Norm.BATCH,
-            act=Act.LEAKYRELU,
-        )
-        self.bridge3 = Convolution(
-            spatial_dims,
-            ft_chns[3],
-            f3_half,
-            kernel_size=1,
-            norm=Norm.BATCH,
-            act=Act.LEAKYRELU,
-        )
+        self.bridge0 = Convolution(spatial_dims, ft_chns[0], f0_half, kernel_size=1, norm=Norm.BATCH, act=Act.LEAKYRELU)
+        self.bridge1 = Convolution(spatial_dims, ft_chns[1], f1_half, kernel_size=1, norm=Norm.BATCH, act=Act.LEAKYRELU)
+        self.bridge2 = Convolution(spatial_dims, ft_chns[2], f2_half, kernel_size=1, norm=Norm.BATCH, act=Act.LEAKYRELU)
+        self.bridge3 = Convolution(spatial_dims, ft_chns[3], f3_half, kernel_size=1, norm=Norm.BATCH, act=Act.LEAKYRELU)
 
-        self.up1 = UpBlock(
-            ft_chns[4], f3_half, ft_chns[3], bilinear, dropout[3], spatial_dims
-        )
-        self.up2 = UpBlock(
-            ft_chns[3], f2_half, ft_chns[2], bilinear, dropout[2], spatial_dims
-        )
-        self.up3 = UpBlock(
-            ft_chns[2], f1_half, ft_chns[1], bilinear, dropout[1], spatial_dims
-        )
-        self.up4 = UpBlock(
-            ft_chns[1], f0_half, ft_chns[0], bilinear, dropout[0], spatial_dims
-        )
+        self.up1 = UpBlock(ft_chns[4], f3_half, ft_chns[3], bilinear, dropout[3], spatial_dims)
+        self.up2 = UpBlock(ft_chns[3], f2_half, ft_chns[2], bilinear, dropout[2], spatial_dims)
+        self.up3 = UpBlock(ft_chns[2], f1_half, ft_chns[1], bilinear, dropout[1], spatial_dims)
+        self.up4 = UpBlock(ft_chns[1], f0_half, ft_chns[0], bilinear, dropout[0], spatial_dims)
 
         self.aspp = SimpleASPP(
-            spatial_dims,
-            ft_chns[4],
-            int(ft_chns[4] / 4),
-            kernel_sizes=[1, 3, 3, 3],
-            dilations=[1, 2, 4, 6],
+            spatial_dims, ft_chns[4], int(ft_chns[4] / 4), kernel_sizes=[1, 3, 3, 3], dilations=[1, 2, 4, 6]
         )
 
-        self.out_conv = Convolution(
-            spatial_dims, ft_chns[0], out_channels, conv_only=True
-        )
+        self.out_conv = Convolution(spatial_dims, ft_chns[0], out_channels, conv_only=True)
 
     def forward(self, x):
         x_shape = list(x.shape)

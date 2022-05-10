@@ -17,10 +17,11 @@ import numpy as np
 import torch
 import torch.nn.parallel
 import torch.utils.data.distributed
-from monai.data import decollate_batch
 from tensorboardX import SummaryWriter
 from torch.cuda.amp import GradScaler, autocast
 from utils.utils import distributed_all_gather
+
+from monai.data import decollate_batch
 
 
 def dice(x, y):
@@ -72,12 +73,9 @@ def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
             loss.backward()
             optimizer.step()
         if args.distributed:
-            loss_list = distributed_all_gather(
-                [loss], out_numpy=True, is_valid=idx < loader.sampler.valid_length
-            )
+            loss_list = distributed_all_gather([loss], out_numpy=True, is_valid=idx < loader.sampler.valid_length)
             run_loss.update(
-                np.mean(np.mean(np.stack(loss_list, axis=0), axis=0), axis=0),
-                n=args.batch_size * args.world_size,
+                np.mean(np.mean(np.stack(loss_list, axis=0), axis=0), axis=0), n=args.batch_size * args.world_size
             )
         else:
             run_loss.update(loss.item(), n=args.batch_size)
@@ -93,16 +91,7 @@ def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
     return run_loss.avg
 
 
-def val_epoch(
-    model,
-    loader,
-    epoch,
-    acc_func,
-    args,
-    model_inferer=None,
-    post_label=None,
-    post_pred=None,
-):
+def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_label=None, post_pred=None):
     model.eval()
     start_time = time.time()
     with torch.no_grad():
@@ -120,20 +109,14 @@ def val_epoch(
             if not logits.is_cuda:
                 target = target.cpu()
             val_labels_list = decollate_batch(target)
-            val_labels_convert = [
-                post_label(val_label_tensor) for val_label_tensor in val_labels_list
-            ]
+            val_labels_convert = [post_label(val_label_tensor) for val_label_tensor in val_labels_list]
             val_outputs_list = decollate_batch(logits)
-            val_output_convert = [
-                post_pred(val_pred_tensor) for val_pred_tensor in val_outputs_list
-            ]
+            val_output_convert = [post_pred(val_pred_tensor) for val_pred_tensor in val_outputs_list]
             acc = acc_func(y_pred=val_output_convert, y=val_labels_convert)
             acc = acc.cuda(args.rank)
 
             if args.distributed:
-                acc_list = distributed_all_gather(
-                    [acc], out_numpy=True, is_valid=idx < loader.sampler.valid_length
-                )
+                acc_list = distributed_all_gather([acc], out_numpy=True, is_valid=idx < loader.sampler.valid_length)
                 avg_acc = np.mean([np.nanmean(l) for l in acc_list])
 
             else:
@@ -151,12 +134,8 @@ def val_epoch(
     return avg_acc
 
 
-def save_checkpoint(
-    model, epoch, args, filename="model.pt", best_acc=0, optimizer=None, scheduler=None
-):
-    state_dict = (
-        model.state_dict() if not args.distributed else model.module.state_dict()
-    )
+def save_checkpoint(model, epoch, args, filename="model.pt", best_acc=0, optimizer=None, scheduler=None):
+    state_dict = model.state_dict() if not args.distributed else model.module.state_dict()
     save_dict = {"epoch": epoch, "best_acc": best_acc, "state_dict": state_dict}
     if optimizer is not None:
         save_dict["optimizer"] = optimizer.state_dict()
@@ -197,13 +176,7 @@ def run_training(
         print(args.rank, time.ctime(), "Epoch:", epoch)
         epoch_time = time.time()
         train_loss = train_epoch(
-            model,
-            train_loader,
-            optimizer,
-            scaler=scaler,
-            epoch=epoch,
-            loss_func=loss_func,
-            args=args,
+            model, train_loader, optimizer, scaler=scaler, epoch=epoch, loss_func=loss_func, args=args
         )
         if args.rank == 0:
             print(
@@ -238,36 +211,18 @@ def run_training(
                 if writer is not None:
                     writer.add_scalar("val_acc", val_avg_acc, epoch)
                 if val_avg_acc > val_acc_max:
-                    print(
-                        "new best ({:.6f} --> {:.6f}). ".format(
-                            val_acc_max, val_avg_acc
-                        )
-                    )
+                    print("new best ({:.6f} --> {:.6f}). ".format(val_acc_max, val_avg_acc))
                     val_acc_max = val_avg_acc
                     b_new_best = True
-                    if (
-                        args.rank == 0
-                        and args.logdir is not None
-                        and args.save_checkpoint
-                    ):
+                    if args.rank == 0 and args.logdir is not None and args.save_checkpoint:
                         save_checkpoint(
-                            model,
-                            epoch,
-                            args,
-                            best_acc=val_acc_max,
-                            optimizer=optimizer,
-                            scheduler=scheduler,
+                            model, epoch, args, best_acc=val_acc_max, optimizer=optimizer, scheduler=scheduler
                         )
             if args.rank == 0 and args.logdir is not None and args.save_checkpoint:
-                save_checkpoint(
-                    model, epoch, args, best_acc=val_acc_max, filename="model_final.pt"
-                )
+                save_checkpoint(model, epoch, args, best_acc=val_acc_max, filename="model_final.pt")
                 if b_new_best:
                     print("Copying to model.pt new best model!!!!")
-                    shutil.copyfile(
-                        os.path.join(args.logdir, "model_final.pt"),
-                        os.path.join(args.logdir, "model.pt"),
-                    )
+                    shutil.copyfile(os.path.join(args.logdir, "model_final.pt"), os.path.join(args.logdir, "model.pt"))
 
         if scheduler is not None:
             scheduler.step()

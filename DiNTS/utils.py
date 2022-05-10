@@ -13,9 +13,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from monai.metrics.utils import do_metric_reduction, ignore_background
 from skimage import measure
 from skimage.transform import resize
+
+from monai.metrics.utils import do_metric_reduction, ignore_background
 
 
 def check_number(a):
@@ -93,10 +94,4 @@ def keep_largest_cc(nda):
 
 
 def resize_volume(nda, output_shape, order=1, preserve_range=True, anti_aliasing=False):
-    return resize(
-        nda,
-        output_shape,
-        order=order,
-        preserve_range=preserve_range,
-        anti_aliasing=anti_aliasing,
-    )
+    return resize(nda, output_shape, order=order, preserve_range=preserve_range, anti_aliasing=anti_aliasing)
