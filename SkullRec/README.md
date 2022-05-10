@@ -8,10 +8,20 @@ The MONAI codes are adapted from the [MONAI 3D Spleen segmentation example](http
 ### Prepare the dataset
 
 	
-* Download the MUG500+ dataset
+* Download the MUG500+ Dataset: [[Data Repo](https://figshare.com/articles/dataset/MUG500_Repository/9616319)], [[Descriptor](https://www.sciencedirect.com/science/article/pii/S2352340921008003)]
 
-```
-Li J., et al. MUG500+: Database of 500 High-resolution Healthy Human Skulls and 29 Craniotomy Skulls and Implants. Data in Brief, Elsevier, 2021. [[Data Repo](https://figshare.com/articles/dataset/MUG500_Repository/9616319)], [[Descriptor](https://www.sciencedirect.com/science/article/pii/S2352340921008003)]
+
+* Unzip and Extract the .NRRD files into one folder
+
+``` Python
+from pathlib import Path
+import shutil
+pathlist = Path('./9616319/0_labelsTr').glob('**/*.nrrd')
+for path in pathlist:
+     # because path is object not string
+     path_in_str = str(path)
+     shutil.copyfile(path_in_str, './complete_nrrds/'+path_in_str[-10:-5]+'.nrrd')
+     print(path_in_str)
 ```
 
 ### Train a CNN using MONAI
