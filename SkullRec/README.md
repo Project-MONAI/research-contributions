@@ -103,7 +103,7 @@ If you use the dataset and/or the pre-trained model in your research, please con
 ```
 @article{li2021mug500+,
   title={MUG500+: Database of 500 high-resolution healthy human skulls and 29 craniotomy skulls and implants},
-  author={Li, Jianning and Krall, Marcell and Trummer, Florian and Memon, Afaque Rafique and Pepe, Antonio and Gsaxner, Christina and Jin, Yuan and Chen, Xiaojun and Deutschmann, Hannes and Zefferer, Ulrike and others},
+  author={Li, Jianning and Krall, Marcell and Trummer, Florian and others},
   journal={Data in Brief},
   volume={39},
   pages={107524},
