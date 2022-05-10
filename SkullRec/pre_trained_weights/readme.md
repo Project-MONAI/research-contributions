@@ -1,6 +1,7 @@
 ## Examplary Skull Reconstruction Results Using the Pre-trained Model
 
 ### cranial reconstruction (input-pred-gt)
+Cranial reconstruction is relatively easy, since the cranium contains no subtle and complex structures.
 
 <img src="https://github.com/Jianningli/research-contributions/blob/master/SkullRec/figs/cranial_rec.png" alt="dataset" width="400"/>
 
