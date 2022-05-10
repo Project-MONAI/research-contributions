@@ -10,11 +10,12 @@
 # limitations under the License.
 
 from typing import Tuple, Union
+
 import torch
 import torch.nn as nn
 
-from monai.networks.blocks.dynunet_block import UnetOutBlock
 from monai.networks.blocks import UnetrBasicBlock, UnetrPrUpBlock, UnetrUpBlock
+from monai.networks.blocks.dynunet_block import UnetOutBlock
 from monai.networks.nets import ViT
 
 
@@ -188,21 +189,28 @@ class UNETR(nn.Module):
         with torch.no_grad():
             res_weight = weights
             # copy weights from patch embedding
-            for i in weights['state_dict']:
+            for i in weights["state_dict"]:
                 print(i)
-            self.vit.patch_embedding.position_embeddings.copy_(weights['state_dict']['module.transformer.patch_embedding.position_embeddings_3d'])
-            self.vit.patch_embedding.cls_token.copy_(weights['state_dict']['module.transformer.patch_embedding.cls_token'])
-            self.vit.patch_embedding.patch_embeddings[1].weight.copy_(weights['state_dict']['module.transformer.patch_embedding.patch_embeddings.1.weight'])
-            self.vit.patch_embedding.patch_embeddings[1].bias.copy_(weights['state_dict']['module.transformer.patch_embedding.patch_embeddings.1.bias'])
+            self.vit.patch_embedding.position_embeddings.copy_(
+                weights["state_dict"]["module.transformer.patch_embedding.position_embeddings_3d"]
+            )
+            self.vit.patch_embedding.cls_token.copy_(
+                weights["state_dict"]["module.transformer.patch_embedding.cls_token"]
+            )
+            self.vit.patch_embedding.patch_embeddings[1].weight.copy_(
+                weights["state_dict"]["module.transformer.patch_embedding.patch_embeddings.1.weight"]
+            )
+            self.vit.patch_embedding.patch_embeddings[1].bias.copy_(
+                weights["state_dict"]["module.transformer.patch_embedding.patch_embeddings.1.bias"]
+            )
 
             # copy weights from  encoding blocks (default: num of blocks: 12)
             for bname, block in self.vit.blocks.named_children():
                 print(block)
                 block.loadFrom(weights, n_block=bname)
             # last norm layer of transformer
-            self.vit.norm.weight.copy_(weights['state_dict']['module.transformer.norm.weight'])
-            self.vit.norm.bias.copy_(weights['state_dict']['module.transformer.norm.bias'])
-
+            self.vit.norm.weight.copy_(weights["state_dict"]["module.transformer.norm.weight"])
+            self.vit.norm.bias.copy_(weights["state_dict"]["module.transformer.norm.bias"])
 
     def forward(self, x_in):
         x, hidden_states_out = self.vit(x_in)

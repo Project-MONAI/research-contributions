@@ -13,91 +13,62 @@ import argparse
 import copy
 import json
 import logging
-import monai
-import nibabel as nib
-import numpy as np
 import os
-import pandas as pd
 import pathlib
 import shutil
 import sys
 import tempfile
 import time
+from datetime import datetime
+from glob import glob
+
+import nibabel as nib
+import numpy as np
+import pandas as pd
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 import yaml
-
 from auto_unet import AutoUnet
-from datetime import datetime
-from glob import glob
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
+
 # from torch.utils.data import DataLoader
 # from torch.utils.data.distributed import DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
-from monai.transforms import (
-    AsDiscrete,
-    BatchInverseTransform,
-    KeepLargestConnectedComponent,
-    Invertd,
+from transforms import creating_transforms_testing, str2aug
+from utils import parse_monai_specs  # parse_monai_transform_specs,
+
+import monai
+from monai.data import (
+    DataLoader,
+    Dataset,
+    DistributedSampler,
+    create_test_image_3d,
+    list_data_collate,
+    partition_dataset,
 )
-from monai.data import DataLoader, Dataset, create_test_image_3d, DistributedSampler, list_data_collate, partition_dataset
 from monai.inferers import sliding_window_inference
+
 # from monai.losses import DiceLoss, FocalLoss, GeneralizedDiceLoss
 from monai.metrics import compute_meandice
+from monai.transforms import AsDiscrete, BatchInverseTransform, Invertd, KeepLargestConnectedComponent
 from monai.utils import set_determinism
 from monai.utils.enums import InverseKeys
-from transforms import (
-    creating_transforms_testing,
-    str2aug
-)
-from utils import (
-    parse_monai_specs,
-    # parse_monai_transform_specs,
-)
 
 
 def main():
     parser = argparse.ArgumentParser(description="inference")
-    parser.add_argument(
-        "--arch_ckpt",
-        action="store",
-        required=True,
-        help="data root",
-    )
-    parser.add_argument("--checkpoint",
-                        type=str,
-                        default=None,
-                        help='checkpoint')
-    parser.add_argument("--config",
-                        action="store",
-                        required=True,
-                        help="configuration")
-    parser.add_argument("--json",
-                        action="store",
-                        required=True,
-                        help="full path of .json file")
-    parser.add_argument("--json_key",
-                        action="store",
-                        required=True,
-                        help=".json data list key")
-    parser.add_argument("--local_rank",
-                        required=int,
-                        help="local process rank")
-    parser.add_argument("--output_root",
-                        action="store",
-                        required=True,
-                        help="output root")
-    parser.add_argument("--prob",
-                        default=False,
-                        action="store_true",
-                        help="probility map")
-    parser.add_argument("--root",
-                        action="store",
-                        required=True,
-                        help="data root")
+    parser.add_argument("--arch_ckpt", action="store", required=True, help="data root")
+    parser.add_argument("--checkpoint", type=str, default=None, help="checkpoint")
+    parser.add_argument("--config", action="store", required=True, help="configuration")
+    parser.add_argument("--json", action="store", required=True, help="full path of .json file")
+    parser.add_argument("--json_key", action="store", required=True, help=".json data list key")
+    parser.add_argument("--local_rank", required=int, help="local process rank")
+    parser.add_argument("--output_root", action="store", required=True, help="output root")
+    parser.add_argument("--prob", default=False, action="store_true", help="probility map")
+    parser.add_argument("--root", action="store", required=True, help="data root")
     args = parser.parse_args()
 
     # # disable logging for processes except 0 on every node
@@ -140,10 +111,10 @@ def main():
     # optim_string = config_core["optimizer"]
     output_classes = config_core["output_classes"]
     overlap_ratio = config_core["infer_overlap_ratio"]
-    patch_size = tuple(map(int, config_core["infer_patch_size"].split(',')))
+    patch_size = tuple(map(int, config_core["infer_patch_size"].split(",")))
     patch_size_valid = patch_size
     # scale_intensity_range = list(map(float, config_core["scale_intensity_range"].split(',')))
-    spacing = list(map(float, config_core["spacing"].split(',')))
+    spacing = list(map(float, config_core["spacing"].split(",")))
 
     # if args.debug:
     #     num_epochs_per_validation = 1
@@ -184,7 +155,9 @@ def main():
         files.append({"image": str_img})
 
     infer_files = files
-    infer_files = partition_dataset(data=infer_files, shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
+    infer_files = partition_dataset(
+        data=infer_files, shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False
+    )[dist.get_rank()]
     print("infer_files", len(infer_files))
 
     # label_interpolation_transform = creating_label_interpolation_transform(label_interpolation, spacing, output_classes)
@@ -202,7 +175,9 @@ def main():
 
     # train_loader = DataLoader(train_ds, batch_size=num_images_per_batch, shuffle=True, num_workers=4, pin_memory=torch.cuda.is_available())
     # infer_loader = DataLoader(infer_ds, batch_size=1, shuffle=False, num_workers=4, pin_memory=torch.cuda.is_available())
-    infer_loader = DataLoader(infer_ds, batch_size=1, shuffle=False, num_workers=4, pin_memory=torch.cuda.is_available())
+    infer_loader = DataLoader(
+        infer_ds, batch_size=1, shuffle=False, num_workers=4, pin_memory=torch.cuda.is_available()
+    )
 
     # inverter = Invertd(
     #     # `image` was not copied, invert the original value directly
@@ -242,15 +217,15 @@ def main():
     # model = model.to(device)
 
     ckpt = torch.load(args.arch_ckpt)
-    node_a = ckpt['node_a']
-    code_a = ckpt['code_a']
-    code_c = ckpt['code_c']
+    node_a = ckpt["node_a"]
+    code_a = ckpt["code_a"]
+    code_c = ckpt["code_c"]
 
     model = AutoUnet(
         in_channels=input_channels,
         num_classes=output_classes,
         cell_ops=5,
-        k=1, 
+        k=1,
         num_blocks=12,
         num_depths=4,
         channel_mul=1.0,
@@ -259,9 +234,9 @@ def main():
         probs=0.9,
         ef=0.3,
         use_stem=True,
-        code=[node_a, code_a, code_c]
+        code=[node_a, code_a, code_c],
     )
-    
+
     code_a = torch.from_numpy(code_a).to(torch.float32).cuda()
     code_c = F.one_hot(torch.from_numpy(code_c), model.cell_ops).to(torch.float32).cuda()
     model = model.to(device)
@@ -272,7 +247,7 @@ def main():
 
         model = DistributedDataParallel(model, device_ids=[device])
 
-    if args.checkpoint != None and os.path.isfile(args.checkpoint):
+    if args.checkpoint is not None and os.path.isfile(args.checkpoint):
         print("[info] loading pre-trained checkpoint {0:s}".format(args.checkpoint))
         model.load_state_dict(torch.load(args.checkpoint))
     else:
@@ -280,10 +255,7 @@ def main():
         input()
 
     saver = monai.data.NiftiSaver(
-        output_dir=args.output_root,
-        output_postfix="seg",
-        resample=False,
-        output_dtype=np.uint8
+        output_dir=args.output_root, output_postfix="seg", resample=False, output_dtype=np.uint8
     )
 
     # # amp
@@ -315,8 +287,8 @@ def main():
     # if dist.get_rank() == 0:
     #     writer = SummaryWriter(log_dir=os.path.join(args.output_root, "Events"))
 
-        # with open(os.path.join(args.output_root, "accuracy_history.csv"), "a") as f:
-        #     f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
+    # with open(os.path.join(args.output_root, "accuracy_history.csv"), "a") as f:
+    #     f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
 
     start_time = time.time()
     # # for epoch in range(num_epochs):
@@ -408,7 +380,7 @@ def main():
                 sw_batch_size,
                 lambda x: model(x, [node_a, code_a, code_c], ds=False)[-1],
                 mode="gaussian",
-                overlap=overlap_ratio
+                overlap=overlap_ratio,
             )
 
             for dims in flip_tta:
@@ -420,9 +392,9 @@ def main():
                         sw_batch_size,
                         lambda x: model(x, [node_a, code_a, code_c], ds=False)[-1],
                         mode="gaussian",
-                        overlap=overlap_ratio
+                        overlap=overlap_ratio,
                     ),
-                    dims=dims
+                    dims=dims,
                 )
                 pred += flip_pred
                 ct += 1.0
@@ -466,7 +438,9 @@ def main():
             #     out_nda = out_nda.astype(np.uint8)
             #     print("post-processing")
 
-            out_filename = os.path.join(args.output_root, infer_data["image_meta_dict"]["filename_or_obj"][0].split(os.sep)[-1])
+            out_filename = os.path.join(
+                args.output_root, infer_data["image_meta_dict"]["filename_or_obj"][0].split(os.sep)[-1]
+            )
             # out_filename = out_filename.replace("case_", "prediction_") + ".nii.gz"
             out_affine = infer_data["image_meta_dict"]["affine"].numpy().squeeze()
             out_img = nib.Nifti1Image(out_nda.astype(np.uint8), out_affine)
@@ -475,13 +449,15 @@ def main():
 
             if args.prob:
                 for _k in range(1, output_classes):
-                    out_filename = os.path.join(args.output_root, infer_data["image_meta_dict"]["filename_or_obj"][0].split(os.sep)[-1])
+                    out_filename = os.path.join(
+                        args.output_root, infer_data["image_meta_dict"]["filename_or_obj"][0].split(os.sep)[-1]
+                    )
                     # out_filename = out_filename.replace("case_", "prediction_") + ".nii.gz"
                     out_filename = out_filename.replace(".nii", "_prob{0:d}.nii".format(_k))
                     out_affine = infer_data["image_meta_dict"]["affine"].numpy().squeeze()
 
                     # out_img = nib.Nifti1Image(infer_outputs[_k:_k+1, ...].squeeze().astype(np.float32), out_affine)
-                    infer_outputs_indiv = infer_outputs[_k:_k+1, ...].squeeze()
+                    infer_outputs_indiv = infer_outputs[_k : _k + 1, ...].squeeze()
                     # infer_outputs_indiv[infer_outputs_indiv < 0.0] = 0.0
                     # infer_outputs_indiv[infer_outputs_indiv > 1.0] = 1.0
                     # infer_outputs_indiv = infer_outputs_indiv * 255.0

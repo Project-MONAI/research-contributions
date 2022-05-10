@@ -16,13 +16,15 @@ from coplenet import CopleNet
 from parameterized import parameterized
 
 TEST_CASES = [
-    [{"spatial_dims": 2}, torch.randn(16, 1, 32, 32), (16, 2, 32, 32)],  # single channel 2D, batch 16, no residual
+    # single channel 2D, batch 16, no residual
+    [{"spatial_dims": 2}, torch.randn(16, 1, 32, 32), (16, 2, 32, 32)],
     [
         {"spatial_dims": 2, "in_channels": 5, "out_channels": 4},
         torch.randn(16, 5, 32, 32),
         (16, 4, 32, 32),
     ],  # 5-channel 2D, batch 16
-    [{"spatial_dims": 2}, torch.randn(16, 1, 32, 48, 48), (16, 2, 32, 48, 48)],  # 1-channel 3D, batch 16
+    # 1-channel 3D, batch 16
+    [{"spatial_dims": 2}, torch.randn(16, 1, 32, 48, 48), (16, 2, 32, 48, 48)],
     [
         {"spatial_dims": 2, "bilinear": False},
         torch.randn(16, 1, 32, 64, 48),

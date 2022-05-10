@@ -17,24 +17,15 @@ from monai.apps import download_and_extract
 
 def main():
     parser = argparse.ArgumentParser(description="training")
-    parser.add_argument(
-        "--msd_task",
-        action="store",
-        default="Task07_Pancreas",
-        help="msd task",
-    )
-    parser.add_argument(
-        "--root",
-        action="store",
-        default="./data_msd",
-        help="data root",
-    )
+    parser.add_argument("--msd_task", action="store", default="Task07_Pancreas", help="msd task")
+    parser.add_argument("--root", action="store", default="./data_msd", help="data root")
     args = parser.parse_args()
 
     resource = "https://msd-for-monai.s3-us-west-2.amazonaws.com/" + args.msd_task + ".tar"
     compressed_file = os.path.join(args.root, args.msd_task + ".tar")
     if not os.path.exists(args.root):
         download_and_extract(resource, compressed_file, args.root)
+
 
 if __name__ == "__main__":
     main()

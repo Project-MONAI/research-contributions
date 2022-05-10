@@ -13,118 +13,58 @@ import argparse
 import copy
 import json
 import logging
-import monai
-import nibabel as nib
-import numpy as np
 import os
-import pandas as pd
 import pathlib
 import shutil
 import sys
 import tempfile
 import time
+from datetime import datetime
+from glob import glob
+
+import nibabel as nib
+import numpy as np
+import pandas as pd
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 import yaml
-
-from datetime import datetime
-from glob import glob
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
+from transforms import creating_transforms_training, creating_transforms_validation
+from utils import parse_monai_specs
+
+import monai
 from monai.data import (
     DataLoader,
-    ThreadDataLoader,
-    decollate_batch,
-)
-from monai.transforms import (
-    apply_transform,
-    AsDiscrete,
-    Compose,
-    EnsureType,
-    Randomizable,
-    Transform,
-)
-from monai.data import (
     Dataset,
-    create_test_image_3d,
     DistributedSampler,
+    ThreadDataLoader,
+    create_test_image_3d,
+    decollate_batch,
     list_data_collate,
     partition_dataset,
 )
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_meandice
+from monai.transforms import AsDiscrete, Compose, EnsureType, Randomizable, Transform, apply_transform
 from monai.utils import set_determinism
-from transforms import (
-    creating_transforms_training,
-    creating_transforms_validation,
-)
-from utils import parse_monai_specs
 
 
 def main():
     parser = argparse.ArgumentParser(description="training")
-    parser.add_argument(
-        "--arch_ckpt",
-        action="store",
-        required=True,
-        help="data root",
-    )
-    parser.add_argument(
-        "--checkpoint",
-        type=str,
-        default=None,
-        help="checkpoint full path",
-    )
-    parser.add_argument(
-        "--config",
-        action="store",
-        required=True,
-        help="configuration",
-    )
-    parser.add_argument(
-        "--fold",
-        action="store",
-        required=True,
-        help="fold index in N-fold cross-validation",
-    )
-    parser.add_argument(
-        "--json",
-        action="store",
-        required=True,
-        help="full path of .json file",
-    )
-    parser.add_argument(
-        "--json_key",
-        action="store",
-        required=True,
-        help="selected key in .json data list",
-    )
-    parser.add_argument(
-        "--local_rank",
-        required=int,
-        help="local process rank",
-    )
-    parser.add_argument(
-        "--num_folds",
-        action="store",
-        required=True,
-        help="number of folds in cross-validation",
-    )
-    parser.add_argument(
-        "--output_root",
-        action="store",
-        required=True,
-        help="output root",
-    )
-    parser.add_argument(
-        "--root",
-        action="store",
-        required=True,
-        help="data root",
-    )
+    parser.add_argument("--arch_ckpt", action="store", required=True, help="data root")
+    parser.add_argument("--checkpoint", type=str, default=None, help="checkpoint full path")
+    parser.add_argument("--config", action="store", required=True, help="configuration")
+    parser.add_argument("--fold", action="store", required=True, help="fold index in N-fold cross-validation")
+    parser.add_argument("--json", action="store", required=True, help="full path of .json file")
+    parser.add_argument("--json_key", action="store", required=True, help="selected key in .json data list")
+    parser.add_argument("--local_rank", required=int, help="local process rank")
+    parser.add_argument("--num_folds", action="store", required=True, help="number of folds in cross-validation")
+    parser.add_argument("--output_root", action="store", required=True, help="output root")
+    parser.add_argument("--root", action="store", required=True, help="data root")
     args = parser.parse_args()
 
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -147,7 +87,7 @@ def main():
     intensity_norm = config_core["intensity_norm"]
     interpolation = config_core["interpolation"]
     learning_rate = config_core["learning_rate"]
-    learning_rate_milestones = np.array(list(map(float, config_core["learning_rate_milestones"].split(','))))
+    learning_rate_milestones = np.array(list(map(float, config_core["learning_rate_milestones"].split(","))))
     num_images_per_batch = config_core["num_images_per_batch"]
     num_epochs = config_core["num_epochs"]
     num_epochs_per_validation = config_core["num_epochs_per_validation"]
@@ -156,8 +96,8 @@ def main():
     num_sw_batch_size = config_core["num_sw_batch_size"]
     output_classes = config_core["output_classes"]
     overlap_ratio = config_core["overlap_ratio"]
-    patch_size = tuple(map(int, config_core["patch_size"].split(',')))
-    patch_size_valid = tuple(map(int, config_core["infer_patch_size"].split(',')))
+    patch_size = tuple(map(int, config_core["patch_size"].split(",")))
+    patch_size_valid = tuple(map(int, config_core["infer_patch_size"].split(",")))
 
     # deterministic training
     if determ:
@@ -216,8 +156,8 @@ def main():
         json_data = json.load(f)
 
     split = len(json_data[args.json_key]) // num_folds
-    list_train = json_data[args.json_key][:(split * fold)] + json_data[args.json_key][(split * (fold + 1)):]
-    list_valid = json_data[args.json_key][(split * fold):(split * (fold + 1))]
+    list_train = json_data[args.json_key][: (split * fold)] + json_data[args.json_key][(split * (fold + 1)) :]
+    list_valid = json_data[args.json_key][(split * fold) : (split * (fold + 1))]
 
     # training data
     files = []
@@ -229,9 +169,11 @@ def main():
             continue
 
         files.append({"image": str_img, "label": str_seg})
-    
+
     train_files = files
-    train_files = partition_dataset(data=train_files, shuffle=True, num_partitions=dist.get_world_size(), even_divisible=True)[dist.get_rank()]
+    train_files = partition_dataset(
+        data=train_files, shuffle=True, num_partitions=dist.get_world_size(), even_divisible=True
+    )[dist.get_rank()]
     print("train_files:", len(train_files))
 
     # validation data
@@ -239,30 +181,43 @@ def main():
     for _i in range(len(list_valid)):
         str_img = os.path.join(args.root, list_valid[_i]["image"])
         str_seg = os.path.join(args.root, list_valid[_i]["label"])
-                
+
         if (not os.path.exists(str_img)) or (not os.path.exists(str_seg)):
             continue
 
         files.append({"image": str_img, "label": str_seg})
 
     val_files = files
-    val_files = partition_dataset(data=val_files, shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
+    val_files = partition_dataset(
+        data=val_files, shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False
+    )[dist.get_rank()]
     print("val_files:", len(val_files))
 
     device = torch.device(f"cuda:{args.local_rank}")
     torch.cuda.set_device(device)
 
-    train_transforms = creating_transforms_training(foreground_crop_margin, interpolation_transforms, num_patches_per_image, patch_size, intensity_norm_transforms, augmenations, device, output_classes)
-    val_transforms = creating_transforms_validation(foreground_crop_margin, interpolation_transforms, patch_size, intensity_norm_transforms, device)
+    train_transforms = creating_transforms_training(
+        foreground_crop_margin,
+        interpolation_transforms,
+        num_patches_per_image,
+        patch_size,
+        intensity_norm_transforms,
+        augmenations,
+        device,
+        output_classes,
+    )
+    val_transforms = creating_transforms_validation(
+        foreground_crop_margin, interpolation_transforms, patch_size, intensity_norm_transforms, device
+    )
 
-    ## alternative Dataset
+    # alternative Dataset
     # train_ds = monai.data.Dataset(data=train_files, transform=train_transforms)
     # val_ds = monai.data.Dataset(data=val_files, transform=val_transforms)
 
     train_ds = monai.data.CacheDataset(data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8)
     val_ds = monai.data.CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2)
 
-    ## alternative DataLoader
+    # alternative DataLoader
     # train_loader = DataLoader(train_ds, batch_size=num_images_per_batch, shuffle=True, num_workers=8, pin_memory=torch.cuda.is_available())
     # val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=2, pin_memory=torch.cuda.is_available())
 
@@ -270,9 +225,9 @@ def main():
     val_loader = ThreadDataLoader(val_ds, num_workers=0, batch_size=1, shuffle=False)
 
     ckpt = torch.load(args.arch_ckpt)
-    node_a = ckpt['node_a']
-    arch_code_a = ckpt['arch_code_a']
-    arch_code_c = ckpt['arch_code_c']
+    node_a = ckpt["node_a"]
+    arch_code_a = ckpt["arch_code_a"]
+    arch_code_c = ckpt["arch_code_c"]
 
     dints_space = monai.networks.nets.TopologyInstance(
         channel_mul=1.0,
@@ -290,22 +245,12 @@ def main():
         use_downsample=True,
         node_a=node_a,
     )
-    
+
     model = model.to(device)
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
-    post_pred = Compose(
-        [
-            EnsureType(),
-            AsDiscrete(argmax=True, to_onehot=output_classes),
-        ]
-    )
-    post_label = Compose(
-        [
-            EnsureType(),
-            AsDiscrete(to_onehot=output_classes),
-        ]
-    )
+    post_pred = Compose([EnsureType(), AsDiscrete(argmax=True, to_onehot=output_classes)])
+    post_label = Compose([EnsureType(), AsDiscrete(to_onehot=output_classes)])
 
     # loss function
     loss_func = monai.losses.DiceCELoss(
@@ -319,12 +264,7 @@ def main():
     )
 
     # optimizer
-    optimizer = torch.optim.SGD(
-        model.parameters(),
-        lr=learning_rate * world_size,
-        momentum=0.9,
-        weight_decay=0.00004
-    )
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate * world_size, momentum=0.9, weight_decay=0.00004)
 
     print()
 
@@ -334,7 +274,7 @@ def main():
 
         model = DistributedDataParallel(model, device_ids=[device], find_unused_parameters=True)
 
-    if args.checkpoint != None and os.path.isfile(args.checkpoint):
+    if args.checkpoint is not None and os.path.isfile(args.checkpoint):
         print("[info] fine-tuning pre-trained checkpoint {0:s}".format(args.checkpoint))
         model.load_state_dict(torch.load(args.checkpoint, map_location=device))
         torch.cuda.empty_cache()
@@ -343,7 +283,8 @@ def main():
 
     # amp
     if amp:
-        from torch.cuda.amp import autocast, GradScaler
+        from torch.cuda.amp import GradScaler, autocast
+
         scaler = GradScaler()
         if dist.get_rank() == 0:
             print("[info] amp enabled")
@@ -372,7 +313,7 @@ def main():
         if dist.get_rank() == 0:
             print("-" * 10)
             print(f"epoch {epoch + 1}/{num_epochs}")
-            print('learning rate is set to {}'.format(lr))
+            print("learning rate is set to {}".format(lr))
 
         model.train()
         epoch_loss = 0
@@ -422,7 +363,9 @@ def main():
         loss_torch = loss_torch.tolist()
         if dist.get_rank() == 0:
             loss_torch_epoch = loss_torch[0] / loss_torch[1]
-            print(f"epoch {epoch + 1} average loss: {loss_torch_epoch:.4f}, best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}")
+            print(
+                f"epoch {epoch + 1} average loss: {loss_torch_epoch:.4f}, best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}"
+            )
 
         if (epoch + 1) % val_interval == 0 or (epoch + 1) == num_epochs:
             torch.cuda.empty_cache()
@@ -462,14 +405,10 @@ def main():
                     val_labels = post_label(val_labels[0, ...])
                     val_labels = val_labels[None, ...]
 
-                    value = compute_meandice(
-                        y_pred=val_outputs,
-                        y=val_labels,
-                        include_background=False
-                    )
+                    value = compute_meandice(y_pred=val_outputs, y=val_labels, include_background=False)
 
                     print(_index + 1, "/", len(val_loader), value)
-                    
+
                     metric_count += len(value)
                     metric_sum += value.sum().item()
                     metric_vals = value.cpu().numpy()
@@ -521,7 +460,11 @@ def main():
                     current_time = time.time()
                     elapsed_time = (current_time - start_time) / 60.0
                     with open(os.path.join(args.output_root, "accuracy_history.csv"), "a") as f:
-                        f.write("{0:d}\t{1:.5f}\t{2:.5f}\t{3:.5f}\t{4:.1f}\t{5:d}\n".format(epoch + 1, avg_metric, loss_torch_epoch, lr, elapsed_time, idx_iter))
+                        f.write(
+                            "{0:d}\t{1:.5f}\t{2:.5f}\t{3:.5f}\t{4:.1f}\t{5:d}\n".format(
+                                epoch + 1, avg_metric, loss_torch_epoch, lr, elapsed_time, idx_iter
+                            )
+                        )
 
                 dist.barrier()
 
