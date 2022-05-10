@@ -26,7 +26,7 @@ for path in pathlist:
 
 * Denoise and Crop the Skulls
 
-The denoising codes come from [this repository](https://github.com/Jianningli/autoimplant/blob/master/src/pre_post_processing.py).
+The denoising codes come from [this repository](https://github.com/Jianningli/autoimplant/blob/master/src/pre_post_processing.py). <br>
 The axial dimension of all the skull images are cropped to 256. If the axial dimension is smaller than 256, zero padding can be used.
 
 
