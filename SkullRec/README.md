@@ -80,13 +80,14 @@ The MONAI codes are adapted from the [MONAI 3D Spleen segmentation example](http
 
 #### Software and Hardware Requirements
 
-The codes are tested with the following software and hardware
+The codes are tested with the following software and hardware:
 ```
 software:
 monai: 0.8.1
 pytorch: 1.11.0
 hardware:
 NVIDIA GeForce RTX 3090 (24GB RAM)
+Recommended GPU RAM >=24GB 
 ```
 
 * Training Your MONAI Model 
