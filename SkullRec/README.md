@@ -26,7 +26,7 @@ for path in pathlist:
 
 * Denoise and Crop the Skulls
 
-The denoising codes come from [this repository](https://github.com/Jianningli/autoimplant/blob/master/src/pre_post_processing.py). <br>
+The denoising codes come from [this repository](https://github.com/Jianningli/autoimplant/blob/master/src/pre_post_processing.py). 
 The axial dimension of all the skull images are cropped to 256. If the axial dimension is smaller than 256, zero padding can be used.
 
 
@@ -38,7 +38,8 @@ cranialDefects.py  #create defects around the cranium
 * Convert NRRDs to Nifty (for MONAI Dataset loader)
 
 ``` Python
-#codes attributes to the stack overflow anser: [Nrrd to Nifti file conversion](https://stackoverflow.com/questions/47761353/nrrd-to-nifti-file-conversion)
+#codes attributes to the stack overflow anser: 
+#[Nrrd to Nifti file conversion](https://stackoverflow.com/questions/47761353/nrrd-to-nifti-file-conversion)
 import vtk
 
 def readnrrd(filename):
