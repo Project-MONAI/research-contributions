@@ -23,6 +23,12 @@ for path in pathlist:
      print(path_in_str)
      
 ```
+
+* Denoise and Crop the Skulls
+
+The denoising codes come from [this repository](https://github.com/Jianningli/autoimplant/blob/master/src/pre_post_processing.py). The axial dimension of all the skull images are cropped to 256.
+
+
 * Create Facial and Cranial Defects on the Skulls 
 facialDefects.py
 cranialDefects.py
@@ -58,7 +64,8 @@ for file in files:
   writenifti(m,fname,info)
 ```
 
- 
+ * Split Training and Test Set
+ Except the 21 corrupted files in MUG500+ dataset
 
 ### Train a CNN using MONAI
 
