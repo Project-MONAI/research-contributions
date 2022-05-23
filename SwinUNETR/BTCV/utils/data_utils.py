@@ -139,7 +139,6 @@ def get_loader(args):
         [
             transforms.LoadImaged(keys=["image", "label"]),
             transforms.AddChanneld(keys=["image", "label"]),
-            # transforms.Orientationd(keys=["image"], axcodes="RAS"),
             transforms.Spacingd(keys="image",
                                 pixdim=(args.space_x, args.space_y, args.space_z),
                                 mode="bilinear"),
