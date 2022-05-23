@@ -138,5 +138,3 @@ and,
   publisher={Springer}
 }
 ```
-
-

@@ -24,7 +24,7 @@ from monai.networks.layers.factories import Act, Conv, Norm
 class Stash(nn.Module):
     def forward(self, input: torch.Tensor):
         yield stash("skip", input)
-        return input  # noqa  using yield together with return
+        return input  # using yield together with return
 
 
 @skippable(stash=[], pop=["skip"])
