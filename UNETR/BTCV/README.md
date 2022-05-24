@@ -151,7 +151,7 @@ Under Institutional Review Board (IRB) supervision, 50 abdomen CT scans of were 
 - Task: Segmentation
 - Modality: CT
 - Size: 30 3D volumes (24 Training + 6 Testing)
-- Size: BTCV MICCAI Challenge
+
 
 We provide the json file that is used to train our models in the following link:
 
@@ -163,11 +163,12 @@ Once the json file is downloaded, please place it in the same folder as the data
 If you find this repository useful, please consider citing UNETR paper:
 
 ```
-@article{hatamizadeh2021unetr,
+@inproceedings{hatamizadeh2022unetr,
   title={Unetr: Transformers for 3d medical image segmentation},
-  author={Hatamizadeh, Ali and Yang, Dong and Roth, Holger and Xu, Daguang},
-  journal={arXiv preprint arXiv:2103.10504},
-  year={2021}
+  author={Hatamizadeh, Ali and Tang, Yucheng and Nath, Vishwesh and Yang, Dong and Myronenko, Andriy and Landman, Bennett and Roth, Holger R and Xu, Daguang},
+  booktitle={Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision},
+  pages={574--584},
+  year={2022}
 }
 ```
 
