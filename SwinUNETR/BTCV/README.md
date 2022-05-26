@@ -201,7 +201,7 @@ By following the commands for evaluating `Swin UNETR` in the above, `test.py` sa
 in the original spacing in a new folder based on the name of the experiment which is passed by `--exp_name`.
 
 ## Citation
-If you find this repository useful, please consider citing UNETR paper:
+If you find this repository useful, please consider citing the following papers:
 
 ```
 @article{tang2021self,
