@@ -1,7 +1,7 @@
 # Model Overview
 ![image](./assets/swin_unetr.png)
 This repository contains the code for Swin UNETR [1,2]. Swin UNETR is the state-of-the-art on Medical Segmentation
-Decathlon (MSD) and Beyond the Cranial Vault (BTCV) Segmentation Challenge dataset [3]. In [2], a novel methodology is devised for pre-training Swin UNETR backbone in a self-supervised
+Decathlon (MSD) and Beyond the Cranial Vault (BTCV) Segmentation Challenge dataset. In [1], a novel methodology is devised for pre-training Swin UNETR backbone in a self-supervised
 manner. We provide the option for training Swin UNETR by fine-tuning from pre-trained self-supervised weights or from scratch.
 
 ### Installing Dependencies
@@ -125,7 +125,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=48 
 
 #### Training from scratch on single GPU (base model without AMP)
 
-To train a `Swin UNETR` from scratch a single GPU without AMP:
+To train a `Swin UNETR` from scratch on a single GPU without AMP:
 
 ```bash
 python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=48 --noamp\
@@ -134,7 +134,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=48 
 
 #### Training from scratch on single GPU (small model without check-pointing)
 
-To train a `Swin UNETR` from scratch a single GPU without AMP:
+To train a `Swin UNETR` from scratch on a single GPU without AMP:
 
 ```bash
 python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=24\
@@ -143,7 +143,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=24\
 
 #### Training from scratch on single GPU (tiny model without check-pointing)
 
-To train a `Swin UNETR` from scratch a single GPU without AMP:
+To train a `Swin UNETR` from scratch on a single GPU without AMP:
 
 ```bash
 python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=12\
