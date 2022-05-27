@@ -1,7 +1,7 @@
 # Model Overview
 ![image](./assets/ssl_swin.png)
 
-This repository contains the code for self-supervised pre-training of Swin UNETR model[1,2] for medical image segmentation. Swin UNETR is the state-of-the-art on Medical Segmentation
+This repository contains the code for self-supervised pre-training of Swin UNETR model[1] for medical image segmentation. Swin UNETR is the state-of-the-art on Medical Segmentation
 Decathlon (MSD) and Beyond the Cranial Vault (BTCV) Segmentation Challenge dataset.
 
 ### Installing Dependencies
@@ -17,15 +17,14 @@ In the following, we describe steps for pre-training the model from scratch.
 
 ## Datasets
 
-The following datasets were used for pre-training (~5050 3D CT images):
+The following datasets were used for pre-training (~5050 3D CT images). Please download the corresponding the json files of each dataset for more details and place them in ```jsons``` folder:
 
-- Head & Neck Squamous Cell Carcinoma (HNSCC) ([Link](https://wiki.cancerimagingarchive.net/display/Public/HNSCC))
-- Lung Nodule Analysis 2016 (LUNA 16) ([Link](https://luna16.grand-challenge.org/Data/))
-- TCIA CT Colonography Trial ([Link](https://wiki.cancerimagingarchive.net/display/Public/CT+COLONOGRAPHY/))
-- TCIA Covid 19 ([Link](https://wiki.cancerimagingarchive.net/display/Public/CT+Images+in+COVID-19/))
-- TCIA LIDC ([Link](https://wiki.cancerimagingarchive.net/display/Public/LIDC-IDRI/))
+- Head & Neck Squamous Cell Carcinoma (HNSCC) ([Link](https://wiki.cancerimagingarchive.net/display/Public/HNSCC)) ([Download json](https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/dataset_HNSCC_0.json))
+- Lung Nodule Analysis 2016 (LUNA 16) ([Link](https://luna16.grand-challenge.org/Data/)) ([Download json](https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/dataset_LUNA16_0.json))
+- TCIA CT Colonography Trial ([Link](https://wiki.cancerimagingarchive.net/display/Public/CT+COLONOGRAPHY/)) ([Download json](https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/dataset_TCIAcolon_v2_0.json))
+- TCIA Covid 19 ([Link](https://wiki.cancerimagingarchive.net/display/Public/CT+Images+in+COVID-19/)) ([Download json](https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/dataset_TCIAcovid19_0.json))
+- TCIA LIDC ([Link](https://wiki.cancerimagingarchive.net/display/Public/LIDC-IDRI/)) ([Download json](https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/dataset_LIDC_0.json))
 
-Please see the corresponding the json files of each dataset in ```jsons``` folder.
 
 ### Training
 
