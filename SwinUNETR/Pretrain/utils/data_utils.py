@@ -102,7 +102,7 @@ def get_loader(args):
                           args.roi_y,
                           args.roi_z],
                 num_samples=args.sw_batch_size,
-                random_center=True, 
+                random_center=True,
                 random_size=False
             ),
             ToTensord(keys=["image"])
@@ -131,7 +131,7 @@ def get_loader(args):
                           args.roi_y,
                           args.roi_z],
                 num_samples=args.sw_batch_size,
-                random_center=True, 
+                random_center=True,
                 random_size=False
             ),
             ToTensord(keys=["image"])

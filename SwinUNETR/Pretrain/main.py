@@ -58,11 +58,11 @@ def main():
                     rot2_p, contrastive2_p, rec_x2 = model(x2_augment)
             else:
                 rot1_p, contrastive1_p, rec_x1 = model(x1_augment)
-                rot2_p, contrastive2_p, rec_x2 = model(x2_augment)                  
+                rot2_p, contrastive2_p, rec_x2 = model(x2_augment)
 
             rot_p = torch.cat([rot1_p, rot2_p], dim=0)
             rots = torch.cat([rot1, rot2], dim=0)
-            imgs_recon = torch.cat([rec_x1, rec_x2], dim=0) 
+            imgs_recon = torch.cat([rec_x1, rec_x2], dim=0)
             imgs = torch.cat([x1, x2], dim=0)
             loss, losses_tasks = loss_function(rot_p,
                                                rots,
@@ -80,7 +80,7 @@ def main():
             elif args.torch_amp:
                 torchScaler.scale(loss).backward()
                 torchScaler.step(optimizer)
-                torchScaler.update()           
+                torchScaler.update()
             else:
                 loss.backward()
             if args.amp:
@@ -140,9 +140,9 @@ def main():
                 x2_augment = aug_rand(args, x2)
                 rot1_p, contrastive1_p, rec_x1 = model(x1_augment)
                 rot2_p, contrastive2_p, rec_x2 = model(x2_augment)
-                rot_p = torch.cat([rot1_p, rot2_p], dim=0) 
+                rot_p = torch.cat([rot1_p, rot2_p], dim=0)
                 rots = torch.cat([rot1, rot2], dim=0)
-                imgs_recon = torch.cat([rec_x1, rec_x2], dim=0) 
+                imgs_recon = torch.cat([rec_x1, rec_x2], dim=0)
                 imgs = torch.cat([x1, x2], dim=0)
                 loss, losses_tasks = loss_function(rot_p, rots, contrastive1_p, contrastive2_p, imgs_recon, imgs)
                 loss_recon = losses_tasks[2]
@@ -246,11 +246,11 @@ def main():
                                           opt_level=args.opt_level)
         if args.amp_scale:
             amp._amp_state.loss_scalers[0]._loss_scale = 2 ** 20
-            
+
     torchScaler = None
     if args.torch_amp:
         torchScaler = GradScaler()
-            
+
     if args.resume:
         model_pth = args.resume
         model_dict = torch.load(model_pth)
@@ -299,4 +299,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

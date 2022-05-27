@@ -13,7 +13,7 @@ pip install -r requirements.txt
 ### Pre-trained Models
 
 We provide the self-supervised pre-trained weights for Swin UNETR backbone (CVPR paper [1]) in this <a href="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/model_swinvit.pt"> link</a>.
-In the following, we describe steps for pre-training the model from scratch. 
+In the following, we describe steps for pre-training the model from scratch.
 
 ## Datasets
 
@@ -33,7 +33,7 @@ The following datasets were used for pre-training (~5050 3D CT images). Please d
 To train a `Swin UNETR` encoder using multi-gpus:
 
 ```bash
-python -m torch.distributed.launch --nproc_per_node=<Num-GPUs> --master_port=1234 main.py 
+python -m torch.distributed.launch --nproc_per_node=<Num-GPUs> --master_port=1234 main.py
 --batch_size=<Batch-Size> --num_steps=<Num-Steps> --lrdecay --eval_num=<Eval-Num> --logdir=<Exp-Num> --lr=<Lr>
 ```
 
@@ -42,7 +42,7 @@ python -m torch.distributed.launch --nproc_per_node=<Num-GPUs> --master_port=123
 To train a `Swin UNETR` encoder using a single gpu with gradient-checkpointing and a specified patch size:
 
 ```bash
-python main.py --use_checkpoint --batch_size=<Batch-Size> --num_steps=<Num-Steps> --lrdecay 
+python main.py --use_checkpoint --batch_size=<Batch-Size> --num_steps=<Num-Steps> --lrdecay
 --eval_num=<Eval-Num> --logdir=<Exp-Num> --lr=<Lr> --roi_x=<Roi_x> --roi_y=<Roi_y> --roi_z=<Roi_z>
 ```
 

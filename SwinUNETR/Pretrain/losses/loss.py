@@ -65,5 +65,3 @@ class Loss(torch.nn.Module):
         total_loss = rot_loss + contrast_loss + recon_loss
 
         return total_loss, (rot_loss, contrast_loss, recon_loss)
-
-
