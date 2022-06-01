@@ -4,4 +4,3 @@ A swin transformer-based model for volumetric (3D) brain tumor segmentation task
 
 # References
 [1] Hatamizadeh, Ali, et al. "Swin UNETR: Shifted Window Transformers for 3D Semantic Segmentation of Brain Tumors.", 2021.
-

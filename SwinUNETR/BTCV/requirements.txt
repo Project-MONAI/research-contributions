@@ -1,0 +1,6 @@
+git+https://github.com/Project-MONAI/MONAI#egg.gitmonai@0.8.1+271.g07de215c
+nibabel==3.1.1
+tqdm==4.59.0
+einops==0.4.1
+tensorboardX==2.1
+scipy==1.2.1

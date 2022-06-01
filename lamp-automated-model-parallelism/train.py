@@ -64,7 +64,8 @@ class ImageLabelDataset:
         mask0 = 1 - mask0
         data["label"] = np.concatenate([mask0] + mask_list, axis=0).astype(np.uint8)  # shape (C H W D)
         # setting flags
-        data["with_complete_groundtruth"] = flagvect  # flagvec is a boolean indicator for complete annotation
+        # flagvec is a boolean indicator for complete annotation
+        data["with_complete_groundtruth"] = flagvect
         return data
 
     def __len__(self):
@@ -100,14 +101,17 @@ def train(n_feat, crop_size, bs, ep, optimizer="rmsprop", lr=5e-4, pretrain=None
             ]
         )
         train_dataset = Dataset(train_images, transform=train_transform)
-        # when bs > 1, the loader assumes that the full image sizes are the same across the dataset
+        # when bs > 1, the loader assumes that the full image sizes are the
+        # same across the dataset
         train_dataloader = torch.utils.data.DataLoader(train_dataset, num_workers=4, batch_size=bs, shuffle=True)
     else:
-        # draw balanced foreground/background window samples according to the ground truth label
+        # draw balanced foreground/background window samples according to the
+        # ground truth label
         train_transform = Compose(
             [
                 AddChannelDict(keys="image"),
-                SpatialPadd(keys=("image", "label"), spatial_size=crop_size),  # ensure image size >= crop_size
+                SpatialPadd(keys=("image", "label"), spatial_size=crop_size),
+                # ensure image size >= crop_size
                 RandCropByPosNegLabeld(
                     keys=("image", "label"), label_key="label", spatial_size=crop_size, num_samples=bs
                 ),
@@ -126,7 +130,8 @@ def train(n_feat, crop_size, bs, ep, optimizer="rmsprop", lr=5e-4, pretrain=None
                 ),
             ]
         )
-        train_dataset = Dataset(train_images, transform=train_transform)  # each dataset item is a list of windows
+        # each dataset item is a list of windows
+        train_dataset = Dataset(train_images, transform=train_transform)
         train_dataloader = torch.utils.data.DataLoader(  # stack each dataset item into a single tensor
             train_dataset, num_workers=4, batch_size=1, shuffle=True, collate_fn=list_data_collate
         )

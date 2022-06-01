@@ -13,16 +13,16 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from monai.metrics.utils import do_metric_reduction, ignore_background
 from skimage import measure
 from skimage.transform import resize
+
+from monai.metrics.utils import do_metric_reduction, ignore_background
 
 
 def check_number(a):
     try:
         a = float(a)
-        if np.abs(a) < np.finfo(np.float32).eps or int(a)/a == 1:
+        if np.abs(a) < np.finfo(np.float32).eps or int(a) / a == 1:
             # print("This is Integer")
             return int(a)
         else:
@@ -49,7 +49,7 @@ def check_list_tuple(a):
         part_split = a[1:-1].split(",")
         out = []
         for _s in range(len(part_split)):
-            out.append(check_number(part_split[_s]))    
+            out.append(check_number(part_split[_s]))
         out = tuple(_i for _i in out)
         return out
     elif a[0] == "[" and a[-1] == "]":
@@ -66,7 +66,7 @@ def parse_monai_specs(component_string):
     string_parts = component_string.split("|")
     component_name = string_parts[0]
 
-    component_dict = {}        
+    component_dict = {}
     for _k in range(1, len(string_parts)):
         part = string_parts[_k]
         part_split = part.split("~")
@@ -84,9 +84,9 @@ def parse_monai_specs(component_string):
 
 def keep_largest_cc(nda):
 
-    labels = measure.label(nda>0)
+    labels = measure.label(nda > 0)
     if labels.max() != 0:
-        largestCC = labels == np.argmax(np.bincount(labels.flat)[1:])+1
+        largestCC = labels == np.argmax(np.bincount(labels.flat)[1:]) + 1
         largestCC = largestCC.astype(nda.dtype)
         return largestCC
 

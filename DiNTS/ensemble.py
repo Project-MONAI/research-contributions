@@ -12,86 +12,59 @@
 
 import argparse
 import copy
+import glob
 import json
 import logging
-import monai
-import nibabel as nib
-from scipy import ndimage as ndi
-from pathlib import Path
-import glob
-import numpy as np
 import os
-import pandas as pd
 import pathlib
 import shutil
 import sys
 import tempfile
 import time
-import torch
-import yaml
-
 from datetime import datetime
 from glob import glob
-from monai.transforms import (
-    AsDiscrete,
-    # BatchInverseTransform,
-    KeepLargestConnectedComponent,
-    # Invertd,
+from pathlib import Path
+
+import nibabel as nib
+import numpy as np
+import pandas as pd
+import torch
+import yaml
+from scipy import ndimage as ndi
+
+# from monai.utils.enums import InverseKeys
+from transforms import creating_transforms_ensemble, str2aug
+from utils import keep_largest_cc, parse_monai_specs  # parse_monai_transform_specs,
+
+import monai
+from monai.data import (
+    DataLoader,
+    Dataset,
+    DistributedSampler,
+    create_test_image_3d,
+    list_data_collate,
+    partition_dataset,
 )
-from monai.data import DataLoader, Dataset, create_test_image_3d, DistributedSampler, list_data_collate, partition_dataset
+from monai.transforms import AsDiscrete  # BatchInverseTransform,; Invertd,
+from monai.transforms import KeepLargestConnectedComponent
+
 # from monai.inferers import sliding_window_inference
 # from monai.losses import DiceLoss, FocalLoss, GeneralizedDiceLoss
 # from monai.metrics import compute_meandice
 from monai.utils import set_determinism
-# from monai.utils.enums import InverseKeys
-from transforms import (
-    creating_transforms_ensemble,
-    str2aug
-)
-from utils import (
-    keep_largest_cc,
-    parse_monai_specs,
-    # parse_monai_transform_specs,
-)
 
 
 def main():
     parser = argparse.ArgumentParser(description="inference")
-    parser.add_argument("--algorithm",
-                        type=str,
-                        default=None,
-                        help='ensemble algorithm')
-    parser.add_argument("--checkpoint",
-                        type=str,
-                        default=None,
-                        help='checkpoint')
-    parser.add_argument("--config",
-                        action="store",
-                        required=True,
-                        help="configuration")
-    parser.add_argument("--local_rank",
-                        required=int,
-                        help="local process rank")
-    parser.add_argument("--input_root",
-                        action="store",
-                        required=True,
-                        help="input root")
-    parser.add_argument("--original_root",
-                        action="store",
-                        required=True,
-                        help="orignal dataset root")
-    parser.add_argument("--output_root",
-                        action="store",
-                        required=True,
-                        help="output root")
-    parser.add_argument("--post",
-                        default=False,
-                        action="store_true",
-                        help="post-processing")
-    parser.add_argument("--dir_list",
-                        nargs="*",
-                        type=str,
-                        default=[])
+    parser.add_argument("--algorithm", type=str, default=None, help="ensemble algorithm")
+    parser.add_argument("--checkpoint", type=str, default=None, help="checkpoint")
+    parser.add_argument("--config", action="store", required=True, help="configuration")
+    parser.add_argument("--local_rank", required=int, help="local process rank")
+    parser.add_argument("--input_root", action="store", required=True, help="input root")
+    parser.add_argument("--original_root", action="store", required=True, help="orignal dataset root")
+    parser.add_argument("--output_root", action="store", required=True, help="output root")
+    parser.add_argument("--post", default=False, action="store_true", help="post-processing")
+    parser.add_argument("--dir_list", nargs="*", type=str, default=[])
     args = parser.parse_args()
 
     # # disable logging for processes except 0 on every node
@@ -170,13 +143,17 @@ def main():
         for _j in range(num_folds):
             volume_list = []
             for _k in range(1, output_classes):
-                volume_list.append(os.path.join(args.input_root, all_filenames[_j][_i].replace("_prob1", "_prob" + str(_k))))
+                volume_list.append(
+                    os.path.join(args.input_root, all_filenames[_j][_i].replace("_prob1", "_prob" + str(_k)))
+                )
             case_dict["fold" + str(_j)] = volume_list
         # print(case_dict)
         files.append(case_dict)
 
     ensemble_files = files
-    ensemble_files = partition_dataset(data=ensemble_files, shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False)[dist.get_rank()]
+    ensemble_files = partition_dataset(
+        data=ensemble_files, shuffle=False, num_partitions=dist.get_world_size(), even_divisible=False
+    )[dist.get_rank()]
     print("ensemble_files", len(ensemble_files))
 
     key_list = ["fold" + str(_item) for _item in range(num_folds)]
@@ -192,7 +169,7 @@ def main():
 
             ensemble_outputs = None
             ensemble_outputs = ensemble_data["fold" + str(_k)]
-            
+
             nda_all = ensemble_outputs.numpy()
             nda_all = nda_all.squeeze().astype(np.float32) / 255.0
             # print(nda_all.shape, np.amax(nda_all), np.amin(nda_all))
@@ -208,7 +185,7 @@ def main():
                 nda_all = nda_all ** (1.0 / float(num_folds))
                 nda_out = nda_all if _k == 0 else nda_out * nda_all
             elif args.algorithm.lower() == "wam":
-                nda_all = nda_all ** 2
+                nda_all = nda_all**2
                 nda_out = nda_all if _k == 0 else nda_out + nda_all
             else:
                 "[error] wrong algorithm!"
@@ -243,7 +220,9 @@ def main():
             nda_out[nda_mask == 0] = 0
 
         out_img = nib.Nifti1Image(nda_out, out_affine)
-        out_filename = os.path.join(args.output_root, ensemble_data["fold0_meta_dict"]["filename_or_obj"][0].split(os.sep)[-1])
+        out_filename = os.path.join(
+            args.output_root, ensemble_data["fold0_meta_dict"]["filename_or_obj"][0].split(os.sep)[-1]
+        )
         out_filename = out_filename.replace("_prob1", "")
         print("out_filename", out_filename)
         nib.save(out_img, os.path.join(args.output_root, out_filename))

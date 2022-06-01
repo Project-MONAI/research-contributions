@@ -1,11 +1,11 @@
 ## Convolutional Neural Networks for Automatic Craniofacial Reconstruction
 
-<img src="https://github.com/Jianningli/research-contributions/blob/master/SkullRec/figs/dataset.png" alt="dataset" width="600"/>
+<img src="https://github.com/Project-MONAI/research-contributions/blob/main/SkullRec/figs/dataset.png" alt="dataset" width="600"/>
 
 
 ### Prepare the dataset
 
-	
+
 * Download the MUG500+ Dataset: [[Data Repo](https://figshare.com/articles/dataset/MUG500_Repository/9616319)], [[Descriptor](https://www.sciencedirect.com/science/article/pii/S2352340921008003)]
 
 
@@ -19,7 +19,7 @@ for path in pathlist:
      path_in_str = str(path)
      shutil.copyfile(path_in_str, './complete_nrrds/'+path_in_str[-10:-5]+'.nrrd')
      print(path_in_str)
-     
+
 ```
 
 * Denoise and Crop the Skulls
@@ -29,15 +29,15 @@ The axial dimension of all the skull images are cropped to 256. <br>
 If the axial dimension is smaller than 256, zero padding can be used.
 
 
-* Create Facial and Cranial Defects on the Skulls 
+* Create Facial and Cranial Defects on the Skulls
 ``` Python
-facialDefects.py  #create defects around the face 
+facialDefects.py  #create defects around the face
 cranialDefects.py  #create defects around the cranium
 ```
 * Convert NRRDs to Nifty (for MONAI Dataset loader)
 
 ``` Python
-#codes attributes to the stack overflow anser: 
+#codes attributes to the stack overflow anser:
 #https://stackoverflow.com/questions/47761353/nrrd-to-nifti-file-conversion
 import vtk
 
@@ -76,7 +76,7 @@ for file in files:
 
 ### Train a CNN using MONAI for Skull Reconstruction
 
-The MONAI codes are adapted from the [MONAI 3D Spleen segmentation example](https://github.com/Project-MONAI/tutorials/blob/master/3d_segmentation/spleen_segmentation_3d.ipynb)
+The MONAI codes are adapted from the [MONAI 3D Spleen segmentation example](https://github.com/Project-MONAI/tutorials/blob/main/3d_segmentation/spleen_segmentation_3d.ipynb)
 
 #### Software and Hardware Requirements
 
@@ -87,18 +87,18 @@ monai: 0.8.1
 pytorch: 1.11.0
 hardware:
 NVIDIA GeForce RTX 3090 (24GB RAM)
-Recommended GPU RAM >=24GB 
+Recommended GPU RAM >=24GB
 ```
 
-* Training Your MONAI Model 
- 
+* Training Your MONAI Model
+
 ```Python
 python monaiSkull.py --phase train # Training
 python monaiSkull.py --phase test # test, generate predictions (complete skulls) for test data
 
 ```
 
-* Alternatively, you can try out the pre-trained model 
+* Alternatively, you can try out the pre-trained model
 1. Clone this repository
 2. Download the [pre-processed dataset](https://files.icg.tugraz.at/f/9642058af1744b4b961b/?dl=1)
 3. Unzip and move dataset folder into the current directory of the repository
@@ -106,7 +106,7 @@ python monaiSkull.py --phase test # test, generate predictions (complete skulls)
 ``` Python
 # change the test_images directory if you want to test on your own skull data
 python monaiSkull.py --phase test
-``` 
+```
 
 
 ### Reference
@@ -138,5 +138,3 @@ and,
   publisher={Springer}
 }
 ```
-
-
