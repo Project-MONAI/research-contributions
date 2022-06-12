@@ -11,15 +11,6 @@
 
 import torch
 import numpy as np
-import scipy.ndimage as ndimage
-
-
-def resample_3d(img, target_size):
-    imx, imy, imz = img.shape
-    tx, ty, tz = target_size
-    zoom_ratio = ( float(tx) / float(imx), float(ty) / float(imy), float(tz) / float(imz))
-    img_resampled = ndimage.zoom( img, zoom_ratio, order=0, prefilter=False)
-    return img_resampled
 
 
 def dice(x, y):

@@ -4,6 +4,13 @@ This repository contains the code for Swin UNETR [1,2]. Swin UNETR is the state-
 Decathlon (MSD) and Beyond the Cranial Vault (BTCV) Segmentation Challenge dataset. In [1], a novel methodology is devised for pre-training Swin UNETR backbone in a self-supervised
 manner. We provide the option for training Swin UNETR by fine-tuning from pre-trained self-supervised weights or from scratch.
 
+### Tutorial
+
+The tutorial for Swin UNETR BTCV multi-organ segmentation can be found in the following link.
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Project-MONAI/tutorials/blob/main/3d_segmentation/swin_unetr_btcv_segmentation_3d.ipynb)
+ 
+
 ### Installing Dependencies
 Dependencies can be installed using:
 ``` bash
@@ -204,11 +211,12 @@ in the original spacing in a new folder based on the name of the experiment whic
 If you find this repository useful, please consider citing the following papers:
 
 ```
-@article{tang2021self,
+@inproceedings{tang2022self,
   title={Self-supervised pre-training of swin transformers for 3d medical image analysis},
-  author={Tang, Yucheng and Yang, Dong and Li, Wenqi and Roth, Holger and Landman, Bennett and Xu, Daguang and Nath, Vishwesh and Hatamizadeh, Ali},
-  journal={arXiv preprint arXiv:2111.14791},
-  year={2021}
+  author={Tang, Yucheng and Yang, Dong and Li, Wenqi and Roth, Holger R and Landman, Bennett and Xu, Daguang and Nath, Vishwesh and Hatamizadeh, Ali},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  pages={20730--20740},
+  year={2022}
 }
 
 @article{hatamizadeh2022swin,
@@ -220,7 +228,6 @@ If you find this repository useful, please consider citing the following papers:
 ```
 
 ## References
-[1] Tang, Yucheng, et al. "Self-Supervised Pre-Training of Swin Transformers for 3D Medical Image Analysis
-", 2022. https://arxiv.org/abs/2111.14791.
+[1]: Tang, Y., Yang, D., Li, W., Roth, H.R., Landman, B., Xu, D., Nath, V. and Hatamizadeh, A., 2022. Self-supervised pre-training of swin transformers for 3d medical image analysis. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (pp. 20730-20740).
 
-[2] Hatamizadeh, Ali, et al. "Swin UNETR: Swin Transformers for Semantic Segmentation of Brain Tumors in MRI Images", 2022. https://arxiv.org/abs/2201.01266.
+[2]: Hatamizadeh, A., Nath, V., Tang, Y., Yang, D., Roth, H. and Xu, D., 2022. Swin UNETR: Swin Transformers for Semantic Segmentation of Brain Tumors in MRI Images. arXiv preprint arXiv:2201.01266.
