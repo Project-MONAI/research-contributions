@@ -155,7 +155,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=12\
 --roi_x=96 --roi_y=96 --roi_z=96 --batch_size=<batch-size> --max_epochs=<total-num-epochs> --save_checkpoint
 ```
 
-## Evaluation
+# Evaluation
 
 To evaluate a `Swin UNETR` on a single GPU, place the model checkpoint in `pretrained_models` folder and
 provide its name using `--pretrained_model_name`:
@@ -165,7 +165,7 @@ python test.py --json_list=<json-path> --data_dir=<data-path> --feature_size=<fe
 --infer_overlap=0.5 --pretrained_model_name=<model-name>
 ```
 
-## Finetuning
+# Finetuning
 
 Please download the checkpoints for models presented in the above table and place the model checkpoints in `pretrained_models` folder.
 Use the following commands for finetuning.
@@ -200,7 +200,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=12 
 --batch_size=<batch-size> --max_epochs=<total-num-epochs> --save_checkpoint
 ```
 
-## Segmentation Output
+# Segmentation Output
 
 By following the commands for evaluating `Swin UNETR` in the above, `test.py` saves the segmentation outputs
 in the original spacing in a new folder based on the name of the experiment which is passed by `--exp_name`.
