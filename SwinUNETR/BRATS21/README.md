@@ -3,7 +3,7 @@ This repository contains the code for [Swin UNETR](https://arxiv.org/pdf/2201.01
 ![image](./assets/swin_unetr.png)
 
 # Tutorial
-A tutorial for BraTS21 brain tumor segmentation using Swin UNETR model is provided in the following link. 
+A tutorial for BraTS21 brain tumor segmentation using Swin UNETR model is provided in the following link.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Project-MONAI/tutorials/blob/main/3d_segmentation/swin_unetr_brats21_segmentation_3d.ipynb)
 
@@ -16,17 +16,17 @@ pip install -r requirements.txt
 # Data Description
 
 Modality: MRI
-Size: 1470 3D volumes (1251 Training + 219 Validation)  
+Size: 1470 3D volumes (1251 Training + 219 Validation)
 Challenge: RSNA-ASNR-MICCAI Brain Tumor Segmentation (BraTS) Challenge
 
 - Register and download the official BraTS 21 dataset from the link below and place then into "TrainingData" in the dataset folder:
 
   https://www.synapse.org/#!Synapse:syn27046444/wiki/616992
-  
+
   For example, the address of a single file is as follows:
-  
+
   "TrainingData/BraTS2021_01146/BraTS2021_01146_flair.nii.gz"
-  
+
 
 - Download the json file from this [link](https://drive.google.com/file/d/1i-BXYe-wZ8R9Vp3GXoajGyqaJ65Jybg1/view?usp=sharing) and placed in the same folder as the dataset.
 
@@ -116,18 +116,18 @@ model = SwinUNETR(img_size=(128,128,128),
 
 
 The above Swin UNETR model is used for multi-modal MR images (4-channel input) with input image size ```(128, 128, 128)``` and for ```3``` class segmentation outputs and feature size of  ```48```.
-More details can be found in [1]. In addition, ```use_checkpoint=True``` enables the use of gradient checkpointing for memory-efficient training. 
+More details can be found in [1]. In addition, ```use_checkpoint=True``` enables the use of gradient checkpointing for memory-efficient training.
 
 Using the default values for hyper-parameters, the following command can be used to initiate training using PyTorch native AMP package:
 ``` bash
 python main.py
---feature_size=48 
+--feature_size=48
 --batch_size=1
 --logdir=unetr_test_dir
 --fold=0
 --optim_lr=1e-4
 --lrschedule=warmup_cosine
---infer_overlap=0.5 
+--infer_overlap=0.5
 --save_checkpoint
 --val_every=10
 --json_list='./jsons/brats21_folds.json'
@@ -165,7 +165,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --val_every=5 --di
 
 # Evaluation
 
-To evaluate a `Swin UNETR` on a single GPU, the model path using `pretrained_dir` and model 
+To evaluate a `Swin UNETR` on a single GPU, the model path using `pretrained_dir` and model
 name using `--pretrained_model_name` need to be provided:
 
 ```bash
@@ -175,7 +175,7 @@ python test.py --json_list=<json-path> --data_dir=<data-path> --feature_size=<fe
 
 # Finetuning
 
-Please download the checkpoints for models presented in the above table and place the model checkpoints in `pretrained_models` folder. 
+Please download the checkpoints for models presented in the above table and place the model checkpoints in `pretrained_models` folder.
 Use the following commands for finetuning.
 
 ## Finetuning on single GPU with gradient check-pointing and without AMP
