@@ -17,7 +17,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.utils.data.distributed
 from monai.inferers import sliding_window_inference
-from monai.losses import DiceLoss, DiceCELoss
+from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
 from monai.utils.enums import MetricReduction
 from monai.transforms import AsDiscrete, Activations, Compose
@@ -82,6 +82,7 @@ parser.add_argument('--use_checkpoint', action='store_true', help='use gradient 
 parser.add_argument('--spatial_dims', default=3, type=int, help='spatial dimension of input data')
 parser.add_argument('--pretrained_dir', default='./pretrained_models/fold1_f48_ep300_4gpu_dice0_9059/', type=str,
                     help='pretrained checkpoint directory')
+parser.add_argument('--squared_dice', action='store_true', help='use squared Dice')
 
 def main():
     args = parser.parse_args()
@@ -133,7 +134,14 @@ def main_worker(gpu, args):
         model.load_state_dict(model_dict)
         print('Using pretrained weights')
 
-    dice_loss = DiceLoss(to_onehot_y=False, sigmoid=True)
+    if args.squared_dice:
+        dice_loss = DiceLoss(to_onehot_y=False,
+                             sigmoid=True,
+                             squared_pred=True,
+                             smooth_nr=args.smooth_nr,
+                             smooth_dr=args.smooth_dr)
+    else:
+        dice_loss = DiceLoss(to_onehot_y=False, sigmoid=True)
     post_sigmoid = Activations(sigmoid=True)
     post_pred = AsDiscrete(argmax=False, logit_thresh=0.5)
     dice_acc = DiceMetric(include_background=True,
@@ -145,7 +153,6 @@ def main_worker(gpu, args):
                             predictor=model,
                             overlap=args.infer_overlap,
                             )
-
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('Total parameters count', pytorch_total_params)
 

@@ -4,6 +4,10 @@ This repository contains the code for Swin UNETR [1,2]. Swin UNETR is the state-
 Decathlon (MSD) and Beyond the Cranial Vault (BTCV) Segmentation Challenge dataset. In [1], a novel methodology is devised for pre-training Swin UNETR backbone in a self-supervised
 manner. We provide the option for training Swin UNETR by fine-tuning from pre-trained self-supervised weights or from scratch.
 
+# Tutorial
+A tutorial for BTCV multi-organ segmentation using Swin UNETR model is provided in the following link. 
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Project-MONAI/tutorials/blob/main/3d_segmentation/swin_unetr_btcv_segmentation_3d.ipynb)
 
 ### Installing Dependencies
 Dependencies can be installed using:

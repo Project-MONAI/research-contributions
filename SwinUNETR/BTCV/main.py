@@ -17,7 +17,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.utils.data.distributed
 from monai.inferers import sliding_window_inference
-from monai.losses import DiceLoss, DiceCELoss
+from monai.losses import DiceCELoss
 from monai.metrics import DiceMetric
 from monai.utils.enums import MetricReduction
 from monai.transforms import AsDiscrete,Activations,Compose
@@ -80,6 +80,7 @@ parser.add_argument('--smooth_nr', default=0.0, type=float, help='constant added
 parser.add_argument('--use_checkpoint', action='store_true', help='use gradient checkpointing to save memory')
 parser.add_argument('--use_ssl_pretrained', action='store_true', help='use self-supervised pretrained weights')
 parser.add_argument('--spatial_dims', default=3, type=int, help='spatial dimension of input data')
+parser.add_argument('--squared_dice', action='store_true', help='use squared Dice')
 
 
 def main():
@@ -141,9 +142,17 @@ def main_worker(gpu, args):
         except ValueError:
             raise ValueError('Self-supervised pre-trained weights not available for' + str(args.model_name))
 
-    dice_loss = DiceCELoss(to_onehot_y=True,
-                           softmax=True
-                           )
+
+    if args.squared_dice:
+        dice_loss = DiceCELoss(to_onehot_y=True,
+                               softmax=True,
+                               squared_pred=True,
+                               smooth_nr=args.smooth_nr,
+                               smooth_dr=args.smooth_dr)
+    else:
+        dice_loss = DiceCELoss(to_onehot_y=True,
+                               softmax=True
+                               )
     post_label = AsDiscrete(to_onehot=True,
                             n_classes=args.out_channels)
     post_pred = AsDiscrete(argmax=True,
