@@ -16,18 +16,18 @@ The following demonstrates an animation of original images (left) and their reco
 
 
 
-### Installing Dependencies
+# Installing Dependencies
 Dependencies can be installed using:
 ``` bash
 pip install -r requirements.txt
 ```
 
-### Pre-trained Models
+# Pre-trained Models
 
 We provide the self-supervised pre-trained weights for Swin UNETR backbone (CVPR paper [1]) in this <a href="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/model_swinvit.pt"> link</a>.
 In the following, we describe steps for pre-training the model from scratch. 
 
-## Datasets
+# Datasets
 
 The following datasets were used for pre-training (~5050 3D CT images). Please download the corresponding the json files of each dataset for more details and place them in ```jsons``` folder:
 
@@ -38,9 +38,9 @@ The following datasets were used for pre-training (~5050 3D CT images). Please d
 - TCIA LIDC ([Link](https://wiki.cancerimagingarchive.net/display/Public/LIDC-IDRI/)) ([Download json](https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/dataset_LIDC_0.json))
 
 
-### Training
+# Training
 
-#### Distributed Multi-GPU Pre-Training
+## Distributed Multi-GPU Pre-Training
 
 To pre-train a `Swin UNETR` encoder using multi-gpus:
 
@@ -56,7 +56,7 @@ python -m torch.distributed.launch --nproc_per_node=8 --master_port=11223 main.p
 --batch_size=1 --num_steps=100000 --lrdecay --eval_num=500 --lr=6e-6 --decay=0.1
 ```
 
-#### Single GPU Pre-Training with Gradient Check-pointing
+## Single GPU Pre-Training with Gradient Check-pointing
 
 To pre-train a `Swin UNETR` encoder using a single gpu with gradient-checkpointing and a specified patch size:
 
@@ -66,7 +66,7 @@ python main.py --use_checkpoint --batch_size=<Batch-Size> --num_steps=<Num-Steps
 ```
 
 
-## Citation
+# Citation
 If you find this repository useful, please consider citing UNETR paper:
 
 ```
@@ -86,7 +86,7 @@ If you find this repository useful, please consider citing UNETR paper:
 }
 ```
 
-## References
+# References
 [1]: Tang, Y., Yang, D., Li, W., Roth, H.R., Landman, B., Xu, D., Nath, V. and Hatamizadeh, A., 2022. Self-supervised pre-training of swin transformers for 3d medical image analysis. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (pp. 20730-20740).
 
 [2]: Hatamizadeh, A., Nath, V., Tang, Y., Yang, D., Roth, H. and Xu, D., 2022. Swin UNETR: Swin Transformers for Semantic Segmentation of Brain Tumors in MRI Images. arXiv preprint arXiv:2201.01266.

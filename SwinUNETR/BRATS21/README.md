@@ -7,13 +7,13 @@ A tutorial for BraTS21 brain tumor segmentation using Swin UNETR model is provid
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Project-MONAI/tutorials/blob/main/3d_segmentation/swin_unetr_brats21_segmentation_3d.ipynb)
 
-### Installing Dependencies
+# Installing Dependencies
 Dependencies can be installed using:
 ``` bash
 pip install -r requirements.txt
 ```
 
-## Data Description
+# Data Description
 
 Modality: MRI
 Size: 1470 3D volumes (1251 Training + 219 Validation)  
@@ -39,7 +39,7 @@ The provided segmentation labels have values of 1 for NCR, 2 for ED, 4 for ET, a
 
 Figure from [Baid et al.](https://arxiv.org/pdf/2107.02314v1.pdf) [3]
 
-### Models
+# Models
 We provide Swin UNETR models which are pre-trained on BraTS21 dataset as in the following. The folds
 correspond to the data split in the [json file](https://drive.google.com/file/d/1i-BXYe-wZ8R9Vp3GXoajGyqaJ65Jybg1/view?usp=sharing).
 
@@ -101,7 +101,7 @@ correspond to the data split in the [json file](https://drive.google.com/file/d/
 
 Mean Dice refers to average Dice of WT, ET and TC tumor semantic classes.
 
-### Training
+# Training
 
 A Swin UNETR network with standard hyper-parameters for brain tumor semantic segmentation (BraTS dataset) is be defined as:
 
@@ -136,7 +136,7 @@ python main.py
 --noamp
 ```
 
-#### Training from scratch on single GPU with gradient check-pointing and without AMP
+## Training from scratch on single GPU with gradient check-pointing and without AMP
 
 To train a `Swin UNETR` from scratch on a single GPU with gradient check-pointing and without AMP:
 
@@ -145,7 +145,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --val_every=5 --no
 --roi_x=128 --roi_y=128 --roi_z=128  --in_channels=4 --spatial_dims=3 --use_checkpoint --feature_size=48
 ```
 
-#### Training from scratch on multi-GPU with gradient check-pointing and without AMP
+## Training from scratch on multi-GPU with gradient check-pointing and without AMP
 
 To train a `Swin UNETR` from scratch on multi-GPU for 300 epochs with gradient check-pointing and without AMP:
 
@@ -154,7 +154,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --max_epochs=300 -
 --roi_x=128 --roi_y=128 --roi_z=128  --in_channels=4 --spatial_dims=3 --use_checkpoint --feature_size=48
 ```
 
-#### Training from scratch on multi-GPU without gradient check-pointing
+## Training from scratch on multi-GPU without gradient check-pointing
 
 To train a `Swin UNETR` from scratch on multi-GPU without gradient check-pointing:
 
@@ -163,7 +163,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --val_every=5 --di
 --roi_x=128 --roi_y=128 --roi_z=128  --in_channels=4 --spatial_dims=3 --feature_size=48
 ```
 
-### Evaluation
+## Evaluation
 
 To evaluate a `Swin UNETR` on a single GPU, the model path using `pretrained_dir` and model 
 name using `--pretrained_model_name` need to be provided:
@@ -173,12 +173,12 @@ python test.py --json_list=<json-path> --data_dir=<data-path> --feature_size=<fe
 --infer_overlap=0.6 --pretrained_model_name=<model-name> --pretrained_dir=<model-dir>
 ```
 
-### Finetuning
+## Finetuning
 
 Please download the checkpoints for models presented in the above table and place the model checkpoints in `pretrained_models` folder. 
 Use the following commands for finetuning.
 
-#### Finetuning on single GPU with gradient check-pointing and without AMP
+## Finetuning on single GPU with gradient check-pointing and without AMP
 
 To finetune a `Swin UNETR`  model on a single GPU on fold 1 with gradient check-pointing and without amp,
 the model path using `pretrained_dir` and model  name using `--pretrained_model_name` need to be provided:
@@ -188,7 +188,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --val_every=5 --no
 --pretrained_dir=<model-dir> --fold=1 --roi_x=128 --roi_y=128 --roi_z=128  --in_channels=4 --spatial_dims=3 --use_checkpoint --feature_size=48
 ```
 
-#### Finetuning on multi-GPU with gradient check-pointing and without AMP
+## Finetuning on multi-GPU with gradient check-pointing and without AMP
 
 To finetune a `Swin UNETR` base model on multi-GPU on fold 1 with gradient check-pointing and without amp,
 the model path using `pretrained_dir` and model  name using `--pretrained_model_name` need to be provided:
@@ -198,12 +198,12 @@ python main.py --json_list=<json-path> --distributed --data_dir=<data-path> --va
 --pretrained_dir=<model-dir> --fold=1 --roi_x=128 --roi_y=128 --roi_z=128  --in_channels=4 --spatial_dims=3 --use_checkpoint --feature_size=48
 ```
 
-### Segmentation Output
+## Segmentation Output
 
 By following the commands for evaluating `Swin UNETR` in the above, `test.py` saves the segmentation outputs
 in the original spacing in a new folder based on the name of the experiment which is passed by `--exp_name`.
 
-## Citation
+# Citation
 If you find this repository useful, please consider citing UNETR paper:
 
 ```
@@ -223,7 +223,7 @@ If you find this repository useful, please consider citing UNETR paper:
 }
 ```
 
-## References
+# References
 [1]: Hatamizadeh, A., Nath, V., Tang, Y., Yang, D., Roth, H. and Xu, D., 2022. Swin UNETR: Swin Transformers for Semantic Segmentation of Brain Tumors in MRI Images. arXiv preprint arXiv:2201.01266.
 
 [2]: Tang, Y., Yang, D., Li, W., Roth, H.R., Landman, B., Xu, D., Nath, V. and Hatamizadeh, A., 2022. Self-supervised pre-training of swin transformers for 3d medical image analysis. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (pp. 20730-20740).
