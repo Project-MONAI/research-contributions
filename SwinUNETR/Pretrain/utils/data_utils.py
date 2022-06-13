@@ -50,7 +50,6 @@ def get_loader(args):
     jsonlist5 = list_dir + splits5
     datadir1 = '/dataset/dataset1'
     datadir2 = '/dataset/dataset2'
-    datadir2 = '/media/ali/Elements/NGC_Datasets/80863'
     datadir3 = '/dataset/dataset3'
     datadir4 = '/dataset/dataset4'
     datadir5 = '/dataset/dataset8'
@@ -102,7 +101,7 @@ def get_loader(args):
                           args.roi_y,
                           args.roi_z],
                 num_samples=args.sw_batch_size,
-                random_center=True,
+                random_center=True, 
                 random_size=False
             ),
             ToTensord(keys=["image"])
@@ -131,30 +130,28 @@ def get_loader(args):
                           args.roi_y,
                           args.roi_z],
                 num_samples=args.sw_batch_size,
-                random_center=True,
+                random_center=True, 
                 random_size=False
             ),
             ToTensord(keys=["image"])
         ]
     )
 
-    if args.normal_dataset:
-        print('Using Normal dataset')
-        train_ds = Dataset(data=datalist, transform=train_transforms)
-
-    elif args.smartcache_dataset:
-        print('Using SmartCacheDataset')
-        train_ds = SmartCacheDataset(data=datalist,
-                                     transform=train_transforms,
-                                     replace_rate=1.0,
-                                     cache_num=2*args.batch_size*args.sw_batch_size)
-
-    else:
+    if args.cache_dataset:
         print('Using MONAI Cache Dataset')
         train_ds = CacheDataset(data=datalist,
                                 transform=train_transforms,
                                 cache_rate=0.5,
                                 num_workers=num_workers)
+    elif args.smartcache_dataset:
+        print('Using MONAI SmartCache Dataset')
+        train_ds = SmartCacheDataset(data=datalist,
+                                     transform=train_transforms,
+                                     replace_rate=1.0,
+                                     cache_num=2 * args.batch_size * args.sw_batch_size)
+    else:
+        print('Using generic dataset')
+        train_ds = Dataset(data=datalist, transform=train_transforms)
 
     if args.distributed:
         train_sampler = DistributedSampler(dataset=train_ds,

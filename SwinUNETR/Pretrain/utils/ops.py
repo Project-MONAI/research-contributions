@@ -81,3 +81,4 @@ def aug_rand(args, samples):
                                        x_aug[i],
                                        x_aug[idx_rnd])
     return x_aug
+

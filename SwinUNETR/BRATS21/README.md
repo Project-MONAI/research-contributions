@@ -2,12 +2,7 @@
 This repository contains the code for [Swin UNETR](https://arxiv.org/pdf/2201.01266.pdf) [1,2] for the task of brain tumor  segmentation using the [BraTS 21](http://braintumorsegmentation.org/) challenge dataset [3,4,5,6]. Swin UNETR ranked among top-perfoming models in BraTS 21 validation phase. The architecture of Swin UNETR is demonstrated as below
 ![image](./assets/swin_unetr.png)
 
-### Tutorial
 
-The tutorial for Swin UNETR BraTS21 brain tumor segmentation can be found in the following link.
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Project-MONAI/tutorials/blob/main/3d_segmentation/swin_unetr_brats21_segmentation_3d.ipynb)
- 
 ### Installing Dependencies
 Dependencies can be installed using:
 ``` bash

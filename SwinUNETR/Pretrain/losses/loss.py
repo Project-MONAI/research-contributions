@@ -43,11 +43,11 @@ class Contrast(torch.nn.Module):
 
 
 class Loss(torch.nn.Module):
-    def __init__(self, device, batch_size, args):
+    def __init__(self, batch_size, args):
         super().__init__()
-        self.rot_loss = torch.nn.CrossEntropyLoss().to(device)
-        self.recon_loss = torch.nn.L1Loss().to(device)
-        self.contrast_loss = Contrast(args, batch_size).to(device)
+        self.rot_loss = torch.nn.CrossEntropyLoss().cuda()
+        self.recon_loss = torch.nn.L1Loss().cuda()
+        self.contrast_loss = Contrast(args, batch_size).cuda()
         self.alpha1 = 1.0
         self.alpha2 = 1.0
         self.alpha3 = 1.0
@@ -65,3 +65,5 @@ class Loss(torch.nn.Module):
         total_loss = rot_loss + contrast_loss + recon_loss
 
         return total_loss, (rot_loss, contrast_loss, recon_loss)
+
+
