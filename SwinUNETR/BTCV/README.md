@@ -4,13 +4,18 @@ This repository contains the code for Swin UNETR [1,2]. Swin UNETR is the state-
 Decathlon (MSD) and Beyond the Cranial Vault (BTCV) Segmentation Challenge dataset. In [1], a novel methodology is devised for pre-training Swin UNETR backbone in a self-supervised
 manner. We provide the option for training Swin UNETR by fine-tuning from pre-trained self-supervised weights or from scratch.
 
-### Installing Dependencies
+# Tutorial
+A tutorial for BTCV multi-organ segmentation using Swin UNETR model is provided in the following link.
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Project-MONAI/tutorials/blob/main/3d_segmentation/swin_unetr_btcv_segmentation_3d.ipynb)
+
+# Installing Dependencies
 Dependencies can be installed using:
 ``` bash
 pip install -r requirements.txt
 ```
 
-### Models
+# Models
 
 Please download the self-supervised pre-trained weights for Swin UNETR backbone (CVPR paper [1]) from this <a href="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/model_swinvit.pt"> link</a>.
 
@@ -58,7 +63,7 @@ We provide several pre-trained models on BTCV dataset in the following.
 
 </table>
 
-## Data Preparation
+# Data Preparation
 ![image](https://lh3.googleusercontent.com/pw/AM-JKLX0svvlMdcrchGAgiWWNkg40lgXYjSHsAAuRc5Frakmz2pWzSzf87JQCRgYpqFR0qAjJWPzMQLc_mmvzNjfF9QWl_1OHZ8j4c9qrbR6zQaDJWaCLArRFh0uPvk97qAa11HtYbD6HpJ-wwTCUsaPcYvM=w1724-h522-no?authuser=0)
 
 The training data is from the [BTCV challenge dataset](https://www.synapse.org/#!Synapse:syn3193805/wiki/217752).
@@ -74,7 +79,7 @@ We provide the json file that is used to train our models in the following <a hr
 
 Once the json file is downloaded, please place it in the same folder as the dataset. Note that you need to provide the location of your dataset directory by using ```--data_dir```.
 
-### Training
+# Training
 
 A Swin UNETR network with standard hyper-parameters for multi-organ semantic segmentation (BTCV dataset) is be defined as:
 
@@ -105,7 +110,7 @@ python main.py
 --data_dir=/dataset/dataset0/
 ```
 
-#### Training from self-supervised weights on single GPU (base model with gradient check-pointing)
+## Training from self-supervised weights on single GPU (base model with gradient check-pointing)
 
 To train a `Swin UNETR` with self-supervised encoder weights on a single GPU with gradient check-pointing:
 
@@ -114,7 +119,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=48 
 --roi_x=96 --roi_y=96 --roi_z=96  --use_checkpoint --batch_size=<batch-size> --max_epochs=<total-num-epochs> --save_checkpoint
 ```
 
-#### Training from self-supervised weights on multiple GPUs (base model without gradient check-pointing)
+## Training from self-supervised weights on multiple GPUs (base model without gradient check-pointing)
 
 To train a `Swin UNETR` with self-supervised encoder weights on a multiple GPUs without gradient check-pointing
 
@@ -123,7 +128,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=48 
 --roi_x=96 --roi_y=96 --roi_z=96  --distributed --optim_lr=2e-4 --batch_size=<batch-size> --max_epochs=<total-num-epochs> --save_checkpoint
 ```
 
-#### Training from scratch on single GPU (base model without AMP)
+## Training from scratch on single GPU (base model without AMP)
 
 To train a `Swin UNETR` from scratch on a single GPU without AMP:
 
@@ -132,7 +137,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=48 
 --roi_x=96 --roi_y=96 --roi_z=96  --use_checkpoint --batch_size=<batch-size> --max_epochs=<total-num-epochs> --save_checkpoint
 ```
 
-#### Training from scratch on single GPU (small model without check-pointing)
+## Training from scratch on single GPU (small model without check-pointing)
 
 To train a `Swin UNETR` from scratch on a single GPU without AMP:
 
@@ -141,7 +146,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=24\
 --roi_x=96 --roi_y=96 --roi_z=96 --batch_size=<batch-size> --max_epochs=<total-num-epochs> --save_checkpoint
 ```
 
-#### Training from scratch on single GPU (tiny model without check-pointing)
+## Training from scratch on single GPU (tiny model without check-pointing)
 
 To train a `Swin UNETR` from scratch on a single GPU without AMP:
 
@@ -150,7 +155,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=12\
 --roi_x=96 --roi_y=96 --roi_z=96 --batch_size=<batch-size> --max_epochs=<total-num-epochs> --save_checkpoint
 ```
 
-### Evaluation
+# Evaluation
 
 To evaluate a `Swin UNETR` on a single GPU, place the model checkpoint in `pretrained_models` folder and
 provide its name using `--pretrained_model_name`:
@@ -160,12 +165,12 @@ python test.py --json_list=<json-path> --data_dir=<data-path> --feature_size=<fe
 --infer_overlap=0.5 --pretrained_model_name=<model-name>
 ```
 
-### Finetuning
+# Finetuning
 
 Please download the checkpoints for models presented in the above table and place the model checkpoints in `pretrained_models` folder.
 Use the following commands for finetuning.
 
-#### Finetuning base model on single GPU (gradient check-pointing)
+## Finetuning base model on single GPU (gradient check-pointing)
 
 To finetune a  `Swin UNETR` base model on a single GPU with gradient check-pointing:
 
@@ -175,7 +180,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=48 
 --batch_size=<batch-size> --max_epochs=<total-num-epochs> --save_checkpoint
 ```
 
-#### Finetuning small model on single GPU (gradient check-pointing)
+## Finetuning small model on single GPU (gradient check-pointing)
 
 To finetune a  `Swin UNETR` small model on a single GPU with gradient check-pointing:
 
@@ -185,7 +190,7 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=24 
 --batch_size=<batch-size> --max_epochs=<total-num-epochs> --save_checkpoint
 ```
 
-#### Finetuning tiny model on single GPU (gradient check-pointing)
+## Finetuning tiny model on single GPU (gradient check-pointing)
 
 To finetune a  `Swin UNETR` tiny model on a single GPU with gradient check-pointing:
 
@@ -195,20 +200,21 @@ python main.py --json_list=<json-path> --data_dir=<data-path> --feature_size=12 
 --batch_size=<batch-size> --max_epochs=<total-num-epochs> --save_checkpoint
 ```
 
-### Segmentation Output
+# Segmentation Output
 
 By following the commands for evaluating `Swin UNETR` in the above, `test.py` saves the segmentation outputs
 in the original spacing in a new folder based on the name of the experiment which is passed by `--exp_name`.
 
-## Citation
+# Citation
 If you find this repository useful, please consider citing the following papers:
 
 ```
-@article{tang2021self,
+@inproceedings{tang2022self,
   title={Self-supervised pre-training of swin transformers for 3d medical image analysis},
-  author={Tang, Yucheng and Yang, Dong and Li, Wenqi and Roth, Holger and Landman, Bennett and Xu, Daguang and Nath, Vishwesh and Hatamizadeh, Ali},
-  journal={arXiv preprint arXiv:2111.14791},
-  year={2021}
+  author={Tang, Yucheng and Yang, Dong and Li, Wenqi and Roth, Holger R and Landman, Bennett and Xu, Daguang and Nath, Vishwesh and Hatamizadeh, Ali},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  pages={20730--20740},
+  year={2022}
 }
 
 @article{hatamizadeh2022swin,
@@ -219,8 +225,7 @@ If you find this repository useful, please consider citing the following papers:
 }
 ```
 
-## References
-[1] Tang, Yucheng, et al. "Self-Supervised Pre-Training of Swin Transformers for 3D Medical Image Analysis
-", 2022. https://arxiv.org/abs/2111.14791.
+# References
+[1]: Tang, Y., Yang, D., Li, W., Roth, H.R., Landman, B., Xu, D., Nath, V. and Hatamizadeh, A., 2022. Self-supervised pre-training of swin transformers for 3d medical image analysis. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (pp. 20730-20740).
 
-[2] Hatamizadeh, Ali, et al. "Swin UNETR: Swin Transformers for Semantic Segmentation of Brain Tumors in MRI Images", 2022. https://arxiv.org/abs/2201.01266.
+[2]: Hatamizadeh, A., Nath, V., Tang, Y., Yang, D., Roth, H. and Xu, D., 2022. Swin UNETR: Swin Transformers for Semantic Segmentation of Brain Tumors in MRI Images. arXiv preprint arXiv:2201.01266.

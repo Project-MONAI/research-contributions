@@ -20,6 +20,7 @@ import torch.nn.parallel
 from utils.utils import distributed_all_gather, AverageMeter
 import torch.utils.data.distributed
 from monai.data import decollate_batch
+import pdb
 
 
 def train_epoch(model,
@@ -42,7 +43,6 @@ def train_epoch(model,
         with autocast(enabled=args.amp):
             logits = model(data)
             loss = loss_func(logits, target)
-            #
         if args.amp:
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -63,8 +63,9 @@ def train_epoch(model,
                   'loss: {:.4f}'.format(run_loss.avg),
                   'time {:.2f}s'.format(time.time() - start_time))
         start_time = time.time()
-    for param in model.parameters() : param.grad = None
+    for param in model.parameters():param.grad = None
     return run_loss.avg
+
 
 def val_epoch(model,
               loader,
@@ -72,51 +73,48 @@ def val_epoch(model,
               acc_func,
               args,
               model_inferer=None,
-              post_label=None,
-              post_pred=None):
+              post_sigmoid=None,
+              post_pred=None,
+              ):
     model.eval()
-    run_acc = AverageMeter()
     start_time = time.time()
+    run_acc = AverageMeter()
+
     with torch.no_grad():
         for idx, batch_data in enumerate(loader):
-            if isinstance(batch_data, list):
-                data, target = batch_data
-            else:
-                data, target = batch_data['image'], batch_data['label']
+            data, target = batch_data['image'], batch_data['label']
             data, target = data.cuda(args.rank), target.cuda(args.rank)
             with autocast(enabled=args.amp):
-                if model_inferer is not None:
-                    logits = model_inferer(data)
-                else:
-                    logits = model(data)
-            if not logits.is_cuda:
-                target = target.cpu()
+                logits = model_inferer(data)
             val_labels_list = decollate_batch(target)
-            val_labels_convert = [post_label(val_label_tensor) for val_label_tensor in val_labels_list]
             val_outputs_list = decollate_batch(logits)
-            val_output_convert = [post_pred(val_pred_tensor) for val_pred_tensor in val_outputs_list]
+            val_output_convert = [post_pred(post_sigmoid(val_pred_tensor)) for val_pred_tensor in val_outputs_list]
             acc_func.reset()
-            acc_func(y_pred=val_output_convert, y=val_labels_convert)
+            acc_func(y_pred=val_output_convert, y=val_labels_list)
             acc, not_nans = acc_func.aggregate()
             acc = acc.cuda(args.rank)
-
             if args.distributed:
                 acc_list, not_nans_list = distributed_all_gather([acc, not_nans],
                                                                  out_numpy=True,
                                                                  is_valid=idx < loader.sampler.valid_length)
                 for al, nl in zip(acc_list, not_nans_list):
                     run_acc.update(al, n=nl)
-
             else:
                 run_acc.update(acc.cpu().numpy(), n=not_nans.cpu().numpy())
 
             if args.rank == 0:
-                avg_acc = np.mean(run_acc.avg)
+                Dice_TC = run_acc.avg[0]
+                Dice_WT = run_acc.avg[1]
+                Dice_ET = run_acc.avg[2]
                 print('Val {}/{} {}/{}'.format(epoch, args.max_epochs, idx, len(loader)),
-                      'acc', avg_acc,
-                      'time {:.2f}s'.format(time.time() - start_time))
+                      ', Dice_TC:', Dice_TC,
+                      ', Dice_WT:', Dice_WT,
+                      ', Dice_ET:', Dice_ET,
+                      ', time {:.2f}s'.format(time.time() - start_time))
             start_time = time.time()
+
     return run_acc.avg
+
 
 def save_checkpoint(model,
                     epoch,
@@ -135,9 +133,10 @@ def save_checkpoint(model,
         save_dict['optimizer'] = optimizer.state_dict()
     if scheduler is not None:
         save_dict['scheduler'] = scheduler.state_dict()
-    filename=os.path.join(args.logdir, filename)
+    filename = os.path.join(args.logdir, filename)
     torch.save(save_dict, filename)
     print('Saving checkpoint', filename)
+
 
 def run_training(model,
                  train_loader,
@@ -149,13 +148,14 @@ def run_training(model,
                  model_inferer=None,
                  scheduler=None,
                  start_epoch=0,
-                 post_label=None,
-                 post_pred=None
+                 post_sigmoid=None,
+                 post_pred=None,
+                 semantic_classes=None
                  ):
     writer = None
     if args.logdir is not None and args.rank == 0:
         writer = SummaryWriter(log_dir=args.logdir)
-        if args.rank == 0: print('Writing Tensorboard logs to ', args.logdir)
+        if args.rank == 0:print('Writing Tensorboard logs to ', args.logdir)
     scaler = None
     if args.amp:
         scaler = GradScaler()
@@ -176,29 +176,40 @@ def run_training(model,
         if args.rank == 0:
             print('Final training  {}/{}'.format(epoch, args.max_epochs - 1), 'loss: {:.4f}'.format(train_loss),
                   'time {:.2f}s'.format(time.time() - epoch_time))
-        if args.rank==0 and writer is not None:
+        if args.rank == 0 and writer is not None:
             writer.add_scalar('train_loss', train_loss, epoch)
         b_new_best = False
         if (epoch+1) % args.val_every == 0:
             if args.distributed:
                 torch.distributed.barrier()
             epoch_time = time.time()
-            val_avg_acc = val_epoch(model,
-                                    val_loader,
-                                    epoch=epoch,
-                                    acc_func=acc_func,
-                                    model_inferer=model_inferer,
-                                    args=args,
-                                    post_label=post_label,
-                                    post_pred=post_pred)
-
-            val_avg_acc = np.mean(val_avg_acc)
+            val_acc = val_epoch(model,
+                                val_loader,
+                                epoch=epoch,
+                                acc_func=acc_func,
+                                model_inferer=model_inferer,
+                                args=args,
+                                post_sigmoid=post_sigmoid,
+                                post_pred=post_pred,
+                                )
 
             if args.rank == 0:
-                print('Final validation  {}/{}'.format(epoch, args.max_epochs - 1),
-                      'acc', val_avg_acc, 'time {:.2f}s'.format(time.time() - epoch_time))
+                Dice_TC = val_acc[0]
+                Dice_WT = val_acc[1]
+                Dice_ET = val_acc[2]
+                print('Final validation stats {}/{}'.format(epoch, args.max_epochs - 1),
+                      ', Dice_TC:', Dice_TC,
+                      ', Dice_WT:', Dice_WT,
+                      ', Dice_ET:', Dice_ET,
+                      ', time {:.2f}s'.format(time.time() - epoch_time))
+
                 if writer is not None:
-                    writer.add_scalar('val_acc', val_avg_acc, epoch)
+                    writer.add_scalar('Mean_Val_Dice', np.mean(val_acc), epoch)
+                    if semantic_classes is not None:
+                        for val_channel_ind in range(len(semantic_classes)):
+                            if val_channel_ind < val_acc.size:
+                                writer.add_scalar(semantic_classes[val_channel_ind], val_acc[val_channel_ind], epoch)
+                val_avg_acc = np.mean(val_acc)
                 if val_avg_acc > val_acc_max:
                     print('new best ({:.6f} --> {:.6f}). '.format(val_acc_max, val_avg_acc))
                     val_acc_max = val_avg_acc
