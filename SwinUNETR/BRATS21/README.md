@@ -39,67 +39,7 @@ The provided segmentation labels have values of 1 for NCR, 2 for ED, 4 for ET, a
 
 Figure from [Baid et al.](https://arxiv.org/pdf/2107.02314v1.pdf) [3]
 
-# Models
-We provide Swin UNETR models which are pre-trained on BraTS21 dataset as in the following. The folds
-correspond to the data split in the [json file](https://drive.google.com/file/d/1i-BXYe-wZ8R9Vp3GXoajGyqaJ65Jybg1/view?usp=sharing).
 
-<table>
-  <tr>
-    <th>Name</th>
-    <th>Fold</th>
-    <th>Mean Dice</th>
-    <th>Feature Size</th>
-    <th># params (M)</th>
-    <th>Download </th>
-  </tr>
-<tr>
-    <td>Swin UNETR</td>
-    <td>0</td>
-    <td>88.54</td>
-    <td>48</td>
-    <td>62.1</td>
-    <td><a href="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/fold0_f48_ep300_4gpu_dice0_8854.zip">model</a></td>
-</tr>
-
-<tr>
-    <td>Swin UNETR</td>
-    <td>1</td>
-    <td>90.59</td>
-    <td>48</td>
-    <td>62.1</td>
-    <td><a href="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/fold1_f48_ep300_4gpu_dice0_9059.zip">model</a></td>
-</tr>
-
-<tr>
-    <td>Swin UNETR</td>
-    <td>2</td>
-    <td>89.81</td>
-    <td>48</td>
-    <td>62.1</td>
-    <td><a href="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/fold2_f48_ep300_4gpu_dice0_8981.zip">model</a></td>
-</tr>
-
-<tr>
-    <td>Swin UNETR</td>
-    <td>3</td>
-    <td>89.24</td>
-    <td>48</td>
-    <td>62.1</td>
-    <td><a href="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/fold3_f48_ep300_4gpu_dice0_8924.zip">model</a></td>
-</tr>
-
-<tr>
-    <td>Swin UNETR</td>
-    <td>4</td>
-    <td>90.35</td>
-    <td>48</td>
-    <td>62.1</td>
-    <td><a href="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/fold4_f48_ep300_4gpu_dice0_9035.zip">model</a></td>
-</tr>
-
-</table>
-
-Mean Dice refers to average Dice of WT, ET and TC tumor semantic classes.
 
 # Training
 
@@ -174,9 +114,6 @@ python test.py --json_list=<json-path> --data_dir=<data-path> --feature_size=<fe
 ```
 
 # Finetuning
-
-Please download the checkpoints for models presented in the above table and place the model checkpoints in `pretrained_models` folder.
-Use the following commands for finetuning.
 
 ## Finetuning on single GPU with gradient check-pointing and without AMP
 
