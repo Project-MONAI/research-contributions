@@ -34,7 +34,7 @@ If the axial dimension is smaller than 256, zero padding can be used.
 facialDefects.py  #create defects around the face
 cranialDefects.py  #create defects around the cranium
 ```
-* Convert NRRDs to Nifty (for MONAI Dataset loader)
+* Convert NRRDs to Nifti files (for MONAI Dataset loader)
 
 ``` Python
 #codes attributes to the stack overflow anser:
