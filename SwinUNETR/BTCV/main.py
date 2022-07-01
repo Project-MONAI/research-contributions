@@ -116,7 +116,7 @@ def main_worker(gpu, args):
     print(args.rank, ' gpu', args.gpu)
     if args.rank == 0:
         print('Batch size is:', args.batch_size, 'epochs', args.max_epochs)
-    inf_size = [args.roi_x, args.roi_y, args.roi_x]
+    inf_size = [args.roi_x, args.roi_y, args.roi_z]
 
     pretrained_dir = args.pretrained_dir
     model = SwinUNETR(img_size=(args.roi_x, args.roi_y, args.roi_z),
