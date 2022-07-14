@@ -1,19 +1,13 @@
 # Model Overview
 
-![image](./assets/swin_unetr.png)
 This repository contains the code for Swin UNETR [1,2]. Swin UNETR is the state-of-the-art on Medical Segmentation
 Decathlon (MSD) and Beyond the Cranial Vault (BTCV) Segmentation Challenge dataset. In [1], a novel methodology is devised for pre-training Swin UNETR backbone in a self-supervised
 manner. We provide the option for training Swin UNETR by fine-tuning from pre-trained self-supervised weights or from scratch.
 
 The source repository for the training of these models can be found [here](https://github.com/Project-MONAI/research-contributions/tree/main/SwinUNETR/BTCV).
 
-# Tutorial
-A tutorial for BTCV multi-organ segmentation using Swin UNETR model is provided in the following link.
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Project-MONAI/tutorials/blob/main/3d_segmentation/swin_unetr_btcv_segmentation_3d.ipynb)
-
 # Installing Dependencies
-Dependencies can be installed using:
+Dependencies for training and inference can be installed using the model requirements :
 ``` bash
 pip install -r requirements.txt
 ```
@@ -83,12 +77,6 @@ The training data is from the [BTCV challenge dataset](https://www.synapse.org/#
 - Task: Segmentation
 - Modality: CT
 - Size: 30 3D volumes (24 Training + 6 Testing)
-
-Please download the json file from this link.
-
-We provide the json file that is used to train our models in the following <a href="https://drive.google.com/file/d/1t4fIQQkONv7ArTSZe4Nucwkk1KfdUDvW/view?usp=sharing"> link</a>.
-
-Once the json file is downloaded, please place it in the same folder as the dataset. Note that you need to provide the location of your dataset directory by using ```--data_dir```.
 
 # Training
 
