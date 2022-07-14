@@ -18,9 +18,21 @@ Dependencies can be installed using:
 pip install -r requirements.txt
 ```
 
-# Models
+# Intended uses & limitations
 
-Please download the self-supervised pre-trained weights for Swin UNETR backbone (CVPR paper [1]) from this <a href="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/model_swinvit.pt"> link</a>.
+You can use the raw model for masked language modeling, but it's mostly intended to be fine-tuned on a downstream task.
+
+Note that this model is primarily aimed at being fine-tuned on tasks which segment CAT scans or MRIs on images in dicom format.  
+
+# How to use
+
+To be filled....
+
+# Limitations and bias
+
+The training data used for this model is specific to CAT scans from certain health facilities and machines. Data from other facilities may difffer in image distributions, and may require finetuning of the models for best performance.  
+
+# Evaluation results
 
 We provide several pre-trained models on BTCV dataset in the following.
 
@@ -80,38 +92,9 @@ Once the json file is downloaded, please place it in the same folder as the data
 
 # Training
 
-A Swin UNETR network with standard hyper-parameters for multi-organ semantic segmentation (BTCV dataset) is be defined as:
+See the source repository [here](https://github.com/Project-MONAI/research-contributions/tree/main/SwinUNETR/BTCV) for information on training. 
 
-``` bash
-model = SwinUNETR(img_size=(96,96,96),
-                  in_channels=1,
-                  out_channels=14,
-                  feature_size=48,
-                  use_checkpoint=True,
-                  )
-```
-
-
-The above Swin UNETR model is used for CT images (1-channel input) with input image size ```(96, 96, 96)``` and for ```14``` class segmentation outputs and feature size of  ```48```.
-More details can be found in [1]. In addition, ```use_checkpoint=True``` enables the use of gradient checkpointing for memory-efficient training.
-
-Using the default values for hyper-parameters, the following command can be used to initiate training using PyTorch native AMP package:
-``` bash
-python main.py
---feature_size=32
---batch_size=1
---logdir=unetr_test
---fold=0
---optim_lr=1e-4
---lrschedule=warmup_cosine
---infer_overlap=0.5
---save_checkpoint
---data_dir=/dataset/dataset0/
-```
-
-
-
-# Citation
+# BibTeX entry and citation info
 If you find this repository useful, please consider citing the following papers:
 
 ```
