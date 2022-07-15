@@ -79,7 +79,7 @@ for i, batch in enumerate(test_loader):
     fnames = batch['image_meta_dict']['filename_or_obj']
 
     # Write frames to video
-    
+
     for fname, inp, outp in zip(fnames, tst_inputs, tst_outputs):
 
         dicom_name = fname.split('/')[-1]
