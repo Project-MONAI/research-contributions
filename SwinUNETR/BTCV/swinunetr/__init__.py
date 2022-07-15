@@ -25,7 +25,7 @@ from transformers.file_utils import (
 )
 
 _import_structure = {
-    "configuration_swinunetr": ["SWINUNETR_PRETRAINED_CONFIG_ARCHIVE_MAP", 
+    "configuration_swinunetr": ["SWINUNETR_PRETRAINED_CONFIG_ARCHIVE_MAP",
                                 "SwinUnetrConfig"],
 }
 

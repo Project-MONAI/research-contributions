@@ -46,7 +46,7 @@ test_transform = transforms.Compose(
                                         b_min=args.b_min,
                                         b_max=args.b_max,
                                         clip=True),
-        #transforms.Resized(keys=["image"], spatial_size = (256,256,-1)), 
+        #transforms.Resized(keys=["image"], spatial_size = (256,256,-1)),
         transforms.ToTensord(keys=["image"]),
     ])
 
@@ -56,11 +56,11 @@ test_loader = data.DataLoader(test_ds,
                              shuffle=False)
 
 for i, batch in enumerate(test_loader):
-    
+
     tst_inputs = batch["image"]
     if args.last_n_frames>0:
         tst_inputs = tst_inputs[:,:,:,:,-args.last_n_frames:]
-    
+
     with torch.no_grad():
         outputs = model(tst_inputs,
                             (args.roi_x,
@@ -69,24 +69,24 @@ for i, batch in enumerate(test_loader):
                             8,
                             overlap=args.infer_overlap,
                             mode="gaussian")
-        
+
     tst_outputs = torch.softmax(outputs.logits, 1)
     tst_outputs = torch.argmax(tst_outputs, axis=1)
-    
+
     fnames = batch['image_meta_dict']['filename_or_obj']
-    
+
     # Write frames to video
     for fname, inp, outp in zip(fnames, tst_inputs, tst_outputs):
-        
+
         dicom_name = fname.split('/')[-1]
         video_name = f'videos/{dicom_name}.mp4'
-        
+
         writer = imageio.get_writer(video_name,
                                     fps = 4,
-                                    codec='mjpeg', 
-                                    quality=10, 
+                                    codec='mjpeg',
+                                    quality=10,
                                     pixelformat='yuvj444p')
-    
+
         for idx in range(inp.shape[-1]):
             # Segmentation
             seg = outp[:,:,idx].numpy().astype(np.uint8)

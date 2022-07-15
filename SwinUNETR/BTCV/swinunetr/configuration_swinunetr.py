@@ -75,7 +75,7 @@ class SwinUnetrConfig(PretrainedConfig):
         **kwargs
     ):
         super().__init__(
-            
+
             architecture= architecture,
             img_size= img_size,
             in_channels= in_channels,
