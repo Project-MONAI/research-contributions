@@ -17,20 +17,20 @@ pip install -r requirements.txt
 
 # Huggingface inference API
 
-To install necessary dependencies, run the below in bash. 
+To install necessary dependencies, run the below in bash.
 ```
 git clone https://github.com/darraghdog/Project-MONAI-research-contributions pmrc
 pip install -r pmrc/requirements.txt
-cd pmrc/SwinUNETR/BTCV 
+cd pmrc/SwinUNETR/BTCV
 ```
 
-To load the model from the hub. 
+To load the model from the hub.
 ```
 from swinunetr import SwinUnetrModelForInference
 model = SwinUnetrModelForInference.from_pretrained('darragh/swinunetr-btcv-tiny')
 ```
 
-You can also use `predict.py` to run inference for sample dicom medical images. 
+You can also use `predict.py` to run inference for sample dicom medical images.
 
 # Models
 
