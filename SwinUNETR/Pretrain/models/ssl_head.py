@@ -41,7 +41,7 @@ class SSLHead(nn.Module):
         self.contrastive_pre = nn.Identity()
         self.contrastive_head = nn.Linear(dim, 512)
         if upsample == 'large_kernel_deconv':
-            self.conv = nn.ConvTranspose3d(dim, 1,
+            self.conv = nn.ConvTranspose3d(dim, args.in_channels,
                                            kernel_size=(32, 32, 32),
                                            stride=(32, 32, 32))
         elif upsample == 'deconv':
@@ -57,7 +57,7 @@ class SSLHead(nn.Module):
                                       nn.ConvTranspose3d(dim//8, dim//16,
                                                          kernel_size=(2, 2, 2),
                                                          stride=(2, 2, 2)),
-                                      nn.ConvTranspose3d(dim//16, 1,
+                                      nn.ConvTranspose3d(dim//16, args.in_channels,
                                                          kernel_size=(2, 2, 2),
                                                          stride=(2, 2, 2)))
         elif upsample == 'vae':
@@ -81,7 +81,7 @@ class SSLHead(nn.Module):
                                       nn.InstanceNorm3d(dim // 16),
                                       nn.LeakyReLU(),
                                       nn.Upsample(scale_factor=2, mode='trilinear', align_corners=False),
-                                      nn.Conv3d(dim // 16, 1, kernel_size=1, stride=1)
+                                      nn.Conv3d(dim // 16, args.in_channels, kernel_size=1, stride=1)
                                       )
 
     def forward(self, x):
