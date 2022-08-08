@@ -136,9 +136,22 @@ def main_worker(gpu, args):
 
     if args.use_ssl_pretrained:
         try:
-            weight = torch.load('./pretrained_models/model_swinvit.pt')
-            model.load_from(weights=weight)
-            print('Using pretrained self-supervied Swin UNETR backbone weights !')
+            model_dict = torch.load('./pretrained_models/model_swinvit.pt')
+            state_dict = model_dict['state_dict']
+            # fix potential differences in state dict keys from pre-training to fine-tuning
+            if 'module.' in list(state_dict.keys())[0]:
+                print("Tag 'module.' found in state dict - fixing!")
+                for key in list(state_dict.keys()):
+                    state_dict[key.replace('module.','')] = state_dict.pop(key)
+            if 'swin_vit' in list(state_dict.keys())[0]:
+                print("Tag 'swin_vit' found in state dict - fixing!")
+                for key in list(state_dict.keys()):
+                    state_dict[key.replace('swin_vit','swinViT')] = state_dict.pop(key)
+            # We now load model weights, setting param `strict` to False, i.e.: 
+            # this load the encoder weights (Swin-ViT, SSL pre-trained), but leaves
+            # the decoder weights untouched (CNN UNet decoder).
+            model.load_state_dict(state_dict, strict=False)
+            print('Using pretrained self-supervised Swin UNETR backbone weights !')
         except ValueError:
             raise ValueError('Self-supervised pre-trained weights not available for' + str(args.model_name))
 

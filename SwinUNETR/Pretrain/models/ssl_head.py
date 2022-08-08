@@ -20,7 +20,7 @@ class SSLHead(nn.Module):
         super(SSLHead, self).__init__()
         patch_size = ensure_tuple_rep(2, args.spatial_dims)
         window_size = ensure_tuple_rep(7, args.spatial_dims)
-        self.swin_vit = SwinViT(
+        self.swinViT = SwinViT(
             in_chans=args.in_channels,
             embed_dim=args.feature_size,
             window_size=window_size,
