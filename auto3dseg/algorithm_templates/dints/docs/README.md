@@ -1,13 +1,17 @@
 # Description
+
 A neural architecture search algorithm for volumetric segmentation of 3D medical images.
 
 # Model Overview
+
 This model is trained using the state-of-the-art algorithm [1] of the "Medical Segmentation Decathlon Challenge 2018".
 
 ## Training configuration
+
 The training was performed with at least 16GB-memory GPUs.
 
 ## commands example
+
 Execute model searching:
 
 ```
@@ -45,7 +49,9 @@ python -m scripts.infer run --config_file configs/algo_config.yaml
 ```
 
 # Disclaimer
+
 This is an example, not to be used for diagnostic purposes.
 
 # References
+
 [1] He, Y., Yang, D., Roth, H., Zhao, C. and Xu, D., 2021. Dints: Differentiable neural network topology search for 3d medical image segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (pp. 5841-5850).
