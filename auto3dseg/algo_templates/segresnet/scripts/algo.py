@@ -64,16 +64,20 @@ class SegresnetAlgo(BundleAlgo):
             ]  # remove [0] temporarily
         )
         spacing_lower_bound = np.array(
-            data_cfg["stats_summary"]["image_stats"]["spacing"]["percentile_00_5"]  # remove [0] temporarily
+            # remove [0] temporarily
+            data_cfg["stats_summary"]["image_stats"]["spacing"]["percentile_00_5"]
         )
         spacing_upper_bound = np.array(
-            data_cfg["stats_summary"]["image_stats"]["spacing"]["percentile_99_5"]  # remove [0] temperoly
+            # remove [0] temperoly
+            data_cfg["stats_summary"]["image_stats"]["spacing"]["percentile_99_5"]
         )
 
         # adjust to image size
-        patch_size = [min(r, i) for r, i in zip(patch_size, image_size)]  # min for each of spatial dims
+        # min for each of spatial dims
+        patch_size = [min(r, i) for r, i in zip(patch_size, image_size)]
         patch_size = roi_ensure_divisible(patch_size, levels=levels)
-        # reduce number of levels to smaller then 5 (default) if image is too small
+        # reduce number of levels to smaller then 5 (default) if image is too
+        # small
         levels, patch_size = roi_ensure_levels(levels, patch_size, image_size)
 
         self.cfg["patch_size"] = patch_size
@@ -97,7 +101,8 @@ class SegresnetAlgo(BundleAlgo):
         self.cfg["network"]["blocks_up"] = [1] * (len(num_blocks) - 1)  # [1,1,1,1..]
         if data_src_cfg["multigpu"]:
             self.cfg["network"]["norm"] = ["BATCH", {"affine": True}]  # use batchnorm with multi gpu
-            self.cfg["network"]["act"] = ["RELU", {"inplace": False}]  # set act to be not in-place with multi gpu
+            # set act to be not in-place with multi gpu
+            self.cfg["network"]["act"] = ["RELU", {"inplace": False}]
         else:
             self.cfg["network"]["norm"] = ["INSTANCE", {"affine": True}]  # use instancenorm with single gpu
 
@@ -132,7 +137,8 @@ class SegresnetAlgo(BundleAlgo):
         elif "mr" in modality:
             spacing = data_cfg["stats_summary"]["image_stats"]["spacing"]["median"][0]
 
-        self.cfg["resolution"] = deepcopy(spacing)  # resample on the fly to this resolution
+        # resample on the fly to this resolution
+        self.cfg["resolution"] = deepcopy(spacing)
         self.cfg["intensity_bounds"] = [intensity_lower_bound, intensity_upper_bound]
 
         if np.any(spacing_lower_bound / np.array(spacing) < 0.5) or np.any(
@@ -179,7 +185,8 @@ class SegresnetAlgo(BundleAlgo):
                 }
             )
         else:
-            # Image size is only slightly larger then patch_size, using random cropping
+            # Image size is only slightly larger then patch_size, using random
+            # cropping
             _t_crop.append(
                 {
                     "_target_": "RandSpatialCropd",
@@ -193,7 +200,7 @@ class SegresnetAlgo(BundleAlgo):
         for _i in range(len(self.cfg["transforms_train"]["transforms"])):
             _t = self.cfg["transforms_train"]["transforms"][_i]
 
-            if type(_t) is str and _t == "PLACEHOLDER_CROP":
+            if isinstance(_t, str) and _t == "PLACEHOLDER_CROP":
                 _i_crop = _i
             self.cfg["transforms_train"]["transforms"][_i] = _t
 
@@ -237,7 +244,7 @@ class SegresnetAlgo(BundleAlgo):
 
             for _i in range(len(self.cfg[key]["transforms"])):
                 _t = self.cfg[key]["transforms"][_i]
-                if type(_t) is dict and _t["_target_"] == "Spacingd":
+                if isinstance(_t, dict) and _t["_target_"] == "Spacingd":
                     if resample:
                         _t["pixdim"] = deepcopy(spacing)
                     else:
@@ -248,7 +255,7 @@ class SegresnetAlgo(BundleAlgo):
             for _i in range(len(self.cfg[key]["transforms"])):
                 _t = self.cfg[key]["transforms"][_i]
 
-                if type(_t) is str and _t == "PLACEHOLDER_INTENSITY_NORMALIZATION":
+                if isinstance(_t, str) and _t == "PLACEHOLDER_INTENSITY_NORMALIZATION":
                     _i_intensity = _i
 
                 self.cfg[key]["transforms"][_i] = _t
