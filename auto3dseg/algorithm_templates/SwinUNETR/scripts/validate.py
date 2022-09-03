@@ -94,7 +94,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     model = parser.get_parsed_content("network")
     model = model.to(device)
-    if torch.cuda.device_count() > 1
+    if torch.cuda.device_count() > 1:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     pretrained_ckpt = torch.load(ckpt_name, map_location=device)
