@@ -15,25 +15,25 @@ The training was performed with at least 16GB-memory GPUs.
 Execute model training:
 
 ```
-python -m scripts.train run --config_file configs/algo_config.yaml
+export CUDA_VISIBLE_DEVICES=0; python scripts/train.py run --config_file configs/algo_config.yaml
 ```
 
 Execute multi-GPU model training (recommended):
 
 ```
-torchrun --nnodes=1 --nproc_per_node=8 -m scripts.train run --config_file configs/algo_config.yaml
+torchrun --nnodes=1 --nproc_per_node=8 scripts/train.py run --config_file configs/algo_config.yaml
 ```
 
 Execute validation:
 
 ```
-python -m scripts.validate run --config_file configs/algo_config.yaml
+python scripts/validate.py run --config_file configs/algo_config.yaml
 ```
 
 Execute inference:
 
 ```
-python -m scripts.infer run --config_file configs/algo_config.yaml
+python scripts/infer.py run --config_file configs/algo_config.yaml
 ```
 
 # Disclaimer
