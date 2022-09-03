@@ -9,17 +9,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import json
 import math
+import os
+
 import numpy as np
 import torch
-from monai import transforms, data
+
+from monai import data, transforms
 
 
 class Sampler(torch.utils.data.Sampler):
-    def __init__(self, dataset, num_replicas=None, rank=None,
-                 shuffle=True, make_even=True):
+    def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, make_even=True):
         if num_replicas is None:
             if not torch.distributed.is_available():
                 raise RuntimeError("Requires distributed package to be available")
@@ -37,7 +38,7 @@ class Sampler(torch.utils.data.Sampler):
         self.num_samples = int(math.ceil(len(self.dataset) * 1.0 / self.num_replicas))
         self.total_size = self.num_samples * self.num_replicas
         indices = list(range(len(self.dataset)))
-        self.valid_length = len(indices[self.rank:self.total_size:self.num_replicas])
+        self.valid_length = len(indices[self.rank : self.total_size : self.num_replicas])
 
     def __iter__(self):
         if self.shuffle:
@@ -49,12 +50,12 @@ class Sampler(torch.utils.data.Sampler):
         if self.make_even:
             if len(indices) < self.total_size:
                 if self.total_size - len(indices) < len(indices):
-                    indices += indices[:(self.total_size - len(indices))]
+                    indices += indices[: (self.total_size - len(indices))]
                 else:
-                    extra_ids = np.random.randint(low=0,high=len(indices), size=self.total_size - len(indices))
+                    extra_ids = np.random.randint(low=0, high=len(indices), size=self.total_size - len(indices))
                     indices += [indices[ids] for ids in extra_ids]
             assert len(indices) == self.total_size
-        indices = indices[self.rank:self.total_size:self.num_replicas]
+        indices = indices[self.rank : self.total_size : self.num_replicas]
         self.num_samples = len(indices)
         return iter(indices)
 
@@ -65,10 +66,7 @@ class Sampler(torch.utils.data.Sampler):
         self.epoch = epoch
 
 
-def datafold_read(datalist,
-                  basedir,
-                  fold=0,
-                  key='training'):
+def datafold_read(datalist, basedir, fold=0, key="training"):
 
     with open(datalist) as f:
         json_data = json.load(f)
@@ -82,10 +80,10 @@ def datafold_read(datalist,
             elif isinstance(d[k], str):
                 d[k] = os.path.join(basedir, d[k]) if len(d[k]) > 0 else d[k]
 
-    tr=[]
-    val=[]
+    tr = []
+    val = []
     for d in json_data:
-        if 'fold' in d and d['fold'] == fold:
+        if "fold" in d and d["fold"] == fold:
             val.append(d)
         else:
             tr.append(d)
@@ -101,13 +99,12 @@ def get_loader(args):
         [
             transforms.LoadImaged(keys=["image", "label"]),
             transforms.ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
-            transforms.CropForegroundd(keys=["image", "label"], source_key="image", k_divisible=[args.roi_x,
-                                                                                                 args.roi_y,
-                                                                                                 args.roi_z]),
-            transforms.RandSpatialCropd(keys=["image", "label"], roi_size=[args.roi_x,
-                                                                           args.roi_y,
-                                                                           args.roi_z],
-                                        random_size=False),
+            transforms.CropForegroundd(
+                keys=["image", "label"], source_key="image", k_divisible=[args.roi_x, args.roi_y, args.roi_z]
+            ),
+            transforms.RandSpatialCropd(
+                keys=["image", "label"], roi_size=[args.roi_x, args.roi_y, args.roi_z], random_size=False
+            ),
             transforms.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=0),
             transforms.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=1),
             transforms.RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=2),
@@ -139,35 +136,28 @@ def get_loader(args):
 
         val_ds = data.Dataset(data=validation_files, transform=test_transform)
         val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
-        test_loader = data.DataLoader(val_ds,
-                                      batch_size=1,
-                                      shuffle=False,
-                                      num_workers=args.workers,
-                                      sampler=val_sampler,
-                                      pin_memory=True,
-                                      )
+        test_loader = data.DataLoader(
+            val_ds, batch_size=1, shuffle=False, num_workers=args.workers, sampler=val_sampler, pin_memory=True
+        )
 
         loader = test_loader
     else:
         train_ds = data.Dataset(data=train_files, transform=train_transform)
 
         train_sampler = Sampler(train_ds) if args.distributed else None
-        train_loader = data.DataLoader(train_ds,
-                                       batch_size=args.batch_size,
-                                       shuffle=(train_sampler is None),
-                                       num_workers=args.workers,
-                                       sampler=train_sampler,
-                                       pin_memory=True,
-                                       )
+        train_loader = data.DataLoader(
+            train_ds,
+            batch_size=args.batch_size,
+            shuffle=(train_sampler is None),
+            num_workers=args.workers,
+            sampler=train_sampler,
+            pin_memory=True,
+        )
         val_ds = data.Dataset(data=validation_files, transform=val_transform)
         val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
-        val_loader = data.DataLoader(val_ds,
-                                     batch_size=1,
-                                     shuffle=False,
-                                     num_workers=args.workers,
-                                     sampler=val_sampler,
-                                     pin_memory=True,
-                                     )
+        val_loader = data.DataLoader(
+            val_ds, batch_size=1, shuffle=False, num_workers=args.workers, sampler=val_sampler, pin_memory=True
+        )
         loader = [train_loader, val_loader]
 
     return loader
