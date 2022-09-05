@@ -18,7 +18,6 @@ from torch.optim.lr_scheduler import _LRScheduler
 
 
 class LinearWarmupCosineAnnealingLR(_LRScheduler):
-
     def __init__(
         self,
         optimizer: Optimizer,
@@ -50,9 +49,7 @@ class LinearWarmupCosineAnnealingLR(_LRScheduler):
         """
         if not self._get_lr_called_within_step:
             warnings.warn(
-                "To get the last learning rate computed by the scheduler, "
-                "please use `get_last_lr()`.",
-                UserWarning,
+                "To get the last learning rate computed by the scheduler, " "please use `get_last_lr()`.", UserWarning
             )
 
         if self.last_epoch == 0:
@@ -66,17 +63,22 @@ class LinearWarmupCosineAnnealingLR(_LRScheduler):
             return self.base_lrs
         elif (self.last_epoch - 1 - self.max_epochs) % (2 * (self.max_epochs - self.warmup_epochs)) == 0:
             return [
-                group["lr"] + (base_lr - self.eta_min) *
-                (1 - math.cos(math.pi / (self.max_epochs - self.warmup_epochs))) / 2
+                group["lr"]
+                + (base_lr - self.eta_min) * (1 - math.cos(math.pi / (self.max_epochs - self.warmup_epochs))) / 2
                 for base_lr, group in zip(self.base_lrs, self.optimizer.param_groups)
             ]
 
         return [
-            (1 + math.cos(math.pi * (self.last_epoch - self.warmup_epochs) / (self.max_epochs - self.warmup_epochs))) /
-            (
-                1 +
-                math.cos(math.pi * (self.last_epoch - self.warmup_epochs - 1) / (self.max_epochs - self.warmup_epochs))
-            ) * (group["lr"] - self.eta_min) + self.eta_min for group in self.optimizer.param_groups
+            (1 + math.cos(math.pi * (self.last_epoch - self.warmup_epochs) / (self.max_epochs - self.warmup_epochs)))
+            / (
+                1
+                + math.cos(
+                    math.pi * (self.last_epoch - self.warmup_epochs - 1) / (self.max_epochs - self.warmup_epochs)
+                )
+            )
+            * (group["lr"] - self.eta_min)
+            + self.eta_min
+            for group in self.optimizer.param_groups
         ]
 
     def _get_closed_form_lr(self) -> List[float]:
@@ -90,7 +92,9 @@ class LinearWarmupCosineAnnealingLR(_LRScheduler):
             ]
 
         return [
-            self.eta_min + 0.5 * (base_lr - self.eta_min) *
-            (1 + math.cos(math.pi * (self.last_epoch - self.warmup_epochs) / (self.max_epochs - self.warmup_epochs)))
+            self.eta_min
+            + 0.5
+            * (base_lr - self.eta_min)
+            * (1 + math.cos(math.pi * (self.last_epoch - self.warmup_epochs) / (self.max_epochs - self.warmup_epochs)))
             for base_lr in self.base_lrs
         ]
