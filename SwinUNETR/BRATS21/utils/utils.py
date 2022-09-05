@@ -9,8 +9,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import numpy as np
+import torch
 
 
 def dice(x, y):
@@ -23,7 +23,6 @@ def dice(x, y):
 
 
 class AverageMeter(object):
-
     def __init__(self):
         self.reset()
 
@@ -37,17 +36,12 @@ class AverageMeter(object):
         self.val = val
         self.sum += val * n
         self.count += n
-        self.avg = np.where(self.count > 0,
-                            self.sum / self.count,
-                            self.sum)
+        self.avg = np.where(self.count > 0, self.sum / self.count, self.sum)
 
 
-def distributed_all_gather(tensor_list,
-                           valid_batch_size=None,
-                           out_numpy=False,
-                           world_size=None,
-                           no_barrier=False,
-                           is_valid=None):
+def distributed_all_gather(
+    tensor_list, valid_batch_size=None, out_numpy=False, world_size=None, no_barrier=False, is_valid=None
+):
 
     if world_size is None:
         world_size = torch.distributed.get_world_size()
@@ -69,7 +63,7 @@ def distributed_all_gather(tensor_list,
             if valid_batch_size is not None:
                 gather_list = gather_list[:valid_batch_size]
             elif is_valid is not None:
-                gather_list = [g for g,v in zip(gather_list, is_valid_list) if v]
+                gather_list = [g for g, v in zip(gather_list, is_valid_list) if v]
             if out_numpy:
                 gather_list = [t.cpu().numpy() for t in gather_list]
             tensor_list_out.append(gather_list)
