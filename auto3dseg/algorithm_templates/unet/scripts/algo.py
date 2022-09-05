@@ -82,7 +82,7 @@ class UnetAlgo(BundleAlgo):
                         self.cfg[f"{key}#transforms#{idx}"] = deepcopy(ct_intensity_xform)
                     else:
                         self.cfg[f"{key}#transforms#{idx}"] = deepcopy(mr_intensity_transform)
-        
+
         override_params = _update_args(**override)
         for k, v in override_params.items():
             self.cfg[k] = v
