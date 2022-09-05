@@ -477,9 +477,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     torch.save(
                         {
-                            "arch_code_a": arch_code_a_d,
-                            "arch_code_a_max": arch_code_a_max_d,
-                            "arch_code_c": arch_code_c_d,
+                            "code_a": arch_code_a_d,
+                            "code_a_max": arch_code_a_max_d,
+                            "code_c": arch_code_c_d,
                             "best_dsc": best_metric,
                             "best_path": best_metric_iterations,
                             "dsc": avg_metric,
@@ -492,9 +492,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     torch.save(
                         {
-                            "arch_code_a": arch_code_a_d,
-                            "arch_code_a_max": arch_code_a_max_d,
-                            "arch_code_c": arch_code_c_d,
+                            "code_a": arch_code_a_d,
+                            "code_a_max": arch_code_a_max_d,
+                            "code_c": arch_code_c_d,
                             "best_dsc": best_metric,
                             "best_path": best_metric_iterations,
                             "dsc": avg_metric,
