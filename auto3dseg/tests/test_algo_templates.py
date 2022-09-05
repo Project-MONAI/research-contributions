@@ -17,9 +17,16 @@ from typing import Dict, List
 import nibabel as nib
 import numpy as np
 
-from monai.apps.auto3dseg import BundleGen, DataAnalyzer
+from monai.apps.auto3dseg import (
+    AlgoEnsembleBestByFold,
+    AlgoEnsembleBestN,
+    AlgoEnsembleBuilder,
+    BundleGen,
+    DataAnalyzer
+)
 from monai.bundle.config_parser import ConfigParser
 from monai.data import create_test_image_3d
+from monai.utils.enums import AlgoEnsembleKeys
 from tests.utils import skip_if_no_cuda
 
 
@@ -45,19 +52,46 @@ algo_templates = os.path.join('auto3dseg', 'algorithm_templates')
 
 sys.path.insert(0, algo_templates)
 
-algos = {
-    "unet": dict(
-        _target_="unet.scripts.algo.UnetAlgo",
-        template_configs=os.path.join(algo_templates, "unet", "configs"),
-        scripts_path=os.path.join(algo_templates, "unet", "scripts"),
-    ),
+train_param = {
+    "CUDA_VISIBLE_DEVICES": [0],
+    "num_iterations": 8,
+    "num_iterations_per_validation": 4,
+    "num_images_per_batch": 2,
+    "num_epochs": 2,
 }
 
-class TestEnsembleBuilder(unittest.TestCase):
+pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
+
+debug_single = False
+
+class TestAlgoTemplates(unittest.TestCase):
     def setUp(self) -> None:
         self.test_dir = "./tmp_workdir"
         if not os.path.isdir(self.test_dir):
             os.makedirs(self.test_dir)
+
+        self.algos = {}
+
+        if debug_single:
+            name = "unet"
+            self.algos.update({
+                name: dict(
+                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
+                    template_configs=os.path.join(algo_templates, name, "configs"),
+                    scripts_path=os.path.join(algo_templates, name, "scripts"),
+                ),
+            })
+            return
+
+        for name in os.listdir("auto3dseg/algorithm_templates"):
+            self.algos.update({
+                name: dict(
+                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
+                    template_configs=os.path.join(algo_templates, name, "configs"),
+                    scripts_path=os.path.join(algo_templates, name, "scripts"),
+                ),
+            })
+
 
     @skip_if_no_cuda
     def test_ensemble(self) -> None:
@@ -107,11 +141,27 @@ class TestEnsembleBuilder(unittest.TestCase):
         ConfigParser.export_config_file(data_src, data_src_cfg)
 
         bundle_generator = BundleGen(
-            algos=algos, data_stats_filename=da_output_yaml, data_src_cfg_name=data_src_cfg
+            algos=self.algos, data_stats_filename=da_output_yaml, data_src_cfg_name=data_src_cfg
         )
         bundle_generator.generate(work_dir, num_fold=2)
-        bundle_generator.get_history()
+        history = bundle_generator.get_history()
 
+        for h in history:
+            self.assertEqual(len(h.keys()), 1, "each record should have one model")
+            for _, algo in h.items():
+                algo.train(train_param)
+
+        builder = AlgoEnsembleBuilder(history, data_src_cfg)
+        builder.set_ensemble_method(AlgoEnsembleBestN(n_best=2))
+        ensemble = builder.get_ensemble()
+        preds = ensemble(pred_param)
+        self.assertTupleEqual(preds[0].shape, (2, 64, 64, 64))
+
+        builder.set_ensemble_method(AlgoEnsembleBestByFold(2))
+        ensemble = builder.get_ensemble()
+        for algo in ensemble.get_algo_ensemble():
+            print(algo[AlgoEnsembleKeys.ID])
+    
     def tearDown(self) -> None:
         pass
 

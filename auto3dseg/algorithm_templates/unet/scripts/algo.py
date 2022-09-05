@@ -14,7 +14,7 @@ from copy import deepcopy
 
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
-from monai.bundle.scripts import _pop_args, _update_args
+from monai.bundle.scripts import _update_args
 
 
 class UnetAlgo(BundleAlgo):
@@ -82,11 +82,11 @@ class UnetAlgo(BundleAlgo):
                         self.cfg[f"{key}#transforms#{idx}"] = deepcopy(ct_intensity_xform)
                     else:
                         self.cfg[f"{key}#transforms#{idx}"] = deepcopy(mr_intensity_transform)
-        
+
+
         override_params = _update_args(**override)
         for k, v in override_params.items():
             self.cfg[k] = v
-
 
 if __name__ == "__main__":
     from monai.utils import optional_import

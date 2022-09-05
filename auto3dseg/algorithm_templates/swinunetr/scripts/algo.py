@@ -14,10 +14,10 @@ from copy import deepcopy
 
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
+from monai.bundle.scripts import _update_args
 
-
-class SwinUNETRAlgo(BundleAlgo):
-    def fill_template_config(self, data_stats):
+class SwinunetrAlgo(BundleAlgo):
+    def fill_template_config(self, data_stats, **override):
         if data_stats is None:
             return
         data_cfg = ConfigParser(globals=False)
@@ -30,8 +30,8 @@ class SwinUNETRAlgo(BundleAlgo):
             data_src_cfg.read_config(self.data_list_file)
             self.cfg.update(
                 {
-                    "data_file_base_dir": data_src_cfg["dataroot"],
-                    "data_list_file_path": data_src_cfg["datalist"],
+                    "data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"]),
+                    "data_list_file_path": os.path.abspath(data_src_cfg["datalist"]),
                     "input_channels": data_cfg["stats_summary#image_stats#channels#max"],
                     "output_classes": len(data_cfg["stats_summary#label_stats#labels"]),
                 }
@@ -80,9 +80,12 @@ class SwinUNETRAlgo(BundleAlgo):
                     else:
                         self.cfg[f"{key}#transforms#{idx}"] = deepcopy(mr_intensity_transform)
 
+        override_params = _update_args(**override)
+        for k, v in override_params.items():
+            self.cfg[k] = v
 
 if __name__ == "__main__":
     from monai.utils import optional_import
 
     fire, _ = optional_import("fire")
-    fire.Fire({"SwinUNETRAlgo": SwinUNETRAlgo})
+    fire.Fire({"SwinunetrAlgo": SwinunetrAlgo})
