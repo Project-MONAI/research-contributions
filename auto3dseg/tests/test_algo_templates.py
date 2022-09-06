@@ -161,7 +161,7 @@ class TestAlgoTemplates(unittest.TestCase):
         ensemble = builder.get_ensemble()
         for algo in ensemble.get_algo_ensemble():
             print(algo[AlgoEnsembleKeys.ID])
-    
+
     def tearDown(self) -> None:
         pass
 
