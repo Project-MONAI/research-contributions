@@ -5,15 +5,12 @@ A 3D Swin Transformer-based algorithm for volumetric segmentation of medical ima
 # Model Overview
 
 This model is the auto 3d implementation [1] with Beyond the Cranial Vault (BTCV) Segmentation Challenge and the "Medical Segmentation Decathlon Challenge 2018" data.
-![image](./img/swin_unetr.png)
-
 
 ## Training configuration
 
 The training was performed with at least 16GB-memory GPUs.
 
 ## commands example
-
 
 Execute model training:
 
