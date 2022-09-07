@@ -22,6 +22,7 @@ from typing import Optional, Sequence, Union
 import numpy as np
 import torch
 import torch.distributed as dist
+import yaml
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
 
@@ -162,6 +163,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     model = parser.get_parsed_content("network")
     model = model.to(device)
+
     if torch.cuda.device_count() > 1:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
@@ -367,7 +369,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         dict_file["best_avg_dice_score"] = float(best_metric)
                         dict_file["best_avg_dice_score_epoch"] = int(best_metric_epoch)
                         dict_file["best_avg_dice_score_iteration"] = int(idx_iter)
-                        ConfigParser.export_config_file(dict_file, os.path.join(ckpt_path, "progress.yaml"))
+                        with open(os.path.join(ckpt_path, "progress.yaml"), "a") as out_file:
+                            yaml.dump([dict_file], stream=out_file)
+
                     print(
                         "current epoch: {} current mean dice: {:.4f} best mean dice: {:.4f} at epoch {}".format(
                             epoch + 1, avg_metric, best_metric, best_metric_epoch
@@ -388,9 +392,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
             torch.cuda.empty_cache()
 
-    print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
-
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
+        print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
+
         writer.flush()
         writer.close()
 
