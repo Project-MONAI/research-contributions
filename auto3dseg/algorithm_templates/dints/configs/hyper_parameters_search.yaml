@@ -3,7 +3,7 @@ searching:
   # hyper-parameters
   amp: true
   bundle_root: null
-  arch_path: "$@bundle_root + '/arch_ram' + str(@ram_cost_factor) + '_fold' + str(@fold)"
+  arch_path: "$@searching#bundle_root + '/arch_ram' + str(@searching#ram_cost_factor) + '_fold' + str(@searching#fold)"
   data_file_base_dir: null
   data_list_file_path: null
   determ: false
@@ -28,29 +28,29 @@ searching:
   loss:
     _target_: DiceFocalLoss
     include_background: true
-    to_onehot_y: "$@softmax"
-    softmax: "$@softmax"
-    sigmoid: "$not @softmax"
+    to_onehot_y: "$@searching#softmax"
+    softmax: "$@searching#softmax"
+    sigmoid: "$not @searching#softmax"
     squared_pred: true
     batch: true
     smooth_nr: 1.0e-05
     smooth_dr: 1.0e-05
   optimizer:
     _target_: torch.optim.SGD
-    lr: "@learning_rate"
+    lr: "@searching#learning_rate"
     momentum: 0.9
     weight_decay: 4.0e-05
   arch_optimizer_a:
     _target_: torch.optim.Adam
-    lr: "@learning_rate_arch"
+    lr: "@searching#learning_rate_arch"
     betas: [0.5, 0.999]
     weight_decay: 0
   arch_optimizer_c:
     _target_: torch.optim.Adam
-    lr: "@learning_rate_arch"
+    lr: "@searching#learning_rate_arch"
     betas: [0.5, 0.999]
     weight_decay: 0
   lr_scheduler:
     _target_: torch.optim.lr_scheduler.StepLR
-    step_size: "$int(float(@num_iterations - @num_warmup_iterations) * 0.4)"
+    step_size: "$int(float(@searching#num_iterations - @searching#num_warmup_iterations) * 0.4)"
     gamma: 0.5

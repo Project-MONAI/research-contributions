@@ -9,7 +9,7 @@ searching:
     device: "$torch.device('cuda')"
   network:
     _target_: DiNTS
-    dints_space: "$@dints_space"
-    in_channels: "@input_channels"
-    num_classes: "@output_classes"
+    dints_space: "$@searching#dints_space"
+    in_channels: "@searching#input_channels"
+    num_classes: "@searching#output_classes"
     use_downsample: true
