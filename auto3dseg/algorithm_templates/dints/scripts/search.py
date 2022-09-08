@@ -47,22 +47,22 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     parser.read_config(config_file_)
     parser.update(pairs=_args)
 
-    amp = parser.get_parsed_content("amp")
-    arch_path = parser.get_parsed_content("arch_path")
-    data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
-    data_list_file_path = parser.get_parsed_content("data_list_file_path")
-    determ = parser.get_parsed_content("determ")
-    fold = parser.get_parsed_content("fold")
-    num_images_per_batch = parser.get_parsed_content("num_images_per_batch")
-    num_iterations = parser.get_parsed_content("num_iterations")
-    num_iterations_per_validation = parser.get_parsed_content("num_iterations_per_validation")
-    num_warmup_iterations = parser.get_parsed_content("num_warmup_iterations")
-    num_sw_batch_size = parser.get_parsed_content("num_sw_batch_size")
-    output_classes = parser.get_parsed_content("output_classes")
-    overlap_ratio = parser.get_parsed_content("overlap_ratio")
-    patch_size_valid = parser.get_parsed_content("patch_size_valid")
-    ram_cost_factor = parser.get_parsed_content("ram_cost_factor")
-    softmax = parser.get_parsed_content("softmax")
+    amp = parser.get_parsed_content("searching#amp")
+    arch_path = parser.get_parsed_content("searching#arch_path")
+    data_file_base_dir = parser.get_parsed_content("searching#data_file_base_dir")
+    data_list_file_path = parser.get_parsed_content("searching#data_list_file_path")
+    determ = parser.get_parsed_content("searching#determ")
+    fold = parser.get_parsed_content("searching#fold")
+    num_images_per_batch = parser.get_parsed_content("searching#num_images_per_batch")
+    num_iterations = parser.get_parsed_content("searching#num_iterations")
+    num_iterations_per_validation = parser.get_parsed_content("searching#num_iterations_per_validation")
+    num_warmup_iterations = parser.get_parsed_content("searching#num_warmup_iterations")
+    num_sw_batch_size = parser.get_parsed_content("searching#num_sw_batch_size")
+    output_classes = parser.get_parsed_content("searching#output_classes")
+    overlap_ratio = parser.get_parsed_content("searching#overlap_ratio")
+    patch_size_valid = parser.get_parsed_content("searching#patch_size_valid")
+    ram_cost_factor = parser.get_parsed_content("searching#ram_cost_factor")
+    softmax = parser.get_parsed_content("searching#softmax")
 
     train_transforms = parser.get_parsed_content("transforms_train")
     val_transforms = parser.get_parsed_content("transforms_validate")
@@ -174,8 +174,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     device = torch.device(f"cuda:{dist.get_rank()}") if torch.cuda.device_count() > 1 else torch.device("cuda:0")
     torch.cuda.set_device(device)
 
-    dints_space = parser.get_parsed_content("dints_space")
-    model = parser.get_parsed_content("network")
+    dints_space = parser.get_parsed_content("searching#dints_space")
+    model = parser.get_parsed_content("searching#network")
     model = model.to(device)
 
     if torch.cuda.device_count() > 1:
@@ -191,15 +191,15 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             [transforms.EnsureType(), transforms.Activations(sigmoid=True), transforms.AsDiscrete(threshold=0.5)]
         )
 
-    loss_function = parser.get_parsed_content("loss")
+    loss_function = parser.get_parsed_content("searching#loss")
 
-    optimizer_part = parser.get_parsed_content("optimizer", instantiate=False)
+    optimizer_part = parser.get_parsed_content("searching#optimizer", instantiate=False)
     optimizer = optimizer_part.instantiate(params=model.parameters())
 
-    arch_optimizer_a_part = parser.get_parsed_content("arch_optimizer_a", instantiate=False)
+    arch_optimizer_a_part = parser.get_parsed_content("searching#arch_optimizer_a", instantiate=False)
     arch_optimizer_a = arch_optimizer_a_part.instantiate(params=[dints_space.log_alpha_a])
 
-    arch_optimizer_c_part = parser.get_parsed_content("arch_optimizer_c", instantiate=False)
+    arch_optimizer_c_part = parser.get_parsed_content("searching#arch_optimizer_c", instantiate=False)
     arch_optimizer_c = arch_optimizer_c_part.instantiate(params=[dints_space.log_alpha_c])
 
     num_epochs_per_validation = num_iterations_per_validation // len(train_loader_a)
@@ -212,7 +212,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         print("num_epochs_warmup", num_epochs_warmup)
         print("num_epochs_per_validation", num_epochs_per_validation)
 
-    lr_scheduler_part = parser.get_parsed_content("lr_scheduler", instantiate=False)
+    lr_scheduler_part = parser.get_parsed_content("searching#lr_scheduler", instantiate=False)
     lr_scheduler = lr_scheduler_part.instantiate(optimizer=optimizer)
 
     if torch.cuda.device_count() > 1:

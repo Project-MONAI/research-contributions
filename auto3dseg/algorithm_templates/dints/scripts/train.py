@@ -46,21 +46,21 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     parser.read_config(config_file_)
     parser.update(pairs=_args)
 
-    amp = parser.get_parsed_content("amp")
-    ckpt_path = parser.get_parsed_content("ckpt_path")
-    data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
-    data_list_file_path = parser.get_parsed_content("data_list_file_path")
-    determ = parser.get_parsed_content("determ")
-    finetune = parser.get_parsed_content("finetune")
-    fold = parser.get_parsed_content("fold")
-    num_images_per_batch = parser.get_parsed_content("num_images_per_batch")
-    num_iterations = parser.get_parsed_content("num_iterations")
-    num_iterations_per_validation = parser.get_parsed_content("num_iterations_per_validation")
-    num_sw_batch_size = parser.get_parsed_content("num_sw_batch_size")
-    output_classes = parser.get_parsed_content("output_classes")
-    overlap_ratio = parser.get_parsed_content("overlap_ratio")
-    patch_size_valid = parser.get_parsed_content("patch_size_valid")
-    softmax = parser.get_parsed_content("softmax")
+    amp = parser.get_parsed_content("training#amp")
+    ckpt_path = parser.get_parsed_content("training#ckpt_path")
+    data_file_base_dir = parser.get_parsed_content("training#data_file_base_dir")
+    data_list_file_path = parser.get_parsed_content("training#data_list_file_path")
+    determ = parser.get_parsed_content("training#determ")
+    finetune = parser.get_parsed_content("training#finetune")
+    fold = parser.get_parsed_content("training#fold")
+    num_images_per_batch = parser.get_parsed_content("training#num_images_per_batch")
+    num_iterations = parser.get_parsed_content("training#num_iterations")
+    num_iterations_per_validation = parser.get_parsed_content("training#num_iterations_per_validation")
+    num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
+    output_classes = parser.get_parsed_content("training#output_classes")
+    overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
+    patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
+    softmax = parser.get_parsed_content("training#softmax")
 
     train_transforms = parser.get_parsed_content("transforms_train")
     val_transforms = parser.get_parsed_content("transforms_validate")
@@ -153,7 +153,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     device = torch.device(f"cuda:{dist.get_rank()}") if torch.cuda.device_count() > 1 else torch.device("cuda:0")
     torch.cuda.set_device(device)
 
-    model = parser.get_parsed_content("network")
+    model = parser.get_parsed_content("training#network")
     model = model.to(device)
 
     if torch.cuda.device_count() > 1:
@@ -169,9 +169,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             [transforms.EnsureType(), transforms.Activations(sigmoid=True), transforms.AsDiscrete(threshold=0.5)]
         )
 
-    loss_function = parser.get_parsed_content("loss")
+    loss_function = parser.get_parsed_content("training#loss")
 
-    optimizer_part = parser.get_parsed_content("optimizer", instantiate=False)
+    optimizer_part = parser.get_parsed_content("training#optimizer", instantiate=False)
     optimizer = optimizer_part.instantiate(params=model.parameters())
 
     num_epochs_per_validation = num_iterations_per_validation // len(train_loader)
@@ -182,7 +182,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         print("num_epochs", num_epochs)
         print("num_epochs_per_validation", num_epochs_per_validation)
 
-    lr_scheduler_part = parser.get_parsed_content("lr_scheduler", instantiate=False)
+    lr_scheduler_part = parser.get_parsed_content("training#lr_scheduler", instantiate=False)
     lr_scheduler = lr_scheduler_part.instantiate(optimizer=optimizer)
 
     if torch.cuda.device_count() > 1:
