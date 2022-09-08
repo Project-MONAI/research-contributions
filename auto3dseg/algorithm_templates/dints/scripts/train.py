@@ -46,7 +46,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     parser.read_config(config_file_)
     parser.update(pairs=_args)
 
-    amp = parser.get_parsed_content("training#trainingamp")
+    amp = parser.get_parsed_content("training#amp")
     ckpt_path = parser.get_parsed_content("training#ckpt_path")
     data_file_base_dir = parser.get_parsed_content("training#data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("training#data_list_file_path")
