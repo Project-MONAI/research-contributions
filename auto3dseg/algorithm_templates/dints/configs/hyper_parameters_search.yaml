@@ -1,9 +1,10 @@
 ---
+bundle_root: null
+
 searching:
   # hyper-parameters
   amp: true
-  bundle_root: null
-  arch_path: "$@searching#bundle_root + '/arch_ram' + str(@searching#ram_cost_factor) + '_fold' + str(@searching#fold)"
+  arch_path: "$@bundle_root + '/arch_ram' + str(@searching#ram_cost_factor) + '_fold' + str(@searching#fold)"
   data_file_base_dir: null
   data_list_file_path: null
   determ: false
