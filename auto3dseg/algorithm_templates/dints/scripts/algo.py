@@ -132,7 +132,6 @@ class DintsAlgo(BundleAlgo):
                 'transforms_validate.yaml': transforms_validate,
                 'transforms_infer.yaml': transforms_infer
                 }
-<<<<<<< HEAD
         else:
             fill_records = self.fill_records
 
@@ -177,60 +176,6 @@ class DintsAlgo(BundleAlgo):
                 dints_train_params.update({"training#"+k: v})
         cmd, devices_info = self._create_cmd(dints_train_params)
         return self._run_cmd(cmd, devices_info)
-
-=======
-            )
-        patch_size = [128, 128, 96]
-        max_shape = data_cfg["stats_summary#image_stats#shape#max"]
-        patch_size = [
-            max(32, shape_k // 32 * 32) if shape_k < p_k else p_k for p_k, shape_k in zip(patch_size, max_shape)
-        ]
-        # patch_size and patch_size_valid are overridden in scripts/search.py
-        self.cfg["patch_size"], self.cfg["patch_size_valid"] = [96, 96, 96], [96, 96, 96]
-        self.cfg["patch_size#0"], self.cfg["patch_size#1"], self.cfg["patch_size#2"] = patch_size
-        self.cfg["patch_size_valid#0"], self.cfg["patch_size_valid#1"], self.cfg["patch_size_valid#2"] = patch_size
-
-        modality = data_src_cfg.get("modality", "ct").lower()
-        spacing = data_cfg["stats_summary#image_stats#spacing#median"]
-
-        intensity_upper_bound = float(data_cfg["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
-        intensity_lower_bound = float(data_cfg["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
-        ct_intensity_xform = {
-            "_target_": "Compose",
-            "transforms": [
-                {
-                    "_target_": "ScaleIntensityRanged",
-                    "keys": "@image_key",
-                    "a_min": intensity_lower_bound,
-                    "a_max": intensity_upper_bound,
-                    "b_min": 0.0,
-                    "b_max": 1.0,
-                    "clip": True,
-                },
-                {"_target_": "CropForegroundd", "keys": ["@image_key", "@label_key"], "source_key": "@image_key"},
-            ],
-        }
-        mr_intensity_transform = {
-            "_target_": "NormalizeIntensityd",
-            "keys": "@image_key",
-            "nonzero": True,
-            "channel_wise": True,
-        }
-        for key in ["transforms_infer", "transforms_train", "transforms_validate"]:
-            for idx, xform in enumerate(self.cfg[f"{key}#transforms"]):
-                if isinstance(xform, dict) and xform.get("_target_", "").startswith("Spacing"):
-                    xform["pixdim"] = deepcopy(spacing)
-                elif isinstance(xform, str) and xform.startswith("PLACEHOLDER_INTENSITY_NORMALIZATION"):
-                    if modality.startswith("ct"):
-                        self.cfg[f"{key}#transforms#{idx}"] = deepcopy(ct_intensity_xform)
-                    else:
-                        self.cfg[f"{key}#transforms#{idx}"] = deepcopy(mr_intensity_transform)
-
-        override_params = _update_args(**override)
-        for k, v in override_params.items():
-            self.cfg[k] = v
->>>>>>> 2713d77b192e3d69b30273674945ac52e456cdbe
-
 
 if __name__ == "__main__":
     from monai.utils import optional_import
