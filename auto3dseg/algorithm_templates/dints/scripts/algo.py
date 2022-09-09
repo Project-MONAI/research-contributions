@@ -19,6 +19,9 @@ from monai.apps.utils import get_logger
 import subprocess
 
 logger = get_logger(module_name=__name__)
+import subprocess
+
+logger = get_logger(module_name=__name__)
 
 class DintsAlgo(BundleAlgo):
     def fill_template_config(self, data_stats_file, output_path, **kwargs):
