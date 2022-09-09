@@ -110,18 +110,18 @@ class Segresnet2dAlgo(BundleAlgo):
                 transforms_validate.update({'transforms_validate#transforms#5': mr_intensity_transform})
                 transforms_infer.update({'transforms_infer#transforms#5': mr_intensity_transform})
 
-            
+
 
             fill_records = {
-                'hyper_parameters.yaml': hyper_parameters, 
-                'network.yaml': network, 
+                'hyper_parameters.yaml': hyper_parameters,
+                'network.yaml': network,
                 'transforms_train.yaml': transforms_train,
                 'transforms_validate.yaml': transforms_validate,
                 'transforms_infer.yaml': transforms_infer
                 }
         else:
             fill_records = self.fill_records
-        
+
         for yaml_file, yaml_contents in fill_records.items():
             file_path = os.path.join(output_path, 'configs', yaml_file)
 
@@ -133,9 +133,9 @@ class Segresnet2dAlgo(BundleAlgo):
                 else:
                     parser[k] = deepcopy(v)  # some values are dicts
             ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
-        
+
         return fill_records
-            
+
 
 if __name__ == "__main__":
     from monai.utils import optional_import
