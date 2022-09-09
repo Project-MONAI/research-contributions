@@ -1,7 +1,7 @@
 ---
-training:
+training_network:
   arch_ckpt_path: "$@training#bundle_root + '/scripts/arch_code.pth'"
-  arch_ckpt: "$torch.load(@training#arch_ckpt_path, map_location=torch.device('cuda'))"
+  arch_ckpt: "$torch.load(@training_network#arch_ckpt_path, map_location=torch.device('cuda'))"
   dints_space:
     _target_: TopologyInstance
     channel_mul: 1
@@ -9,13 +9,13 @@ training:
     num_depths: 4
     use_downsample: true
     arch_code:
-    - "$@training#arch_ckpt['code_a']"
-    - "$@training#arch_ckpt['code_c']"
+    - "$@training_network#arch_ckpt['code_a']"
+    - "$@training_network#arch_ckpt['code_c']"
     device: "$torch.device('cuda')"
   network:
     _target_: DiNTS
-    dints_space: "$@training#dints_space"
+    dints_space: "$@training_network#dints_space"
     in_channels: "@training#input_channels"
     num_classes: "@training#output_classes"
     use_downsample: true
-    node_a: "$@training#arch_ckpt['node_a']"
+    node_a: "$@training_network#arch_ckpt['node_a']"

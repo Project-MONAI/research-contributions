@@ -51,7 +51,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     data_file_base_dir = parser.get_parsed_content("training#data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("training#data_list_file_path")
     determ = parser.get_parsed_content("training#determ")
-    finetune = parser.get_parsed_content("training#finetune")
+    finetune = parser.get_parsed_content("finetune")
     fold = parser.get_parsed_content("training#fold")
     num_images_per_batch = parser.get_parsed_content("training#num_images_per_batch")
     num_iterations = parser.get_parsed_content("training#num_iterations")
@@ -133,8 +133,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     print("val_files:", len(val_files))
 
     if torch.cuda.device_count() >= 4:
-        train_ds = monai.data.CacheDataset(data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8, progress=False)
-        val_ds = monai.data.CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2, progress=False)
+        train_ds = monai.data.CacheDataset(
+            data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8, progress=False
+        )
+        val_ds = monai.data.CacheDataset(
+            data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2, progress=False
+        )
     else:
         train_ds = monai.data.CacheDataset(
             data=train_files,
@@ -144,7 +148,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             progress=False,
         )
         val_ds = monai.data.CacheDataset(
-            data=val_files, transform=val_transforms, cache_rate=float(torch.cuda.device_count()) / 4.0, num_workers=2, progress=False
+            data=val_files,
+            transform=val_transforms,
+            cache_rate=float(torch.cuda.device_count()) / 4.0,
+            num_workers=2,
+            progress=False,
         )
 
     train_loader = DataLoader(train_ds, num_workers=8, batch_size=num_images_per_batch, shuffle=True)
@@ -153,7 +161,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     device = torch.device(f"cuda:{dist.get_rank()}") if torch.cuda.device_count() > 1 else torch.device("cuda:0")
     torch.cuda.set_device(device)
 
-    model = parser.get_parsed_content("training#network")
+    model = parser.get_parsed_content("training_network#network")
     model = model.to(device)
 
     if torch.cuda.device_count() > 1:

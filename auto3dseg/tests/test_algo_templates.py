@@ -16,19 +16,12 @@ from typing import Dict, List
 
 import nibabel as nib
 import numpy as np
+from tests.utils import skip_if_no_cuda
 
-from monai.apps.auto3dseg import (
-    AlgoEnsembleBestByFold,
-    AlgoEnsembleBestN,
-    AlgoEnsembleBuilder,
-    BundleGen,
-    DataAnalyzer
-)
+from monai.apps.auto3dseg import AlgoEnsembleBestByFold, AlgoEnsembleBestN, AlgoEnsembleBuilder, BundleGen, DataAnalyzer
 from monai.bundle.config_parser import ConfigParser
 from monai.data import create_test_image_3d
 from monai.utils.enums import AlgoEnsembleKeys
-from tests.utils import skip_if_no_cuda
-
 
 fake_datalist: Dict[str, List[Dict]] = {
     "testing": [{"image": "val_001.fake.nii.gz"}, {"image": "val_002.fake.nii.gz"}],
@@ -48,7 +41,7 @@ fake_datalist: Dict[str, List[Dict]] = {
     ],
 }
 
-algo_templates = os.path.join('auto3dseg', 'algorithm_templates')
+algo_templates = os.path.join("auto3dseg", "algorithm_templates")
 
 sys.path.insert(0, algo_templates)
 
@@ -58,11 +51,13 @@ train_param = {
     "num_iterations_per_validation": 4,
     "num_images_per_batch": 2,
     "num_epochs": 2,
+    "num_warmup_iterations": 4
 }
 
 pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
 
-debug_single = False
+debug_single = True
+
 
 class TestAlgoTemplates(unittest.TestCase):
     def setUp(self) -> None:
@@ -73,25 +68,26 @@ class TestAlgoTemplates(unittest.TestCase):
         self.algos = {}
 
         if debug_single:
-            name = "unet"
-            self.algos.update({
-                name: dict(
-                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
-                    template_configs=os.path.join(algo_templates, name, "configs"),
-                    scripts_path=os.path.join(algo_templates, name, "scripts"),
-                ),
-            })
+            name = "segresnet2d"
+            self.algos.update(
+                {
+                    name: dict(
+                        _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
+                        template_path=os.path.join(algo_templates, name),
+                    )
+                }
+            )
             return
 
         for name in os.listdir("auto3dseg/algorithm_templates"):
-            self.algos.update({
-                name: dict(
-                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
-                    template_configs=os.path.join(algo_templates, name, "configs"),
-                    scripts_path=os.path.join(algo_templates, name, "scripts"),
-                ),
-            })
-
+            self.algos.update(
+                {
+                    name: dict(
+                        _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
+                        template_path=os.path.join(algo_templates, name),
+                    )
+                }
+            )
 
     @skip_if_no_cuda
     def test_ensemble(self) -> None:

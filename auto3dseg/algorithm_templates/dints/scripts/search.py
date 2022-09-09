@@ -174,8 +174,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     device = torch.device(f"cuda:{dist.get_rank()}") if torch.cuda.device_count() > 1 else torch.device("cuda:0")
     torch.cuda.set_device(device)
 
-    dints_space = parser.get_parsed_content("searching#dints_space")
-    model = parser.get_parsed_content("searching#network")
+    dints_space = parser.get_parsed_content("searching_network#dints_space")
+    model = parser.get_parsed_content("searching_network#network")
     model = model.to(device)
 
     if torch.cuda.device_count() > 1:
