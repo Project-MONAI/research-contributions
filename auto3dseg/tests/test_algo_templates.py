@@ -62,7 +62,7 @@ train_param = {
 
 pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
 
-debug_single = False
+debug_single = True
 
 class TestAlgoTemplates(unittest.TestCase):
     def setUp(self) -> None:
@@ -73,12 +73,11 @@ class TestAlgoTemplates(unittest.TestCase):
         self.algos = {}
 
         if debug_single:
-            name = "unet"
+            name = "segresnet2d"
             self.algos.update({
                 name: dict(
-                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
-                    template_configs=os.path.join(algo_templates, name, "configs"),
-                    scripts_path=os.path.join(algo_templates, name, "scripts"),
+                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo", 
+                    template_path=os.path.join(algo_templates, name)
                 ),
             })
             return
@@ -86,10 +85,8 @@ class TestAlgoTemplates(unittest.TestCase):
         for name in os.listdir("auto3dseg/algorithm_templates"):
             self.algos.update({
                 name: dict(
-                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
-                    template_configs=os.path.join(algo_templates, name, "configs"),
-                    scripts_path=os.path.join(algo_templates, name, "scripts"),
-                ),
+                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo", 
+                    template_path=os.path.join(algo_templates, name))
             })
 
 
