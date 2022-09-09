@@ -51,7 +51,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     data_file_base_dir = parser.get_parsed_content("training#data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("training#data_list_file_path")
     determ = parser.get_parsed_content("training#determ")
-    finetune = parser.get_parsed_content("training#finetune")
+    finetune = parser.get_parsed_content("finetune")
     fold = parser.get_parsed_content("training#fold")
     num_images_per_batch = parser.get_parsed_content("training#num_images_per_batch")
     num_iterations = parser.get_parsed_content("training#num_iterations")
@@ -153,7 +153,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     device = torch.device(f"cuda:{dist.get_rank()}") if torch.cuda.device_count() > 1 else torch.device("cuda:0")
     torch.cuda.set_device(device)
 
-    model = parser.get_parsed_content("training#network")
+    model = parser.get_parsed_content("training_network#network")
     model = model.to(device)
 
     if torch.cuda.device_count() > 1:
