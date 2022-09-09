@@ -44,7 +44,7 @@ class SegresnetAlgo(BundleAlgo):
             data_src_cfg = ConfigParser(globals=False)
             if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
                 data_src_cfg.read_config(self.data_list_file)
-            
+
             hyper_parameters = {"bundle_root": output_path}
             network = {}
             transforms_train = {}
@@ -65,7 +65,7 @@ class SegresnetAlgo(BundleAlgo):
 
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
-            
+
             if "class_names" in data_src_cfg and isinstance(data_src_cfg["class_names"], list):
                 if isinstance(data_src_cfg["class_names"][0], str):
                     class_names = data_src_cfg["class_names"]
@@ -92,9 +92,9 @@ class SegresnetAlgo(BundleAlgo):
             hyper_parameters.update({"class_names": class_names})
             hyper_parameters.update({"class_index": class_index})
 
-            
+
             resample = False
-            
+
             modality = data_src_cfg.get("modality", "ct").lower()
 
             full_range = [
@@ -233,10 +233,10 @@ class SegresnetAlgo(BundleAlgo):
                     "b_max": 1.0,
                     "clip": True,
                 }
-            
+
             infer_crop_xform = {
-                "_target_": "CropForegroundd", 
-                "keys": "@image_key", 
+                "_target_": "CropForegroundd",
+                "keys": "@image_key",
                 "source_key": "@image_key"
                 }
             train_valid_crop_xform = {
@@ -244,15 +244,15 @@ class SegresnetAlgo(BundleAlgo):
                         "keys": ["@image_key", "@label_key"],
                         "source_key": "@image_key",
                     }
-            
+
             # elif "mr" in modality:
             mr_intensity_transform = {
-                "_target_": "NormalizeIntensityd", 
-                "keys": "@image_key", 
-                "nonzero": True, 
+                "_target_": "NormalizeIntensityd",
+                "keys": "@image_key",
+                "nonzero": True,
                 "channel_wise": True
                 }
-            
+
             intensity_i = 5 + i
             if modality.startswith("ct"):
                 transforms_train.update({f"transforms_train#transforms#{intensity_i}": [ct_intensity_xform, train_valid_crop_xform]})
@@ -294,4 +294,3 @@ if __name__ == "__main__":
 
     fire, _ = optional_import("fire")
     fire.Fire({"SegresnetAlgo": SegresnetAlgo})
-

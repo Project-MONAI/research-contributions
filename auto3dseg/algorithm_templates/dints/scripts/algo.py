@@ -65,7 +65,7 @@ class DintsAlgo(BundleAlgo):
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
 
-            
+
             hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
             hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
 
