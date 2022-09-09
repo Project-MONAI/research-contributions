@@ -22,253 +22,271 @@ from monai.utils import optional_import
 
 
 class SegresnetAlgo(BundleAlgo):
-    def fill_template_config(self, data_stats, **override):
-        if data_stats is None:
-            return
-        data_cfg = ConfigParser(globals=False)
-        if os.path.exists(str(data_stats)):
-            data_cfg.read_config(str(data_stats))
-        else:
-            data_cfg.update(data_stats)
-        data_src_cfg = ConfigParser(globals=False)
-        if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
-            data_src_cfg.read_config(self.data_list_file)
-            self.cfg.update(
-                {
-                    "data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"]),
-                    "data_list_file_path": os.path.abspath(data_src_cfg["datalist"]),
-                    "input_channels": data_cfg["stats_summary#image_stats#channels#max"],
-                    "output_classes": len(data_cfg["stats_summary#label_stats#labels"]),
-                }
-            )
-        patch_size = [224, 224, 144]  # default roi
-        levels = 5  # default number of hierarchical levels
-        resample = False
-        image_size = [
-            int(i) for i in data_cfg["stats_summary"]["image_stats"]["shape"]["percentile_99_5"]
-        ]  # remove [0] temporarily
-        output_classes = len(data_cfg["stats_summary"]["label_stats"]["labels"])
-        modality = data_src_cfg["modality"].lower()
-        full_range = [
-            data_cfg["stats_summary"]["image_stats"]["intensity"]["percentile_00_5"],
-            data_cfg["stats_summary"]["image_stats"]["intensity"]["percentile_99_5"],
-        ]  # remove [0] temporarily
-        intensity_lower_bound = float(
-            data_cfg["stats_summary"]["image_foreground_stats"]["intensity"][
-                "percentile_00_5"
-            ]  # remove [0] temporarily
-        )
-        intensity_upper_bound = float(
-            data_cfg["stats_summary"]["image_foreground_stats"]["intensity"][
-                "percentile_99_5"
-            ]  # remove [0] temporarily
-        )
-        spacing_lower_bound = np.array(
-            # remove [0] temporarily
-            data_cfg["stats_summary"]["image_stats"]["spacing"]["percentile_00_5"]
-        )
-        spacing_upper_bound = np.array(
-            # remove [0] temperoly
-            data_cfg["stats_summary"]["image_stats"]["spacing"]["percentile_99_5"]
-        )
+    def fill_template_config(self, data_stats_file, output_path, **kwargs):
+        """
+        Fill the freshly copied config templates
 
-        # adjust to image size
-        # min for each of spatial dims
-        patch_size = [min(r, i) for r, i in zip(patch_size, image_size)]
-        patch_size = roi_ensure_divisible(patch_size, levels=levels)
-        # reduce number of levels to smaller then 5 (default) if image is too
-        # small
-        levels, patch_size = roi_ensure_levels(levels, patch_size, image_size)
-
-        self.cfg["patch_size"] = patch_size
-        self.cfg["patch_size_valid"] = deepcopy(patch_size)
-
-        if levels >= 5:  # default
-            num_blocks = [1, 2, 2, 4, 4]
-        elif levels == 4:
-            num_blocks = [1, 2, 2, 4]
-        elif levels == 3:
-            num_blocks = [1, 3, 4]
-        elif levels == 2:
-            num_blocks = [2, 6]
-        elif levels == 1:
-            num_blocks = [8]
-        else:
-            raise ValueError("Strange number of levels" + str(levels))
-
-        # update network config
-        self.cfg["network"]["blocks_down"] = num_blocks
-        self.cfg["network"]["blocks_up"] = [1] * (len(num_blocks) - 1)  # [1,1,1,1..]
-        if data_src_cfg["multigpu"]:
-            self.cfg["network"]["norm"] = ["BATCH", {"affine": True}]  # use batchnorm with multi gpu
-            # set act to be not in-place with multi gpu
-            self.cfg["network"]["act"] = ["RELU", {"inplace": False}]
-        else:
-            self.cfg["network"]["norm"] = ["INSTANCE", {"affine": True}]  # use instancenorm with single gpu
-
-        # update hyper_parameters config
-        if "class_names" in data_src_cfg and isinstance(data_src_cfg["class_names"], list):
-            if isinstance(data_src_cfg["class_names"][0], str):
-                self.cfg["class_names"] = data_src_cfg["class_names"]
+        Args:
+            data_stats_file: the stats report from DataAnalyzer in yaml format
+            output_path: the root folder to scripts/configs directories.
+            kwargs: parameters to override the config writing and ``fill_without_datastats``
+                a on/off switch to either use the data_stats_file to fill the template or
+                load it directly from the self.fill_records
+        """
+        if kwargs.pop("fill_without_datastats", True):
+            if data_stats_file is None:
+                return
+            data_stats = ConfigParser(globals=False)
+            if os.path.exists(str(data_stats_file)):
+                data_stats.read_config(str(data_stats_file))
             else:
-                self.cfg["class_names"] = [x["name"] for x in data_src_cfg["class_names"]]
-                self.cfg["class_index"] = [x["index"] for x in data_src_cfg["class_names"]]
-                # check for overlap
-                all_ind = []
-                for a in self.cfg["class_index"]:
-                    if bool(set(all_ind) & set(a)):  # overlap found
-                        self.cfg["softmax"] = False
-                        break
-                    all_ind = all_ind + a
+                data_stats.update(data_stats_file)
+            data_src_cfg = ConfigParser(globals=False)
+            if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
+                data_src_cfg.read_config(self.data_list_file)
+            
+            hyper_parameters = {"bundle_root": output_path}
+            network = {}
+            transforms_train = {}
+            transforms_validate = {}
+            transforms_infer = {}
 
-        if "ct" in modality:
-            spacing = [1.0, 1.0, 1.0]
+            # update hyper_parameters config
+            patch_size = [224, 224, 144]  # default roi
+            levels = 5  # default number of hierarchical levels
+            image_size = [int(i) for i in data_stats["stats_summary#image_stats#shape#percentile_99_5"]]
 
-            # make sure intensity range is a valid CT range
-            is_valid_for_ct = full_range[0] < -300 and full_range[1] > 300
-            if is_valid_for_ct:
-                lrange = intensity_upper_bound - intensity_lower_bound
-                if lrange < 500:  # make sure range is at least 500 points
-                    intensity_lower_bound -= (500 - lrange) // 2
-                    intensity_upper_bound += (500 - lrange) // 2
-                intensity_lower_bound = max(intensity_lower_bound, -1250)  # limit to -1250..1500
-                intensity_upper_bound = min(intensity_upper_bound, 1500)
+            # adjust to image size
+            # min for each of spatial dims
+            patch_size = [min(r, i) for r, i in zip(patch_size, image_size)]
+            patch_size = roi_ensure_divisible(patch_size, levels=levels)
+            # reduce number of levels to smaller then 5 (default) if image is too small
+            levels, patch_size = roi_ensure_levels(levels, patch_size, image_size)
 
-        elif "mr" in modality:
-            spacing = data_cfg["stats_summary"]["image_stats"]["spacing"]["median"][0]
+            input_channels = data_stats["stats_summary#image_stats#channels#max"]
+            output_classes = len(data_stats["stats_summary#label_stats#labels"])
+            
+            if "class_names" in data_src_cfg and isinstance(data_src_cfg["class_names"], list):
+                if isinstance(data_src_cfg["class_names"][0], str):
+                    class_names = data_src_cfg["class_names"]
+                    class_index = None
+                else:
+                    class_names = [x["name"] for x in data_src_cfg["class_names"]]
+                    class_index = [x["index"] for x in data_src_cfg["class_names"]]
+                    # check for overlap
+                    all_ind = []
+                    for a in class_index:
+                        if bool(set(all_ind) & set(a)):  # overlap found
+                            hyper_parameters.update({"softmax": "false"})
+                            break
+                        all_ind = all_ind + a
 
-        # resample on the fly to this resolution
-        self.cfg["resolution"] = deepcopy(spacing)
-        self.cfg["intensity_bounds"] = [intensity_lower_bound, intensity_upper_bound]
+            hyper_parameters.update({"patch_size#0": patch_size[0]})
+            hyper_parameters.update({"patch_size#1": patch_size[1]})
+            hyper_parameters.update({"patch_size_valid#0": patch_size[0]})
+            hyper_parameters.update({"patch_size_valid#1": patch_size[1]})
+            hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
+            hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
+            hyper_parameters.update({"input_channels": input_channels})
+            hyper_parameters.update({"output_classes": output_classes})
+            hyper_parameters.update({"class_names": class_names})
+            hyper_parameters.update({"class_index": class_index})
 
-        if np.any(spacing_lower_bound / np.array(spacing) < 0.5) or np.any(
-            spacing_upper_bound / np.array(spacing) > 1.5
-        ):
-            # Resampling recommended to median resolution
-            resample = True
-            self.cfg["resample"] = resample
+            
+            resample = False
+            
+            modality = data_src_cfg.get("modality", "ct").lower()
 
-        n_cases = len(data_cfg["stats_by_cases"])
-        max_epochs = int(np.clip(np.ceil(80000.0 / n_cases), a_min=300, a_max=1250))
-        warmup_epochs = int(np.ceil(0.01 * max_epochs))
+            full_range = [
+                data_stats["stats_summary#image_stats#intensity#percentile_00_5"],
+                data_stats["stats_summary#image_stats#intensity#percentile_99_5"],
+            ]
+            intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
+            intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
+            spacing_lower_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_00_5"])
+            spacing_upper_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_99_5"])
 
-        self.cfg["num_epochs"] = max_epochs
-        if "warmup_epochs" in self.cfg["lr_scheduler"]:
-            self.cfg["lr_scheduler"]["warmup_epochs"] = warmup_epochs
 
-        # update transform config
-        for key in ["transforms_train", "transforms_validate"]:
-            if "class_index" not in self.cfg or not isinstance(self.cfg["class_index"], list):
+            # update network config
+            if levels >= 5:  # default
+                num_blocks = [1, 2, 2, 4, 4]
+            elif levels == 4:
+                num_blocks = [1, 2, 2, 4]
+            elif levels == 3:
+                num_blocks = [1, 3, 4]
+            elif levels == 2:
+                num_blocks = [2, 6]
+            elif levels == 1:
+                num_blocks = [8]
+            else:
+                raise ValueError("Strange number of levels" + str(levels))
+
+            network.update({"network#blocks_down": num_blocks})
+            network.update({"network#blocks_up": [1] * (len(num_blocks) - 1)}) # [1,1,1,1..]
+            if data_src_cfg["multigpu"]:
+                network.update({"network#norm": ["BATCH", {"affine": True}]}) # use batchnorm with multi gpu
+                # set act to be not in-place with multi gpu
+                network.update({"network#act": ["RELU", {"inplace": False}]}) # use batchnorm with multi gpu
+            else:
+                network.update({"network#norm": ["INSTANCE", {"affine": True}]}) # use instancenorm with single gpu
+
+
+            if "ct" in modality:
+                spacing = [1.0, 1.0, 1.0]
+
+                # make sure intensity range is a valid CT range
+                is_valid_for_ct = full_range[0] < -300 and full_range[1] > 300
+                if is_valid_for_ct:
+                    lrange = intensity_upper_bound - intensity_lower_bound
+                    if lrange < 500:  # make sure range is at least 500 points
+                        intensity_lower_bound -= (500 - lrange) // 2
+                        intensity_upper_bound += (500 - lrange) // 2
+                    intensity_lower_bound = max(intensity_lower_bound, -1250)  # limit to -1250..1500
+                    intensity_upper_bound = min(intensity_upper_bound, 1500)
+
+            elif "mr" in modality:
+                spacing = data_stats["stats_summary#image_stats#spacing#median"]
+
+            # resample on the fly to this spacing
+            hyper_parameters.update({"intensity_bounds": [intensity_lower_bound, intensity_upper_bound]})
+
+            if np.any(spacing_lower_bound / np.array(spacing) < 0.5) or np.any(
+                spacing_upper_bound / np.array(spacing) > 1.5
+            ):
+                # Resampling recommended to median spacing
+                resample = True
+                hyper_parameters.update({"resample": resample})
+
+            n_cases = len(data_stats["stats_by_cases"])
+            max_epochs = int(np.clip(np.ceil(80000.0 / n_cases), a_min=300, a_max=1250))
+            warmup_epochs = int(np.ceil(0.01 * max_epochs))
+
+            hyper_parameters.update({"num_epochs": max_epochs})
+            hyper_parameters.update({"lr_scheduler#warmup_epochs": warmup_epochs})
+
+            # update transform config
+            transform_train_path = os.path.join(output_path, 'configs', 'transforms_train.yaml')
+            _template_transform_train = ConfigParser(globals=False)
+            _template_transform_train.read_config(transform_train_path)
+            template_transform_train = _template_transform_train.get("transforms_train#transforms")
+
+            if resample:
+                transforms_train.update({'transforms_train#transforms#4#pixdim': spacing})
+                transforms_validate.update({'transforms_validate#transforms#4#pixdim': spacing})
+                transforms_infer.update({'transforms_infer#transforms#4#pixdim': spacing})
+                i = 0
+            else:
+                template_transform_train.pop(4)
+                transforms_train.update({'transforms_train#transforms': template_transform_train})
+                transforms_validate.update({'transforms_validate#transforms': template_transform_train})
+                transforms_infer.update({'transforms_infer#transforms': template_transform_train})
+                i = - 1
+
+            if not isinstance(class_index, list):
                 pass
             else:
-                self.cfg[key]["transforms"].append(
-                    {"_target_": "LabelMapping", "keys": "@label_key", "class_index": self.cfg["class_index"]}
-                )
+                labelmap = {"_target_": "LabelMapping", "keys": "@label_key", "class_index": class_index}
+                transforms_train.update({'transforms_train#transforms': template_transform_train.append(labelmap)})
+                transforms_validate.update({'transforms_validate#transforms': template_transform_train.append(labelmap)})
 
-        # get crop transform
-        _t_crop = []
-        should_crop_based_on_foreground = any(
-            [r < 0.5 * i for r, i in zip(patch_size, image_size)]
-        )  # if any patch_size less tehn 0.5*image size
-        if should_crop_based_on_foreground:
-            # Image is much larger then patch_size, using foreground cropping
-            ratios = None  # equal sampling
-            _t_crop.append(
-                {
-                    "_target_": "RandCropByLabelClassesd",
-                    "keys": ["@image_key", "@label_key"],
-                    "label_key": "@label_key",
-                    "spatial_size": deepcopy(patch_size),
-                    "num_classes": output_classes,
-                    "num_samples": 1,
-                    "ratios": ratios,
-                }
-            )
-        else:
-            # Image size is only slightly larger then patch_size, using random
-            # cropping
-            _t_crop.append(
-                {
-                    "_target_": "RandSpatialCropd",
-                    "keys": ["@image_key", "@label_key"],
-                    "roi_size": deepcopy(patch_size),
-                    "random_size": False,
-                }
-            )
-
-        _i_crop = -1
-        for _i in range(len(self.cfg["transforms_train"]["transforms"])):
-            _t = self.cfg["transforms_train"]["transforms"][_i]
-
-            if isinstance(_t, str) and _t == "PLACEHOLDER_CROP":
-                _i_crop = _i
-            self.cfg["transforms_train"]["transforms"][_i] = _t
-
-        self.cfg["transforms_train"]["transforms"] = (
-            self.cfg["transforms_train"]["transforms"][:_i_crop]
-            + _t_crop
-            + self.cfg["transforms_train"]["transforms"][(_i_crop + 1) :]
-        )
-
-        for key in ["transforms_infer", "transforms_train", "transforms_validate"]:
-            # get intensity transform
-            _t_intensity = []
-            if "ct" in modality:
-                _t_intensity.append(
+            # get crop transform
+            crop_transform = []
+            should_crop_based_on_foreground = any(
+                [r < 0.5 * i for r, i in zip(patch_size, image_size)]
+            )  # if any patch_size less tehn 0.5*image size
+            if should_crop_based_on_foreground:
+                # Image is much larger then patch_size, using foreground cropping
+                ratios = None  # equal sampling
+                crop_transform.append(
                     {
-                        "_target_": "ScaleIntensityRanged",
-                        "keys": "@image_key",
-                        "a_min": intensity_lower_bound,
-                        "a_max": intensity_upper_bound,
-                        "b_min": 0.0,
-                        "b_max": 1.0,
-                        "clip": True,
+                        "_target_": "RandCropByLabelClassesd",
+                        "keys": ["@image_key", "@label_key"],
+                        "label_key": "@label_key",
+                        "spatial_size": deepcopy(patch_size),
+                        "num_classes": output_classes,
+                        "num_samples": 1,
+                        "ratios": ratios,
                     }
                 )
-                if "infer" in key:
-                    _t_intensity.append(
-                        {"_target_": "CropForegroundd", "keys": "@image_key", "source_key": "@image_key"}
-                    )
-                else:
-                    _t_intensity.append(
-                        {
-                            "_target_": "CropForegroundd",
-                            "keys": ["@image_key", "@label_key"],
-                            "source_key": "@image_key",
-                        }
-                    )
-            elif "mr" in modality:
-                _t_intensity.append(
-                    {"_target_": "NormalizeIntensityd", "keys": "@image_key", "nonzero": True, "channel_wise": True}
+            else:
+                # Image size is only slightly larger then patch_size, using random cropping
+                crop_transform.append(
+                    {
+                        "_target_": "RandSpatialCropd",
+                        "keys": ["@image_key", "@label_key"],
+                        "roi_size": deepcopy(patch_size),
+                        "random_size": False,
+                    }
                 )
 
-            for _i in range(len(self.cfg[key]["transforms"])):
-                _t = self.cfg[key]["transforms"][_i]
-                if isinstance(_t, dict) and _t["_target_"] == "Spacingd":
-                    if resample:
-                        _t["pixdim"] = deepcopy(spacing)
-                    else:
-                        self.cfg[key]["transforms"].pop(_i)
-                    break
+            crop_i = 7 + i
+            transforms_train.update({f"transforms_train#transforms#{crop_i}": crop_transform})
 
-            _i_intensity = -1
-            for _i in range(len(self.cfg[key]["transforms"])):
-                _t = self.cfg[key]["transforms"][_i]
+            # for key in ["transforms_infer", "transforms_train", "transforms_validate"]:
+            # get intensity transform
+            ct_intensity_xform = {
+                    "_target_": "ScaleIntensityRanged",
+                    "keys": "@image_key",
+                    "a_min": intensity_lower_bound,
+                    "a_max": intensity_upper_bound,
+                    "b_min": 0.0,
+                    "b_max": 1.0,
+                    "clip": True,
+                }
+            
+            infer_crop_xform = {
+                "_target_": "CropForegroundd", 
+                "keys": "@image_key", 
+                "source_key": "@image_key"
+                }
+            train_valid_crop_xform = {
+                        "_target_": "CropForegroundd",
+                        "keys": ["@image_key", "@label_key"],
+                        "source_key": "@image_key",
+                    }
+            
+            # elif "mr" in modality:
+            mr_intensity_transform = {
+                "_target_": "NormalizeIntensityd", 
+                "keys": "@image_key", 
+                "nonzero": True, 
+                "channel_wise": True
+                }
+            
+            intensity_i = 5 + i
+            if modality.startswith("ct"):
+                transforms_train.update({f"transforms_train#transforms#{intensity_i}": [ct_intensity_xform, train_valid_crop_xform]})
+                transforms_validate.update({f"transforms_validate#transforms#{intensity_i}": [ct_intensity_xform, train_valid_crop_xform]})
+                transforms_infer.update({f"transforms_infer#transforms#{intensity_i}": [ct_intensity_xform, infer_crop_xform]})
+            else:
+                transforms_train.update({f'transforms_train#transforms#{intensity_i}': mr_intensity_transform})
+                transforms_validate.update({f'transforms_validate#transforms#{intensity_i}': mr_intensity_transform})
+                transforms_infer.update({f'transforms_infer#transforms#{intensity_i}': mr_intensity_transform})
 
-                if isinstance(_t, str) and _t == "PLACEHOLDER_INTENSITY_NORMALIZATION":
-                    _i_intensity = _i
 
-                self.cfg[key]["transforms"][_i] = _t
+            fill_records = {
+                'hyper_parameters.yaml': hyper_parameters,
+                'network.yaml': network,
+                'transforms_train.yaml': transforms_train,
+                'transforms_validate.yaml': transforms_validate,
+                'transforms_infer.yaml': transforms_infer
+                }
+        else:
+            fill_records = self.fill_records
 
-            self.cfg[key]["transforms"] = (
-                self.cfg[key]["transforms"][:_i_intensity]
-                + _t_intensity
-                + self.cfg[key]["transforms"][(_i_intensity + 1) :]
-            )
+        for yaml_file, yaml_contents in fill_records.items():
+            file_path = os.path.join(output_path, 'configs', yaml_file)
 
-        override_params = _update_args(**override)
-        for k, v in override_params.items():
-            self.cfg[k] = v
+            parser = ConfigParser(globals=False)
+            parser.read_config(file_path)
+            for k, v in yaml_contents.items():
+                if k in kwargs:
+                    parser[k] = kwargs[k]
+                else:
+                    parser[k] = deepcopy(v)  # some values are dicts
+            ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
+
+        return fill_records
 
 
 if __name__ == "__main__":
@@ -276,3 +294,4 @@ if __name__ == "__main__":
 
     fire, _ = optional_import("fire")
     fire.Fire({"SegresnetAlgo": SegresnetAlgo})
+

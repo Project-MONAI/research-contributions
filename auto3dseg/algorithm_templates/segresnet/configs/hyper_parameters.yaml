@@ -21,6 +21,7 @@ patch_size: null
 patch_size_valid: null
 softmax: true
 resample: false
+intensity_bounds: null
 
 # training
 loss:
