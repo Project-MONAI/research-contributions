@@ -34,7 +34,7 @@ class Segresnet2dAlgo(BundleAlgo):
                 data_stats.read_config(str(data_stats_file))
             else:
                 data_stats.update(data_stats_file)
-            
+
             data_src_cfg = ConfigParser(globals=False)
             if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
                 data_src_cfg.read_config(self.data_list_file)
@@ -59,14 +59,14 @@ class Segresnet2dAlgo(BundleAlgo):
             hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
             hyper_parameters.update({"input_channels": input_channels})
             hyper_parameters.update({"output_classes": output_classes})
-            
+
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
             spacing[-1] = -1.0
 
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
-            
+
             ct_intensity_xform = {
                 "_target_": "Compose",
                 "transforms": [
@@ -110,7 +110,7 @@ class Segresnet2dAlgo(BundleAlgo):
             network = {'_config_file_': 'network.yaml'}
 
             self.fill_records = [hyper_parameters, network, transforms_train, transforms_validate, transforms_infer]
-        
+
         for config in self.fill_records:
             config_cp = deepcopy(config)
             file = os.path.join(output_path, 'configs', config_cp.pop('_config_file_'))
@@ -123,7 +123,7 @@ class Segresnet2dAlgo(BundleAlgo):
                 else:
                     parser[k] = deepcopy(v)  # some values are dicts
             ConfigParser.export_config_file(parser.get(), file, fmt="yaml", default_flow_style=None)
-            
+
 
 if __name__ == "__main__":
     from monai.utils import optional_import
