@@ -1,13 +1,12 @@
 ---
 bundle_root: null
+ckpt_path: "$@bundle_root + '/model_fold' + str(@training#fold)"
+data_file_base_dir: null
+data_list_file_path: null
 
 training:
   # hyper-parameters
   amp: true
-  bundle_root: null
-  ckpt_path: "$@bundle_root + '/model_fold' + str(@training#fold)"
-  data_file_base_dir: null
-  data_list_file_path: null
   determ: false
   fold: 0
   input_channels: null
@@ -60,4 +59,4 @@ infer:
   ckpt_name: "$@bundle_root + '/model_fold' + str(@training#fold) + '/best_metric_model.pt'"
   fast: false
   data_list_key: testing
-  ouptut_path: "$@bundle_root + '/prediction_' + @training#infer#data_list_key"
+  ouptut_path: "$@bundle_root + '/prediction_' + @infer#data_list_key"

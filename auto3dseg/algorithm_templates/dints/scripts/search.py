@@ -49,8 +49,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     amp = parser.get_parsed_content("searching#amp")
     arch_path = parser.get_parsed_content("searching#arch_path")
-    data_file_base_dir = parser.get_parsed_content("searching#data_file_base_dir")
-    data_list_file_path = parser.get_parsed_content("searching#data_list_file_path")
+    data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
+    data_list_file_path = parser.get_parsed_content("data_list_file_path")
     determ = parser.get_parsed_content("searching#determ")
     fold = parser.get_parsed_content("searching#fold")
     num_images_per_batch = parser.get_parsed_content("searching#num_images_per_batch")
@@ -144,27 +144,29 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() >= 4:
         train_ds_a = monai.data.CacheDataset(
-            data=train_files_a, transform=train_transforms, cache_rate=1.0, num_workers=8
+            data=train_files_a, transform=train_transforms, cache_rate=1.0, num_workers=8, progress=False
         )
         train_ds_w = monai.data.CacheDataset(
-            data=train_files_w, transform=train_transforms, cache_rate=1.0, num_workers=8
+            data=train_files_w, transform=train_transforms, cache_rate=1.0, num_workers=8, progress=False
         )
-        val_ds = monai.data.CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2)
+        val_ds = monai.data.CacheDataset(data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2, progress=False)
     else:
         train_ds_a = monai.data.CacheDataset(
             data=train_files_a,
             transform=train_transforms,
             cache_rate=float(torch.cuda.device_count()) / 4.0,
             num_workers=8,
+            progress=False,
         )
         train_ds_w = monai.data.CacheDataset(
             data=train_files_w,
             transform=train_transforms,
             cache_rate=float(torch.cuda.device_count()) / 4.0,
             num_workers=8,
+            progress=False,
         )
         val_ds = monai.data.CacheDataset(
-            data=val_files, transform=val_transforms, cache_rate=float(torch.cuda.device_count()) / 4.0, num_workers=2
+            data=val_files, transform=val_transforms, cache_rate=float(torch.cuda.device_count()) / 4.0, num_workers=2, progress=False
         )
 
     train_loader_a = ThreadDataLoader(train_ds_a, num_workers=6, batch_size=num_images_per_batch, shuffle=True)
