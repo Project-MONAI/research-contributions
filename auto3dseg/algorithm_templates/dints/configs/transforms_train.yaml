@@ -30,16 +30,16 @@ transforms_train:
     dtype: "$torch.float32"
   - _target_: SpatialPadd
     keys: ["@image_key", "@label_key"]
-    spatial_size: "@patch_size"
+    spatial_size: "@training#patch_size"
     mode: [reflect, constant]
 
   # data augmentation
   - _target_: RandCropByLabelClassesd
     keys: ["@image_key", "@label_key"]
     label_key: "@label_key"
-    num_classes: "@output_classes"
-    spatial_size: "@patch_size"
-    num_samples: "@num_patches_per_image"
+    num_classes: "@training#output_classes"
+    spatial_size: "@training#patch_size"
+    num_samples: "@training#num_patches_per_image"
   - _target_: RandRotated
     keys: ["@image_key", "@label_key"]
     range_x: 0.3

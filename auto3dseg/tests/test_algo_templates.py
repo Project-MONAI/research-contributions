@@ -58,6 +58,7 @@ train_param = {
     "num_iterations_per_validation": 4,
     "num_images_per_batch": 2,
     "num_epochs": 2,
+    "num_warmup_iterations": 4
 }
 
 pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
@@ -73,7 +74,7 @@ class TestAlgoTemplates(unittest.TestCase):
         self.algos = {}
 
         if debug_single:
-            name = "segresnet2d"
+            name = "dints"
             self.algos.update({
                 name: dict(
                     _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo", 

@@ -1,5 +1,5 @@
 ---
-searching:
+searching_network:
   dints_space:
     _target_: TopologySearch
     channel_mul: 0.5
@@ -9,7 +9,7 @@ searching:
     device: "$torch.device('cuda')"
   network:
     _target_: DiNTS
-    dints_space: "$@searching#dints_space"
+    dints_space: "$@searching_network#dints_space"
     in_channels: "@searching#input_channels"
     num_classes: "@searching#output_classes"
     use_downsample: true
