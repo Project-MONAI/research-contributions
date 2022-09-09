@@ -72,7 +72,7 @@ class TestAlgoTemplates(unittest.TestCase):
             name = "dints"
             self.algos.update({
                 name: dict(
-                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo", 
+                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
                     template_path=os.path.join(algo_templates, name)
                 ),
             })

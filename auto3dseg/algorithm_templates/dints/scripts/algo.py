@@ -40,11 +40,11 @@ class DintsAlgo(BundleAlgo):
                 data_stats.read_config(str(data_stats_file))
             else:
                 data_stats.update(data_stats_file)
-            
+
             data_src_cfg = ConfigParser(globals=False)
             if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
                 data_src_cfg.read_config(self.data_list_file)
-            
+
             hyper_parameters = {"bundle_root": output_path}
             hyper_parameters_search = {"bundle_root": output_path}
             network = {}  # no change on network.yaml in segresnet2d
@@ -77,13 +77,13 @@ class DintsAlgo(BundleAlgo):
             hyper_parameters_search.update({"searching#data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
             hyper_parameters_search.update({"searching#input_channels": input_channels})
             hyper_parameters_search.update({"searching#output_classes": output_classes})
-        
+
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
 
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
-            
+
             ct_intensity_xform = {
                 "_target_": "Compose",
                 "transforms": [
@@ -124,9 +124,9 @@ class DintsAlgo(BundleAlgo):
 
 
             fill_records = {
-                'hyper_parameters.yaml': hyper_parameters, 
+                'hyper_parameters.yaml': hyper_parameters,
                 'hyper_parameters_search.yaml': hyper_parameters_search,
-                'network.yaml': network, 
+                'network.yaml': network,
                 'network_search.yaml': network_search,
                 'transforms_train.yaml': transforms_train,
                 'transforms_validate.yaml': transforms_validate,
@@ -135,7 +135,7 @@ class DintsAlgo(BundleAlgo):
 <<<<<<< HEAD
         else:
             fill_records = self.fill_records
-        
+
         for yaml_file, yaml_contents in fill_records.items():
             file_path = os.path.join(output_path, 'configs', yaml_file)
 
@@ -147,7 +147,7 @@ class DintsAlgo(BundleAlgo):
                 else:
                     parser[k] = deepcopy(v)  # some values are dicts
             ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
-        
+
         return fill_records
 
     def train(self, train_params=None):
@@ -168,7 +168,7 @@ class DintsAlgo(BundleAlgo):
         cmd, devices_info = self._create_cmd(dints_search_params)
         cmd_search = cmd.replace('train.py', 'search.py')
         self._run_cmd(cmd_search, devices_info)
-        
+
         dints_train_params = {}
         for k, v in train_params.items():
             if k == "CUDA_VISIBLE_DEVICES":
