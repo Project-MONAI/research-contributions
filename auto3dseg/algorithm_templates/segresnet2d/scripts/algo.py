@@ -28,7 +28,7 @@ class Segresnet2dAlgo(BundleAlgo):
                 a on/off switch to either use the data_stats_file to fill the template or
                 load it directly from the self.fill_records
         """
-        if kwargs.pop('fill_without_datastats', True):
+        if kwargs.pop("fill_without_datastats", True):
             if data_stats_file is None:
                 return
             data_stats = ConfigParser(globals=False)
@@ -36,7 +36,7 @@ class Segresnet2dAlgo(BundleAlgo):
                 data_stats.read_config(str(data_stats_file))
             else:
                 data_stats.update(data_stats_file)
-            
+
             data_src_cfg = ConfigParser(globals=False)
             if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
                 data_src_cfg.read_config(self.data_list_file)
@@ -64,14 +64,14 @@ class Segresnet2dAlgo(BundleAlgo):
             hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
             hyper_parameters.update({"input_channels": input_channels})
             hyper_parameters.update({"output_classes": output_classes})
-            
+
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
             spacing[-1] = -1.0
 
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
-            
+
             ct_intensity_xform = {
                 "_target_": "Compose",
                 "transforms": [
@@ -102,9 +102,9 @@ class Segresnet2dAlgo(BundleAlgo):
             transforms_infer.update({'transforms_infer#transforms#3#pixdim': spacing})
 
             if modality.startswith("ct"):
-                transforms_train.update({'transforms_train#transforms#5': ct_intensity_xform})
-                transforms_validate.update({'transforms_validate#transforms#5': ct_intensity_xform})
-                transforms_infer.update({'transforms_infer#transforms#5': ct_intensity_xform})
+                transforms_train.update({"transforms_train#transforms#5": ct_intensity_xform})
+                transforms_validate.update({"transforms_validate#transforms#5": ct_intensity_xform})
+                transforms_infer.update({"transforms_infer#transforms#5": ct_intensity_xform})
             else:
                 transforms_train.update({'transforms_train#transforms#5': mr_intensity_transform})
                 transforms_validate.update({'transforms_validate#transforms#5': mr_intensity_transform})
