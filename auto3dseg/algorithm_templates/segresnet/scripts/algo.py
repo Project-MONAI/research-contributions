@@ -10,17 +10,16 @@
 # limitations under the License.
 
 import os
-import numpy as np
-
 from copy import deepcopy
+
+import numpy as np
+from segresnet.scripts import roi_ensure_divisible, roi_ensure_levels
 
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _update_args
 from monai.utils import optional_import
 
-
-from segresnet.scripts import roi_ensure_divisible, roi_ensure_levels
 
 class SegresnetAlgo(BundleAlgo):
     def fill_template_config(self, data_stats, **override):
@@ -270,6 +269,7 @@ class SegresnetAlgo(BundleAlgo):
         override_params = _update_args(**override)
         for k, v in override_params.items():
             self.cfg[k] = v
+
 
 if __name__ == "__main__":
     from monai.utils import optional_import

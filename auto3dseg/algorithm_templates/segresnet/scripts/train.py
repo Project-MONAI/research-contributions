@@ -148,7 +148,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             progress=False,
         )
         val_ds = monai.data.CacheDataset(
-            data=val_files, transform=val_transforms, cache_rate=float(torch.cuda.device_count()) / 4.0, num_workers=2, progress=False
+            data=val_files,
+            transform=val_transforms,
+            cache_rate=float(torch.cuda.device_count()) / 4.0,
+            num_workers=2,
+            progress=False,
         )
 
     train_loader = DataLoader(train_ds, num_workers=8, batch_size=num_images_per_batch, shuffle=True)

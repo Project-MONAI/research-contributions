@@ -26,7 +26,7 @@ class Segresnet2dAlgo(BundleAlgo):
             data_stats_file: the stats report from DataAnalyzer in yaml format
             output_path: the root folder to scripts/configs directories.
         """
-        if kwargs.pop('fill_without_datastats', True):
+        if kwargs.pop("fill_without_datastats", True):
             if data_stats_file is None:
                 return
             data_stats = ConfigParser(globals=False)
@@ -39,7 +39,7 @@ class Segresnet2dAlgo(BundleAlgo):
             if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
                 data_src_cfg.read_config(self.data_list_file)
 
-            hyper_parameters = {'_config_file_': 'hyper_parameters.yaml'}
+            hyper_parameters = {"_config_file_": "hyper_parameters.yaml"}
             hyper_parameters.update({"bundle_root": output_path})
 
             patch_size = [320, 320]
@@ -90,30 +90,30 @@ class Segresnet2dAlgo(BundleAlgo):
                 "channel_wise": True,
             }
 
-            transforms_train = {'_config_file_': 'transforms_train.yaml'}
-            transforms_validate = {'_config_file_': 'transforms_validate.yaml'}
-            transforms_infer = {'_config_file_': 'transforms_infer.yaml'}
+            transforms_train = {"_config_file_": "transforms_train.yaml"}
+            transforms_validate = {"_config_file_": "transforms_validate.yaml"}
+            transforms_infer = {"_config_file_": "transforms_infer.yaml"}
 
-            transforms_train.update({'transforms_train#transforms#3#pixdim': spacing})
-            transforms_validate.update({'transforms_validate#transforms#3#pixdim': spacing})
-            transforms_infer.update({'transforms_infer#transforms#3#pixdim': spacing})
+            transforms_train.update({"transforms_train#transforms#3#pixdim": spacing})
+            transforms_validate.update({"transforms_validate#transforms#3#pixdim": spacing})
+            transforms_infer.update({"transforms_infer#transforms#3#pixdim": spacing})
 
             if modality.startswith("ct"):
-                transforms_train.update({'transforms_train#transforms#5': ct_intensity_xform})
-                transforms_validate.update({'transforms_validate#transforms#5': ct_intensity_xform})
-                transforms_infer.update({'transforms_infer#transforms#5': ct_intensity_xform})
+                transforms_train.update({"transforms_train#transforms#5": ct_intensity_xform})
+                transforms_validate.update({"transforms_validate#transforms#5": ct_intensity_xform})
+                transforms_infer.update({"transforms_infer#transforms#5": ct_intensity_xform})
             else:
-                transforms_train.update({'transforms_train#transforms#5': mr_intensity_transform})
-                transforms_validate.update({'transforms_validate#transforms#5': mr_intensity_transform})
-                transforms_infer.update({'transforms_infer#transforms#5': mr_intensity_transform})
+                transforms_train.update({"transforms_train#transforms#5": mr_intensity_transform})
+                transforms_validate.update({"transforms_validate#transforms#5": mr_intensity_transform})
+                transforms_infer.update({"transforms_infer#transforms#5": mr_intensity_transform})
 
-            network = {'_config_file_': 'network.yaml'}
+            network = {"_config_file_": "network.yaml"}
 
             self.fill_records = [hyper_parameters, network, transforms_train, transforms_validate, transforms_infer]
 
         for config in self.fill_records:
             config_cp = deepcopy(config)
-            file = os.path.join(output_path, 'configs', config_cp.pop('_config_file_'))
+            file = os.path.join(output_path, "configs", config_cp.pop("_config_file_"))
 
             parser = ConfigParser(globals=False)
             parser.read_config(file)

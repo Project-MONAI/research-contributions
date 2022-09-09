@@ -16,6 +16,7 @@ from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _update_args
 
+
 class SwinunetrAlgo(BundleAlgo):
     def fill_template_config(self, data_stats, **override):
         if data_stats is None:
@@ -83,6 +84,7 @@ class SwinunetrAlgo(BundleAlgo):
         override_params = _update_args(**override)
         for k, v in override_params.items():
             self.cfg[k] = v
+
 
 if __name__ == "__main__":
     from monai.utils import optional_import
