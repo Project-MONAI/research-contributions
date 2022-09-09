@@ -62,19 +62,17 @@ class DintsAlgo(BundleAlgo):
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
 
-            hyper_parameters.update({"training#bundle_root": output_path})
+            
+            hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
+            hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
 
             hyper_parameters.update({"training#patch_size": patch_size})
             hyper_parameters.update({"training#patch_size_valid": patch_size})
-            hyper_parameters.update({"training#data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
-            hyper_parameters.update({"training#data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
             hyper_parameters.update({"training#input_channels": input_channels})
             hyper_parameters.update({"training#output_classes": output_classes})
 
             hyper_parameters_search.update({"searching#patch_size": patch_size})
             hyper_parameters_search.update({"searching#patch_size_valid": patch_size})
-            hyper_parameters_search.update({"searching#data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
-            hyper_parameters_search.update({"searching#data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
             hyper_parameters_search.update({"searching#input_channels": input_channels})
             hyper_parameters_search.update({"searching#output_classes": output_classes})
 

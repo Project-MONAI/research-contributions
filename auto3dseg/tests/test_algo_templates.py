@@ -68,7 +68,7 @@ class TestAlgoTemplates(unittest.TestCase):
         self.algos = {}
 
         if debug_single:
-            name = "segresnet2d"
+            name = "dints"
             self.algos.update(
                 {
                     name: dict(
