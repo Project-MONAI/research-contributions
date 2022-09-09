@@ -68,15 +68,6 @@ class TestAlgoTemplates(unittest.TestCase):
         self.algos = {}
 
         if debug_single:
-<<<<<<< HEAD
-            name = "dints"
-            self.algos.update({
-                name: dict(
-                    _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo", 
-                    template_path=os.path.join(algo_templates, name)
-                ),
-            })
-=======
             name = "segresnet2d"
             self.algos.update(
                 {
@@ -86,7 +77,6 @@ class TestAlgoTemplates(unittest.TestCase):
                     )
                 }
             )
->>>>>>> 2713d77b192e3d69b30273674945ac52e456cdbe
             return
 
         for name in os.listdir("auto3dseg/algorithm_templates"):
