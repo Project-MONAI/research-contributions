@@ -143,10 +143,16 @@ class DintsAlgo(BundleAlgo):
             parser.read_config(file_path)
             for k, v in yaml_contents.items():
                 if k in kwargs:
-                    parser[k] = kwargs[k]
+                    parser[k] = kwargs.pop(k)
                 else:
                     parser[k] = deepcopy(v)  # some values are dicts
                 yaml_contents[k] = deepcopy(parser[k])
+
+            for k, v in kwargs.items():  # override new params that is not in fill_records
+                if (parser.get(k, None) is not None):
+                    parser[k] = deepcopy(v)
+                    yaml_contents.update({k: parser[k]})
+
             ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
 
         return fill_records
