@@ -146,6 +146,7 @@ class DintsAlgo(BundleAlgo):
                     parser[k] = kwargs[k]
                 else:
                     parser[k] = deepcopy(v)  # some values are dicts
+                yaml_contents[k] = deepcopy(parser[k])
             ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
 
         return fill_records
