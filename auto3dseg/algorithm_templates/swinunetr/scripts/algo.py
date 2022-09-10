@@ -22,11 +22,11 @@ class SwinunetrAlgo(BundleAlgo):
         Args:
             data_stats_file: the stats report from DataAnalyzer in yaml format
             output_path: the root folder to scripts/configs directories.
-            kwargs: parameters to override the config writing and ``fill_without_datastats``
+            kwargs: parameters to override the config writing and ``fill_with_datastats``
                 a on/off switch to either use the data_stats_file to fill the template or
                 load it directly from the self.fill_records
         """
-        if kwargs.pop("fill_without_datastats", True):
+        if kwargs.pop("fill_with_datastats", True):
             if data_stats_file is None:
                 return
             data_stats = ConfigParser(globals=False)
