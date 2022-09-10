@@ -31,11 +31,11 @@ class DintsAlgo(BundleAlgo):
         Args:
             data_stats_file: the stats report from DataAnalyzer in yaml format
             output_path: the root folder to scripts/configs directories.
-            kwargs: parameters to override the config writing and ``fill_without_datastats``
+            kwargs: parameters to override the config writing and ``fill_with_datastats``
                 a on/off switch to either use the data_stats_file to fill the template or
                 load it directly from the self.fill_records
         """
-        if kwargs.pop('fill_without_datastats', True):
+        if kwargs.pop('fill_with_datastats', True):
             if data_stats_file is None:
                 return
             data_stats = ConfigParser(globals=False)
@@ -65,7 +65,7 @@ class DintsAlgo(BundleAlgo):
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
 
-            
+
             hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
             hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
 
