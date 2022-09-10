@@ -30,13 +30,10 @@ transforms_validate:
     - 1.0
     - 1.0
     - 1.0
-  - _target_: ScaleIntensityRanged
-    a_max: 230.0
-    a_min: 0.0
-    b_max: 1.0
-    b_min: 0.0
-    clip: true
-    keys: '@image_key'
+  - _target_: CastToTyped
+    keys: "@image_key"
+    dtype: "$torch.float32"
+  - PLACEHOLDER_INTENSITY_NORMALIZATION
   - _target_: CastToTyped
     dtype:
     - $torch.float32
