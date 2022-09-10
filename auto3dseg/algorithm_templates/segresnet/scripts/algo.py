@@ -185,6 +185,8 @@ class SegresnetAlgo(BundleAlgo):
                 i = 0
             else:
                 template_transform_train.pop(4)
+                template_transform_validate.pop(4)
+                template_transform_infer.pop(4)
                 transforms_train.update({'transforms_train#transforms': template_transform_train})
                 transforms_validate.update({'transforms_validate#transforms': template_transform_validate})
                 transforms_infer.update({'transforms_infer#transforms': template_transform_infer})
