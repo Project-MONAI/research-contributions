@@ -81,10 +81,8 @@ class SegresnetAlgo(BundleAlgo):
                             break
                         all_ind = all_ind + a
 
-            hyper_parameters.update({"patch_size#0": patch_size[0]})
-            hyper_parameters.update({"patch_size#1": patch_size[1]})
-            hyper_parameters.update({"patch_size_valid#0": patch_size[0]})
-            hyper_parameters.update({"patch_size_valid#1": patch_size[1]})
+            hyper_parameters.update({"patch_size": patch_size})
+            hyper_parameters.update({"patch_size_valid": patch_size})
             hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
             hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
             hyper_parameters.update({"input_channels": input_channels})
@@ -170,6 +168,16 @@ class SegresnetAlgo(BundleAlgo):
             _template_transform_train.read_config(transform_train_path)
             template_transform_train = _template_transform_train.get("transforms_train#transforms")
 
+            transforms_validate_path = os.path.join(output_path, 'configs', 'transforms_validate.yaml')
+            _template_transforms_validate = ConfigParser(globals=False)
+            _template_transforms_validate.read_config(transforms_validate_path)
+            template_transform_validate = _template_transforms_validate.get("transforms_validate#transforms")
+
+            transform_infer_path = os.path.join(output_path, 'configs', 'transforms_infer.yaml')
+            _template_transform_infer = ConfigParser(globals=False)
+            _template_transform_infer.read_config(transform_infer_path)
+            template_transform_infer = _template_transform_infer.get("transforms_infer#transforms")
+
             if resample:
                 transforms_train.update({'transforms_train#transforms#4#pixdim': spacing})
                 transforms_validate.update({'transforms_validate#transforms#4#pixdim': spacing})
@@ -178,27 +186,23 @@ class SegresnetAlgo(BundleAlgo):
             else:
                 template_transform_train.pop(4)
                 transforms_train.update({'transforms_train#transforms': template_transform_train})
-                transforms_validate.update({'transforms_validate#transforms': template_transform_train})
-                transforms_infer.update({'transforms_infer#transforms': template_transform_train})
+                transforms_validate.update({'transforms_validate#transforms': template_transform_validate})
+                transforms_infer.update({'transforms_infer#transforms': template_transform_infer})
                 i = - 1
 
-            if not isinstance(class_index, list):
-                pass
-            else:
+            if isinstance(class_index, list):
                 labelmap = {"_target_": "LabelMapping", "keys": "@label_key", "class_index": class_index}
                 transforms_train.update({'transforms_train#transforms': template_transform_train.append(labelmap)})
                 transforms_validate.update({'transforms_validate#transforms': template_transform_train.append(labelmap)})
 
             # get crop transform
-            crop_transform = []
             should_crop_based_on_foreground = any(
                 [r < 0.5 * i for r, i in zip(patch_size, image_size)]
             )  # if any patch_size less tehn 0.5*image size
             if should_crop_based_on_foreground:
                 # Image is much larger then patch_size, using foreground cropping
                 ratios = None  # equal sampling
-                crop_transform.append(
-                    {
+                crop_transform = {
                         "_target_": "RandCropByLabelClassesd",
                         "keys": ["@image_key", "@label_key"],
                         "label_key": "@label_key",
@@ -207,17 +211,14 @@ class SegresnetAlgo(BundleAlgo):
                         "num_samples": 1,
                         "ratios": ratios,
                     }
-                )
             else:
                 # Image size is only slightly larger then patch_size, using random cropping
-                crop_transform.append(
-                    {
+                crop_transform = {
                         "_target_": "RandSpatialCropd",
                         "keys": ["@image_key", "@label_key"],
                         "roi_size": deepcopy(patch_size),
                         "random_size": False,
                     }
-                )
 
             crop_i = 7 + i
             transforms_train.update({f"transforms_train#transforms#{crop_i}": crop_transform})
