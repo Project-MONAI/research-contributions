@@ -41,7 +41,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
-    fold = parser.get_parsed_content("training#fold")
+    fold = parser.get_parsed_content("fold")
     num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
