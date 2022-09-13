@@ -10,6 +10,8 @@
 # limitations under the License.
 
 import os
+import sys
+
 from copy import deepcopy
 
 from monai.apps.auto3dseg import BundleAlgo
@@ -56,7 +58,7 @@ class DintsAlgo(BundleAlgo):
             transforms_validate = {}
             transforms_infer = {}
 
-            patch_size = [128, 128, 96]
+            patch_size = [96, 96, 96]
             max_shape = data_stats["stats_summary#image_stats#shape#max"]
             patch_size = [
                 max(32, shape_k // 32 * 32) if shape_k < p_k else p_k for p_k, shape_k in zip(patch_size, max_shape)
@@ -81,6 +83,10 @@ class DintsAlgo(BundleAlgo):
 
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
+
+            epsilon=sys.float_info.epsilon
+            if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
+                spacing = [1.0, 1.0, 1.0]
 
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])

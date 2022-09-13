@@ -4,9 +4,8 @@ bundle_root: null
 searching:
   # hyper-parameters
   amp: true
-  arch_path: "$@bundle_root + '/arch_ram' + str(@searching#ram_cost_factor) + '_fold' + str(@searching#fold)"
+  arch_path: "$@bundle_root + '/arch_ram' + str(@searching#ram_cost_factor) + '_fold' + str(@fold)"
   determ: false
-  fold: 0
   input_channels: null
   learning_rate: 0.025
   learning_rate_arch: 0.001

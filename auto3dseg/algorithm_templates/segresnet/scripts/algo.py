@@ -13,6 +13,7 @@ import os
 from copy import deepcopy
 
 import numpy as np
+import torch
 from segresnet.scripts import roi_ensure_divisible, roi_ensure_levels
 
 from monai.apps.auto3dseg import BundleAlgo
@@ -121,12 +122,16 @@ class SegresnetAlgo(BundleAlgo):
 
             network.update({"network#blocks_down": num_blocks})
             network.update({"network#blocks_up": [1] * (len(num_blocks) - 1)}) # [1,1,1,1..]
-            if data_src_cfg["multigpu"]:
+            if "multigpu" in data_src_cfg and data_src_cfg["multigpu"]:
+                multigpu = True
+            elif torch.cuda.device_count() > 1:
+                multigpu = True
+            else:
+                multigpu = False
+            if multigpu:
                 network.update({"network#norm": ["BATCH", {"affine": True}]}) # use batchnorm with multi gpu
-                # set act to be not in-place with multi gpu
                 network.update({"network#act": ["RELU", {"inplace": False}]}) # use batchnorm with multi gpu
             else:
-                network.update({"network#norm": ["INSTANCE", {"affine": True}]}) # use instancenorm with single gpu
 
 
             if "ct" in modality:
