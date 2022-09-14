@@ -109,13 +109,9 @@ class TestAlgoTemplates(unittest.TestCase):
         da.get_all_case_stats()
 
         data_src = {
-            "name": "fake_data",
-            "task": "segmentation",
             "modality": "MRI",
             "datalist": fake_json_datalist,
             "dataroot": dataroot,
-            "multigpu": False,
-            "class_names": ["label_class"],
         }
 
         ConfigParser.export_config_file(data_src, data_src_cfg)

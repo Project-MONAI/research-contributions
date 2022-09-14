@@ -81,6 +81,10 @@ class SegresnetAlgo(BundleAlgo):
                             hyper_parameters.update({"softmax": "false"})
                             break
                         all_ind = all_ind + a
+                hyper_parameters.update({"class_names": class_names})
+                hyper_parameters.update({"class_index": class_index})
+            else:
+                class_names = class_index = None
 
             hyper_parameters.update({"patch_size": patch_size})
             hyper_parameters.update({"patch_size_valid": patch_size})
@@ -88,9 +92,6 @@ class SegresnetAlgo(BundleAlgo):
             hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
             hyper_parameters.update({"input_channels": input_channels})
             hyper_parameters.update({"output_classes": output_classes})
-            hyper_parameters.update({"class_names": class_names})
-            hyper_parameters.update({"class_index": class_index})
-
 
             resample = False
 
