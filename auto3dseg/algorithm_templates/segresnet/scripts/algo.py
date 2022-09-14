@@ -132,7 +132,7 @@ class SegresnetAlgo(BundleAlgo):
                 network.update({"network#norm": ["BATCH", {"affine": True}]}) # use batchnorm with multi gpu
                 network.update({"network#act": ["RELU", {"inplace": False}]}) # use batchnorm with multi gpu
             else:
-
+                network.update({"network#norm": ["INSTANCE", {"affine": True}]}) # use instancenorm with single gpu
 
             if "ct" in modality:
                 spacing = [1.0, 1.0, 1.0]
