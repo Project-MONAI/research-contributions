@@ -10,7 +10,6 @@
 # limitations under the License.
 
 import csv
-import json
 import logging
 import os
 import sys
@@ -66,11 +65,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         ]
     )
 
-    with open(data_list_file_path) as f:
-        json_data = json.load(f)
+    datalist = ConfigParser.load_config_file(data_list_file_path)
 
     list_valid = []
-    for item in json_data["training"]:
+    for item in datalist["training"]:
         if item["fold"] == fold:
             item.pop("fold", None)
             list_valid.append(item)

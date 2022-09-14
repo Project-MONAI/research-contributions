@@ -9,7 +9,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 import math
 import os
@@ -80,12 +79,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         world_size = 1
     print("[info] world_size:", world_size)
 
-    with open(data_list_file_path) as f:
-        json_data = json.load(f)
+    datalist = ConfigParser.load_config_file(data_list_file_path)
 
     list_train = []
     list_valid = []
-    for item in json_data["training"]:
+    for item in datalist["training"]:
         if item["fold"] == fold:
             item.pop("fold", None)
             list_valid.append(item)
