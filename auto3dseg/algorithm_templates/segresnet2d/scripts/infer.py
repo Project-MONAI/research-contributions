@@ -9,7 +9,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 import os
 import sys
@@ -55,11 +54,10 @@ class InferClass:
 
         self.infer_transforms = parser.get_parsed_content("transforms_infer")
 
-        with open(data_list_file_path) as f:
-            json_data = json.load(f)
+        datalist = ConfigParser.load_config_file(data_list_file_path)
 
         list_data = []
-        for item in json_data[data_list_key]:
+        for item in datalist[data_list_key]:
             list_data.append(item)
 
         files = []
