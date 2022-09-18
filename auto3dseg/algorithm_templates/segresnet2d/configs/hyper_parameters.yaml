@@ -8,7 +8,7 @@ data_list_file_path: null
 determ: false
 fold: 0
 input_channels: null
-learning_rate: 0.025
+learning_rate: 0.2
 num_adjacent_slices: 1
 num_images_per_batch: 2
 num_iterations: 40000

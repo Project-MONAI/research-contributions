@@ -31,7 +31,7 @@ transforms_train:
   - _target_: SpatialPadd
     keys: ["@image_key", "@label_key"]
     spatial_size: "@training#patch_size"
-    mode: [reflect, constant]
+    mode: [constant, constant]
 
   # data augmentation
   - _target_: RandCropByLabelClassesd
