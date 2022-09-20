@@ -173,7 +173,11 @@ class DintsAlgo(BundleAlgo):
         """
         # searching
         dints_search_params = {}
-        for k, v in train_params.items():
+        params = {}
+        if train_params is not None:
+            params = deepcopy(train_params)
+
+        for k, v in params.items():
             if k == "CUDA_VISIBLE_DEVICES":
                 dints_search_params.update({k:v})
             else:
@@ -183,7 +187,7 @@ class DintsAlgo(BundleAlgo):
         self._run_cmd(cmd_search, devices_info)
 
         dints_train_params = {}
-        for k, v in train_params.items():
+        for k, v in params.items():
             if k == "CUDA_VISIBLE_DEVICES":
                 dints_train_params.update({k: v})
             else:
