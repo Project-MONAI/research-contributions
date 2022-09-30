@@ -59,8 +59,9 @@ train_param = {
 pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
 
 SIM_TEST_CASES = [
-    [{"sim_dim": (64, 64, 64), "modality": "MRI"}, (2, 64, 64, 64)],
-    [{"sim_dim": (64, 64, 64), "modality": "CT"}, (2, 64, 64, 64)],
+    [{"sim_dim": (24, 24, 24), "modality": "MRI"}],  # swinunetr template passes
+    [{"sim_dim": (32, 32, 32), "modality": "CT"}],  # swinunetr template fails
+    [{"sim_dim": (320, 320, 15), "modality": "MRI"}],  # swinunetr template fails
 ]
 
 def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
@@ -86,7 +87,6 @@ def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
             nib_image = nib.Nifti1Image(seg, affine=np.eye(4))
             label_fpath = os.path.join(dataroot, d["label"])
             nib.save(nib_image, label_fpath)
-
 
 def auto_run(work_dir, data_src_cfg, algos):
     """
@@ -116,14 +116,13 @@ def auto_run(work_dir, data_src_cfg, algos):
     history = bundle_generator.get_history()
 
     for h in history:
-        for _, algo in h.items():
+        for name, algo in h.items():
             algo.train(train_param)
 
     builder = AlgoEnsembleBuilder(history, data_src_cfg_file)
     builder.set_ensemble_method(AlgoEnsembleBestN(n_best=len(history)))  # inference all models
     preds = builder.get_ensemble()(pred_param)
     return preds
-
 
 class TestAlgoTemplates(unittest.TestCase):
     def setUp(self) -> None:
@@ -139,7 +138,7 @@ class TestAlgoTemplates(unittest.TestCase):
             )
 
     @parameterized.expand(SIM_TEST_CASES)
-    def test_sim(self, input_params, expected) -> None:
+    def test_sim(self, input_params) -> None:
         work_dir = os.path.join('./tmp_sim_work_dir')
         if not os.path.isdir(work_dir):
             os.makedirs(work_dir)
@@ -150,15 +149,14 @@ class TestAlgoTemplates(unittest.TestCase):
 
         sim_dim = input_params["sim_dim"]
         create_sim_data(
-            dataroot_dir, sim_datalist, sim_dim, rad_max=max(int(min(sim_dim) / 4), 1), num_seg_classes=1
+            dataroot_dir, sim_datalist, sim_dim, rad_max=max(int(min(sim_dim) / 4), 1), rad_min=1, num_seg_classes=1
         )
         
         data_src_cfg = {"modality": input_params["modality"], "datalist": datalist_file, "dataroot": dataroot_dir}
         preds = auto_run(work_dir, data_src_cfg, self.algos)
-        self.assertTupleEqual(preds[0].shape, expected)
+        self.assertTupleEqual(preds[0].shape, (2, sim_dim[0], sim_dim[1], sim_dim[2]))
         
         shutil.rmtree(work_dir)
-
 
 if __name__ == "__main__":
     unittest.main()
