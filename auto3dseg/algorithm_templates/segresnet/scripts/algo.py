@@ -234,26 +234,38 @@ class SegresnetAlgo(BundleAlgo):
 
             # for key in ["transforms_infer", "transforms_train", "transforms_validate"]:
             # get intensity transform
-            ct_intensity_xform = {
-                    "_target_": "ScaleIntensityRanged",
-                    "keys": "@image_key",
-                    "a_min": intensity_lower_bound,
-                    "a_max": intensity_upper_bound,
-                    "b_min": 0.0,
-                    "b_max": 1.0,
-                    "clip": True,
-                }
+            ct_intensity_xform_train_valid = {
+                "_target_": "Compose",
+                "transforms": [
+                    {
+                        "_target_": "ScaleIntensityRanged",
+                        "keys": "@image_key",
+                        "a_min": intensity_lower_bound,
+                        "a_max": intensity_upper_bound,
+                        "b_min": 0.0,
+                        "b_max": 1.0,
+                        "clip": True,
+                    },
+                    {"_target_": "CropForegroundd", "keys": ["@image_key", "@label_key"], "source_key": "@image_key"},
+                ],
+            }
 
-            infer_crop_xform = {
-                "_target_": "CropForegroundd",
-                "keys": "@image_key",
-                "source_key": "@image_key"
-                }
-            train_valid_crop_xform = {
-                        "_target_": "CropForegroundd",
-                        "keys": ["@image_key", "@label_key"],
-                        "source_key": "@image_key",
-                    }
+            ct_intensity_xform_infer = {
+                "_target_": "Compose",
+                "transforms": [
+                    {
+                        "_target_": "ScaleIntensityRanged",
+                        "keys": "@image_key",
+                        "a_min": intensity_lower_bound,
+                        "a_max": intensity_upper_bound,
+                        "b_min": 0.0,
+                        "b_max": 1.0,
+                        "clip": True,
+                    },
+                    {"_target_": "CropForegroundd", "keys": "@image_key", "source_key": "@image_key"},
+                ],
+            }
+
 
             # elif "mr" in modality:
             mr_intensity_transform = {
@@ -265,9 +277,9 @@ class SegresnetAlgo(BundleAlgo):
 
             intensity_i = 5 + i
             if modality.startswith("ct"):
-                transforms_train.update({f"transforms_train#transforms#{intensity_i}": [ct_intensity_xform, train_valid_crop_xform]})
-                transforms_validate.update({f"transforms_validate#transforms#{intensity_i}": [ct_intensity_xform, train_valid_crop_xform]})
-                transforms_infer.update({f"transforms_infer#transforms#{intensity_i}": [ct_intensity_xform, infer_crop_xform]})
+                transforms_train.update({f"transforms_train#transforms#{intensity_i}": ct_intensity_xform_train_valid})
+                transforms_validate.update({f"transforms_validate#transforms#{intensity_i}": ct_intensity_xform_train_valid})
+                transforms_infer.update({f"transforms_infer#transforms#{intensity_i}": ct_intensity_xform_infer})
             else:
                 transforms_train.update({f'transforms_train#transforms#{intensity_i}': mr_intensity_transform})
                 transforms_validate.update({f'transforms_validate#transforms#{intensity_i}': mr_intensity_transform})
