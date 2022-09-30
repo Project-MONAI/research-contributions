@@ -14,4 +14,4 @@ python auto3dseg/tests/test_algo_templates.py
 ### Class/Folder naming convention
 
 - Folder name: name of the algorithm in lower cases
-- Class name: folder name with the first letter in upper case + "Algo". e.g. UnetAlgo, SegresnetAlgo, etc. 
+- Class name: folder name with the first letter in upper case + "Algo". e.g. UnetAlgo, SegresnetAlgo, etc.
