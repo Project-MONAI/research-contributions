@@ -12,32 +12,34 @@
 import os
 import sys
 import unittest
-from typing import Dict, List
 
 import nibabel as nib
 import numpy as np
-from tests.utils import skip_if_no_cuda
+from parameterized import parameterized
+import shutil
 
 from monai.apps.auto3dseg import AlgoEnsembleBestByFold, AlgoEnsembleBestN, AlgoEnsembleBuilder, BundleGen, DataAnalyzer
 from monai.bundle.config_parser import ConfigParser
 from monai.data import create_test_image_3d
-from monai.utils.enums import AlgoEnsembleKeys
 
-fake_datalist: Dict[str, List[Dict]] = {
-    "testing": [{"image": "val_001.fake.nii.gz"}, {"image": "val_002.fake.nii.gz"}],
+sim_datalist = {
+    "testing": [
+        {"image": "val_image_001.nii.gz", "label": "val_label_001.nii.gz"}, 
+        {"image": "val_image_002.nii.gz", "label": "val_label_002.nii.gz"},
+    ],
     "training": [
-        {"fold": 0, "image": "tr_image_001.fake.nii.gz", "label": "tr_label_001.fake.nii.gz"},
-        {"fold": 0, "image": "tr_image_002.fake.nii.gz", "label": "tr_label_002.fake.nii.gz"},
-        {"fold": 0, "image": "tr_image_003.fake.nii.gz", "label": "tr_label_003.fake.nii.gz"},
-        {"fold": 0, "image": "tr_image_004.fake.nii.gz", "label": "tr_label_004.fake.nii.gz"},
-        {"fold": 1, "image": "tr_image_005.fake.nii.gz", "label": "tr_label_005.fake.nii.gz"},
-        {"fold": 1, "image": "tr_image_006.fake.nii.gz", "label": "tr_label_006.fake.nii.gz"},
-        {"fold": 1, "image": "tr_image_007.fake.nii.gz", "label": "tr_label_007.fake.nii.gz"},
-        {"fold": 1, "image": "tr_image_008.fake.nii.gz", "label": "tr_label_008.fake.nii.gz"},
-        {"fold": 2, "image": "tr_image_009.fake.nii.gz", "label": "tr_label_009.fake.nii.gz"},
-        {"fold": 2, "image": "tr_image_010.fake.nii.gz", "label": "tr_label_010.fake.nii.gz"},
-        {"fold": 2, "image": "tr_image_011.fake.nii.gz", "label": "tr_label_011.fake.nii.gz"},
-        {"fold": 2, "image": "tr_image_012.fake.nii.gz", "label": "tr_label_012.fake.nii.gz"},
+        {"fold": 0, "image": "tr_image_001.nii.gz", "label": "tr_label_001.nii.gz"},
+        {"fold": 0, "image": "tr_image_002.nii.gz", "label": "tr_label_002.nii.gz"},
+        {"fold": 0, "image": "tr_image_003.nii.gz", "label": "tr_label_003.nii.gz"},
+        {"fold": 0, "image": "tr_image_004.nii.gz", "label": "tr_label_004.nii.gz"},
+        {"fold": 1, "image": "tr_image_005.nii.gz", "label": "tr_label_005.nii.gz"},
+        {"fold": 1, "image": "tr_image_006.nii.gz", "label": "tr_label_006.nii.gz"},
+        {"fold": 1, "image": "tr_image_007.nii.gz", "label": "tr_label_007.nii.gz"},
+        {"fold": 1, "image": "tr_image_008.nii.gz", "label": "tr_label_008.nii.gz"},
+        {"fold": 2, "image": "tr_image_009.nii.gz", "label": "tr_label_009.nii.gz"},
+        {"fold": 2, "image": "tr_image_010.nii.gz", "label": "tr_label_010.nii.gz"},
+        {"fold": 2, "image": "tr_image_011.nii.gz", "label": "tr_label_011.nii.gz"},
+        {"fold": 2, "image": "tr_image_012.nii.gz", "label": "tr_label_012.nii.gz"},
     ],
 }
 
@@ -51,17 +53,80 @@ train_param = {
     "num_iterations_per_validation": 4,
     "num_images_per_batch": 2,
     "num_epochs": 2,
-    "num_warmup_iterations": 4
+    "num_warmup_iterations": 4,
 }
 
 pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
 
+SIM_TEST_CASES = [
+    [{"sim_dim": (64, 64, 64), "modality": "MRI"}, (2, 64, 64, 64)],
+    [{"sim_dim": (64, 64, 64), "modality": "CT"}, (2, 64, 64, 64)],
+]
+
+def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
+    """
+    Create simulated data using create_test_image_3d.
+
+    Args:
+        dataroot: data directory path that hosts the "nii.gz" image files.
+        sim_datalist: a list of data to create.
+        sim_dim: the image sizes, e.g. a tuple of (64, 64, 64).
+    """
+    if not os.path.isdir(dataroot):
+        os.makedirs(dataroot)
+
+    # Generate a fake dataset
+    for d in sim_datalist["testing"] + sim_datalist["training"]:
+        im, seg = create_test_image_3d(sim_dim[0], sim_dim[1], sim_dim[2], **kwargs)
+        nib_image = nib.Nifti1Image(im, affine=np.eye(4))
+        image_fpath = os.path.join(dataroot, d["image"])
+        nib.save(nib_image, image_fpath)
+
+        if "label" in d:
+            nib_image = nib.Nifti1Image(seg, affine=np.eye(4))
+            label_fpath = os.path.join(dataroot, d["label"])
+            nib.save(nib_image, label_fpath)
+
+
+def auto_run(work_dir, data_src_cfg, algos):
+    """
+    Similar to Auto3DSeg AutoRunner, auto_run function executes the data analyzer, bundle generation,
+    and ensemble.
+
+    Args:
+        work_dir: working directory path.
+        data_src_cfg: the input is a dictionary that includes dataroot, datalist and modality keys.
+        algos: the algorithm templates (a dictionary of Algo classes).
+    
+    Returns:
+        A list of predictions made the ensemble inference.
+    """
+    
+    data_src_cfg_file = os.path.join(work_dir, "input.yaml")
+    ConfigParser.export_config_file(data_src_cfg, data_src_cfg_file, fmt="yaml")
+
+    datastats_file = os.path.join(work_dir, "datastats.yaml")
+    analyser = DataAnalyzer(data_src_cfg["datalist"], data_src_cfg["dataroot"], output_path=datastats_file)
+    analyser.get_all_case_stats()
+
+    bundle_generator = BundleGen(
+        algos=algos, data_stats_filename=datastats_file, data_src_cfg_name=data_src_cfg_file
+    )
+    bundle_generator.generate(work_dir, num_fold=1)
+    history = bundle_generator.get_history()
+
+    for h in history:
+        for _, algo in h.items():
+            algo.train(train_param)
+
+    builder = AlgoEnsembleBuilder(history, data_src_cfg_file)
+    builder.set_ensemble_method(AlgoEnsembleBestN(n_best=len(history)))  # inference all models
+    preds = builder.get_ensemble()(pred_param)
+    return preds
+
+
 class TestAlgoTemplates(unittest.TestCase):
     def setUp(self) -> None:
-        self.test_dir = "./tmp_workdir"
-        if not os.path.isdir(self.test_dir):
-            os.makedirs(self.test_dir)
-
         self.algos = {}
         for name in os.listdir("auto3dseg/algorithm_templates"):
             self.algos.update(
@@ -73,73 +138,26 @@ class TestAlgoTemplates(unittest.TestCase):
                 }
             )
 
-    @skip_if_no_cuda
-    def test_ensemble(self) -> None:
-        test_path = self.test_dir
-
-        dataroot = os.path.join(test_path, "dataroot")
-        work_dir = os.path.join(test_path, "workdir")
-
-        da_output_yaml = os.path.join(work_dir, "datastats.yaml")
-        data_src_cfg = os.path.join(work_dir, "data_src_cfg.yaml")
-
-        if not os.path.isdir(dataroot):
-            os.makedirs(dataroot)
-
+    @parameterized.expand(SIM_TEST_CASES)
+    def test_sim(self, input_params, expected) -> None:
+        work_dir = os.path.join('./tmp_sim_work_dir')
         if not os.path.isdir(work_dir):
             os.makedirs(work_dir)
 
-        # Generate a fake dataset
-        for d in fake_datalist["testing"] + fake_datalist["training"]:
-            im, seg = create_test_image_3d(64, 64, 64, rad_max=10, num_seg_classes=1)
-            nib_image = nib.Nifti1Image(im, affine=np.eye(4))
-            image_fpath = os.path.join(dataroot, d["image"])
-            nib.save(nib_image, image_fpath)
+        dataroot_dir = os.path.join(work_dir, "sim_dataroot")
+        datalist_file = os.path.join(work_dir, "sim_datalist.json")
+        ConfigParser.export_config_file(sim_datalist, datalist_file)
 
-            if "label" in d:
-                nib_image = nib.Nifti1Image(seg, affine=np.eye(4))
-                label_fpath = os.path.join(dataroot, d["label"])
-                nib.save(nib_image, label_fpath)
-
-        # write to a json file
-        fake_json_datalist = os.path.join(dataroot, "fake_input.json")
-        ConfigParser.export_config_file(fake_datalist, fake_json_datalist)
-
-        da = DataAnalyzer(fake_json_datalist, dataroot, output_path=da_output_yaml)
-        da.get_all_case_stats()
-
-        data_src = {
-            "modality": "MRI",
-            "datalist": fake_json_datalist,
-            "dataroot": dataroot,
-        }
-
-        ConfigParser.export_config_file(data_src, data_src_cfg)
-
-        bundle_generator = BundleGen(
-            algos=self.algos, data_stats_filename=da_output_yaml, data_src_cfg_name=data_src_cfg
+        sim_dim = input_params["sim_dim"]
+        create_sim_data(
+            dataroot_dir, sim_datalist, sim_dim, rad_max=max(int(min(sim_dim) / 4), 1), num_seg_classes=1
         )
-        bundle_generator.generate(work_dir, num_fold=2)
-        history = bundle_generator.get_history()
-
-        for h in history:
-            self.assertEqual(len(h.keys()), 1, "each record should have one model")
-            for _, algo in h.items():
-                algo.train(train_param)
-
-        builder = AlgoEnsembleBuilder(history, data_src_cfg)
-        builder.set_ensemble_method(AlgoEnsembleBestN(n_best=2))
-        ensemble = builder.get_ensemble()
-        preds = ensemble(pred_param)
-        self.assertTupleEqual(preds[0].shape, (2, 64, 64, 64))
-
-        builder.set_ensemble_method(AlgoEnsembleBestByFold(2))
-        ensemble = builder.get_ensemble()
-        for algo in ensemble.get_algo_ensemble():
-            print(algo[AlgoEnsembleKeys.ID])
-
-    def tearDown(self) -> None:
-        pass
+        
+        data_src_cfg = {"modality": input_params["modality"], "datalist": datalist_file, "dataroot": dataroot_dir}
+        preds = auto_run(work_dir, data_src_cfg, self.algos)
+        self.assertTupleEqual(preds[0].shape, expected)
+        
+        shutil.rmtree(work_dir)
 
 
 if __name__ == "__main__":
