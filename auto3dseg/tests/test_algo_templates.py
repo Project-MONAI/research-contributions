@@ -59,9 +59,9 @@ train_param = {
 pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
 
 SIM_TEST_CASES = [
-    [{"sim_dim": (24, 24, 24), "modality": "MRI"}],  # swinunetr template passes
-    [{"sim_dim": (32, 32, 32), "modality": "CT"}],  # swinunetr template fails
-    [{"sim_dim": (320, 320, 15), "modality": "MRI"}],  # swinunetr template fails
+    [{"sim_dim": (24, 24, 24), "modality": "MRI"}],
+    [{"sim_dim": (320, 320, 15), "modality": "MRI"}],
+    [{"sim_dim": (32, 32, 32), "modality": "CT"}],
 ]
 
 def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
