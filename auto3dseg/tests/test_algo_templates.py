@@ -24,7 +24,7 @@ from monai.data import create_test_image_3d
 
 sim_datalist = {
     "testing": [
-        {"image": "val_image_001.nii.gz", "label": "val_label_001.nii.gz"}, 
+        {"image": "val_image_001.nii.gz", "label": "val_label_001.nii.gz"},
         {"image": "val_image_002.nii.gz", "label": "val_label_002.nii.gz"},
     ],
     "training": [
@@ -97,11 +97,11 @@ def auto_run(work_dir, data_src_cfg, algos):
         work_dir: working directory path.
         data_src_cfg: the input is a dictionary that includes dataroot, datalist and modality keys.
         algos: the algorithm templates (a dictionary of Algo classes).
-    
+
     Returns:
         A list of predictions made the ensemble inference.
     """
-    
+
     data_src_cfg_file = os.path.join(work_dir, "input.yaml")
     ConfigParser.export_config_file(data_src_cfg, data_src_cfg_file, fmt="yaml")
 
@@ -151,11 +151,11 @@ class TestAlgoTemplates(unittest.TestCase):
         create_sim_data(
             dataroot_dir, sim_datalist, sim_dim, rad_max=max(int(min(sim_dim) / 4), 1), rad_min=1, num_seg_classes=1
         )
-        
+
         data_src_cfg = {"modality": input_params["modality"], "datalist": datalist_file, "dataroot": dataroot_dir}
         preds = auto_run(work_dir, data_src_cfg, self.algos)
         self.assertTupleEqual(preds[0].shape, (2, sim_dim[0], sim_dim[1], sim_dim[2]))
-        
+
         shutil.rmtree(work_dir)
 
 if __name__ == "__main__":
