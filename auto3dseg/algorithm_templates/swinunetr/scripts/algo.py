@@ -65,7 +65,9 @@ class SwinunetrAlgo(BundleAlgo):
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
 
             min_shape = data_stats["stats_summary#image_stats#shape#min"]
-            spacing = [min(s / 24, spacing[i]) for i, s in enumerate(min_shape)]
+            # reflection-mode padding requires a minimum image for a given patch size
+            spacing = [min( s / int(patch_size[i] / 3 + 1), spacing[i]) for i, s in enumerate(min_shape)]
+
 
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
