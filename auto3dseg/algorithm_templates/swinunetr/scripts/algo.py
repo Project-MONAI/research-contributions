@@ -79,7 +79,7 @@ class SwinunetrAlgo(BundleAlgo):
                 "a_max": intensity_upper_bound,
                 "b_min": 0.0,
                 "b_max": 1.0,
-                "clip": True,                    
+                "clip": True,
             }
 
             mr_intensity_transform = {
