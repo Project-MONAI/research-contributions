@@ -73,18 +73,13 @@ class SwinunetrAlgo(BundleAlgo):
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
 
             ct_intensity_xform = {
-                "_target_": "Compose",
-                "transforms": [
-                    {
-                        "_target_": "ScaleIntensityRanged",
-                        "keys": "@image_key",
-                        "a_min": intensity_lower_bound,
-                        "a_max": intensity_upper_bound,
-                        "b_min": 0.0,
-                        "b_max": 1.0,
-                        "clip": True,
-                    },
-                ],
+                "_target_": "ScaleIntensityRanged",
+                "keys": "@image_key",
+                "a_min": intensity_lower_bound,
+                "a_max": intensity_upper_bound,
+                "b_min": 0.0,
+                "b_max": 1.0,
+                "clip": True,                    
             }
 
             mr_intensity_transform = {
