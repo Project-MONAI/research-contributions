@@ -91,7 +91,7 @@ class DintsAlgo(BundleAlgo):
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
 
-            ct_intensity_xform = {
+            ct_intensity_xform_train_valid = {
                 "_target_": "Compose",
                 "transforms": [
                     {
@@ -107,6 +107,22 @@ class DintsAlgo(BundleAlgo):
                 ],
             }
 
+            ct_intensity_xform_infer = {
+                "_target_": "Compose",
+                "transforms": [
+                    {
+                        "_target_": "ScaleIntensityRanged",
+                        "keys": "@image_key",
+                        "a_min": intensity_lower_bound,
+                        "a_max": intensity_upper_bound,
+                        "b_min": 0.0,
+                        "b_max": 1.0,
+                        "clip": True,
+                    },
+                    {"_target_": "CropForegroundd", "keys": "@image_key", "source_key": "@image_key"},
+                ],
+            }
+
             mr_intensity_transform = {
                 "_target_": "NormalizeIntensityd",
                 "keys": "@image_key",
@@ -114,21 +130,18 @@ class DintsAlgo(BundleAlgo):
                 "channel_wise": True,
             }
 
-
-
             transforms_train.update({'transforms_train#transforms#3#pixdim': spacing})
             transforms_validate.update({'transforms_validate#transforms#3#pixdim': spacing})
             transforms_infer.update({'transforms_infer#transforms#3#pixdim': spacing})
 
             if modality.startswith("ct"):
-                transforms_train.update({'transforms_train#transforms#5': ct_intensity_xform})
-                transforms_validate.update({'transforms_validate#transforms#5': ct_intensity_xform})
-                transforms_infer.update({'transforms_infer#transforms#5': ct_intensity_xform})
+                transforms_train.update({'transforms_train#transforms#5': ct_intensity_xform_train_valid})
+                transforms_validate.update({'transforms_validate#transforms#5': ct_intensity_xform_train_valid})
+                transforms_infer.update({'transforms_infer#transforms#5': ct_intensity_xform_infer})
             else:
                 transforms_train.update({'transforms_train#transforms#5': mr_intensity_transform})
                 transforms_validate.update({'transforms_validate#transforms#5': mr_intensity_transform})
                 transforms_infer.update({'transforms_infer#transforms#5': mr_intensity_transform})
-
 
             fill_records = {
                 'hyper_parameters.yaml': hyper_parameters,

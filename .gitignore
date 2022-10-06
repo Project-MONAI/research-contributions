@@ -132,4 +132,4 @@ tests/testing_data/*Hippocampus*
 .vscode/
 
 # Temporary workspace
-tmp_workdir/
+tmp_*_dir/
