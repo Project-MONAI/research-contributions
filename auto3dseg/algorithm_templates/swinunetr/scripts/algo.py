@@ -113,7 +113,7 @@ class SwinunetrAlgo(BundleAlgo):
             if modality.startswith("ct"):
                 transforms_train.update({"transforms_train#transforms#5": ct_intensity_xform})
                 transforms_validate.update({"transforms_validate#transforms#5": ct_intensity_xform})
-                transforms_infer.update({"transforms_infer#transforms#5": ct_intensity_xform})
+                transforms_infer.update({"transforms_infer#transforms#5": ct_intensity_xform_infer})
             else:
                 transforms_train.update({'transforms_train#transforms#5': mr_intensity_transform})
                 transforms_validate.update({'transforms_validate#transforms#5': mr_intensity_transform})
