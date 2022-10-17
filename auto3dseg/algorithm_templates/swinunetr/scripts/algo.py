@@ -83,6 +83,22 @@ class SwinunetrAlgo(BundleAlgo):
                 ],
             }
 
+            ct_intensity_xform_infer = {
+                "_target_": "Compose",
+                "transforms": [
+                    {
+                        "_target_": "ScaleIntensityRanged",
+                        "keys": "@image_key",
+                        "a_min": intensity_lower_bound,
+                        "a_max": intensity_upper_bound,
+                        "b_min": 0.0,
+                        "b_max": 1.0,
+                        "clip": True,
+                    },
+                    {"_target_": "CropForegroundd", "keys": "@image_key", "source_key": "@image_key"},
+                ],
+            }
+
             mr_intensity_transform = {
                 "_target_": "NormalizeIntensityd",
                 "keys": "@image_key",
