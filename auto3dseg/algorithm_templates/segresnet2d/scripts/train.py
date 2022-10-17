@@ -9,6 +9,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import logging
 import math
 import os
@@ -32,7 +33,52 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_meandice
+from monai.transforms import (
+    apply_transform,
+    Compose,
+    Randomizable,
+    Transform,
+)
 from monai.utils import set_determinism
+
+
+class DuplicateCacheDataset(monai.data.CacheDataset):
+    def __init__(self, times: int, **kwargs):
+        super().__init__(**kwargs)
+        self.times = times
+
+    def __len__(self):
+        return self.times * super().__len__()
+
+    def _transform(self, index: int):
+        index = index // self.times
+        if index % len(self) >= self.cache_num:  # support negative index
+            # no cache for this index, execute all the transforms directly
+            return super()._transform(index)
+        # load data from cache and execute from the first random transform
+        start_run = False
+        if self._cache is None:
+            self._cache = self._fill_cache()
+        data = self._cache[index]
+        if not isinstance(self.transform, Compose):
+            raise ValueError(
+                "transform must be an instance of monai.transforms.Compose."
+            )
+        for _transform in self.transform.transforms:
+            if (
+                start_run
+                or isinstance(_transform, Randomizable)
+                or not isinstance(_transform, Transform)
+            ):
+                # only need to deep copy data on first non-deterministic transform
+                if not start_run:
+                    start_run = True
+                    data = copy.deepcopy(data)
+                data = apply_transform(_transform, data)
+        return data
+
+    def __item__(self, index: int):
+        return super().__item__(index // self.times)
 
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
@@ -131,19 +177,33 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         ]
     print("val_files:", len(val_files))
 
+    num_epochs_per_validation = num_iterations_per_validation // math.ceil(len(train_files) // num_images_per_batch) 
+    num_epochs_per_validation = max(num_epochs_per_validation, 1)
+    num_epochs = math.ceil(num_iterations // num_iterations_per_validation)
+
+    if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
+        print("num_epochs", num_epochs)
+        print("num_epochs_per_validation", num_epochs_per_validation)
+
     if torch.cuda.device_count() >= 4:
-        train_ds = monai.data.CacheDataset(
-            data=train_files, transform=train_transforms, cache_rate=1.0, num_workers=8, progress=False
+        train_ds = DuplicateCacheDataset(
+            data=train_files,
+            transform=train_transforms,
+            cache_rate=1.0,
+            num_workers=8,
+            times=num_epochs_per_validation,
+            progress=False,
         )
         val_ds = monai.data.CacheDataset(
             data=val_files, transform=val_transforms, cache_rate=1.0, num_workers=2, progress=False
         )
     else:
-        train_ds = monai.data.CacheDataset(
+        train_ds = DuplicateCacheDataset(
             data=train_files,
             transform=train_transforms,
             cache_rate=float(torch.cuda.device_count()) / 4.0,
             num_workers=8,
+            times=num_epochs_per_validation,
             progress=False,
         )
         val_ds = monai.data.CacheDataset(
@@ -181,14 +241,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     optimizer_part = parser.get_parsed_content("optimizer", instantiate=False)
     optimizer = optimizer_part.instantiate(params=model.parameters())
 
-    num_epochs_per_validation = num_iterations_per_validation // len(train_loader)
-    num_epochs_per_validation = max(num_epochs_per_validation, 1)
-    num_epochs = num_epochs_per_validation * (num_iterations // num_iterations_per_validation)
-
-    if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        print("num_epochs", num_epochs)
-        print("num_epochs_per_validation", num_epochs_per_validation)
-
     lr_scheduler_part = parser.get_parsed_content("lr_scheduler", instantiate=False)
     lr_scheduler = lr_scheduler_part.instantiate(optimizer=optimizer)
 
@@ -211,7 +263,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
             print("[info] amp enabled")
 
-    val_interval = num_epochs_per_validation
+    val_interval = 1
     best_metric = -1
     best_metric_epoch = -1
     idx_iter = 0
