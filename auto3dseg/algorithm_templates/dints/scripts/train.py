@@ -177,7 +177,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         ]
     print("val_files:", len(val_files))
 
-    num_epochs_per_validation = num_iterations_per_validation // math.ceil(len(train_files) // num_images_per_batch) 
+    num_epochs_per_validation = num_iterations_per_validation // math.ceil(len(train_files) // num_images_per_batch)
     num_epochs_per_validation = max(num_epochs_per_validation, 1)
     num_epochs = math.ceil(num_iterations // num_iterations_per_validation)
 
