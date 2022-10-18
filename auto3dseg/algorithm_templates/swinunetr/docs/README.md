@@ -17,25 +17,25 @@ It's recommended to use Swin Transformer encoder pretrained weights for training
 Execute model training:
 
 ```
-python -m scripts.train run -config_file "['configs/hyper_parameters.yaml','configs/network.yaml', 'configs/transforms_train.yaml','configs/transforms_validate.yaml']"
+python -m scripts.train run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml', 'configs/transforms_train.yaml','configs/transforms_validate.yaml']"
 ```
 
 Execute multi-GPU model training (recommended):
 
 ```
-torchrun --nnodes=1 --nproc_per_node=8 -m scripts.train run -config_file "['configs/hyper_parameters.yaml','configs/network.yaml', 'configs/transforms_train.yaml','configs/transforms_validate.yaml']"
+torchrun --nnodes=1 --nproc_per_node=8 -m scripts.train run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml', 'configs/transforms_train.yaml','configs/transforms_validate.yaml']"
 ```
 
 Execute validation:
 
 ```
-python -m scripts.validate run -config_file "['configs/hyper_parameters.yaml','configs/network.yaml', 'configs/transforms_train.yaml','configs/transforms_validate.yaml']"
+python -m scripts.validate run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml', 'configs/transforms_train.yaml','configs/transforms_validate.yaml']"
 ```
 
 Execute inference:
 
 ```
-python -m scripts.infer run -config_file "['configs/hyper_parameters.yaml','configs/network.yaml', 'configs/transforms_train.yaml','configs/transforms_validate.yaml']"
+python -m scripts.infer run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml', 'configs/transforms_train.yaml','configs/transforms_validate.yaml']"
 ```
 
 # Disclaimer
