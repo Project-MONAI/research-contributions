@@ -167,7 +167,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     #Load pre-trained weights
     if not os.path.isfile(pretrained_path):
         download_url(
-            url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt", 
+            url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
             filepath=pretrained_path
         )
     store_dict = model.state_dict()
