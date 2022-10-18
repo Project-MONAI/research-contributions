@@ -10,6 +10,8 @@ This model is the auto 3d implementation [1] with Beyond the Cranial Vault (BTCV
 
 The training was performed with at least 16GB-memory GPUs.
 
+It's recommended to use Swin Transformer encoder pretrained weights for training, train code will automatically download base Swin-T encoder.
+
 ## commands example
 
 Execute model training:
