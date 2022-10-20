@@ -45,10 +45,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     parser = ConfigParser()
     parser.read_config(config_file_)
     parser.update(pairs=_args)
-
     amp = parser.get_parsed_content("amp")
     ckpt_path = parser.get_parsed_content("ckpt_path")
-    pretrain_swin = parser.get_parsed_content("pretrain_swin")
+    use_pretrain = parser.get_parsed_content("use_pretrain")
+    pretrained_path = parser.get_parsed_content("pretrained_path")
+
     data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
     determ = parser.get_parsed_content("determ")
@@ -165,13 +166,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     model = model.to(device)
 
     #Load pre-trained weights
-    if pretrain_swin["use_pretrain"]:
+    if use_pretrain:
         download_url(
             url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
-            filepath=pretrain_swin["pretrained_path"]
+            filepath=pretrained_path,
+            progress=False
         )
         store_dict = model.state_dict()
-        model_dict = torch.load(pretrain_swin["pretrained_path"])["state_dict"]
+        model_dict = torch.load(pretrained_path)["state_dict"]
         for key in model_dict.keys():
             if 'out' not in key:
                 store_dict[key] = model_dict[key]
@@ -217,7 +219,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             model.module.load_state_dict(torch.load(finetune["pretrained_ckpt_name"], map_location=device))
         else:
             model.load_state_dict(torch.load(finetune["pretrained_ckpt_name"], map_location=device))
-    elif pretrain_swin["use_pretrain"] and os.path.isfile(pretrain_swin["pretrained_path"]):
+    elif use_pretrain and os.path.isfile(pretrained_path):
         print("[info] Using pretrained weights of Swin Transformer encoder")
     else:
         print("[info] training from scratch")

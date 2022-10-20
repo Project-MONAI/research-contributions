@@ -47,6 +47,7 @@ algo_templates = os.path.join("auto3dseg", "algorithm_templates")
 
 sys.path.insert(0, algo_templates)
 
+
 train_param = {
     "CUDA_VISIBLE_DEVICES": [0],
     "num_iterations": 8,
@@ -54,6 +55,8 @@ train_param = {
     "num_images_per_batch": 2,
     "num_epochs": 2,
     "num_warmup_iterations": 4,
+    "use_pretrain": False,
+    "pretrained_path": "",
 }
 
 pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
