@@ -51,10 +51,13 @@ with open(data_stats_file) as f_data_stat:
     data_stat = yaml.full_load(f_data_stat)
 
 pixdim = parser.get_parsed_content("transforms_train#transforms#3#pixdim")
+pixdim = [np.abs(pixdim[_i]) for _i in range(3)]
+
 max_shape = [-1, -1, -1]
 for _k in range(len(data_stat["stats_by_cases"])):
     image_shape = data_stat["stats_by_cases"][_k]["image_stats"]["shape"][0]
     image_spacing = data_stat["stats_by_cases"][_k]["image_stats"]["spacing"][0]
+    image_spacing = [np.abs(image_spacing[_i]) for _i in range(3)]
 
     for _l in range(3):
         if _l < 2:
