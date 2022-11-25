@@ -50,5 +50,5 @@ searching:
     weight_decay: 0
   lr_scheduler:
     _target_: torch.optim.lr_scheduler.StepLR
-    step_size: "$int(float(@searching#num_iterations - @searching#num_warmup_iterations) * 0.4)"
+    step_size: "$max(int(float(@searching#num_iterations - @searching#num_warmup_iterations) * 0.4), 1)"
     gamma: 0.5
