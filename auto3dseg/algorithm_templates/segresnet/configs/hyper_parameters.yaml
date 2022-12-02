@@ -1,5 +1,5 @@
 modality: mri                               # main image modality, must be one of mri, ct, pet
-data_file_base_dir: null                    # location of the dataset 
+data_file_base_dir: null                    # location of the dataset
 data_list_file_path: null                   # location of the file with a list of files image/label in the dataset
 
 input_channels: null
@@ -11,14 +11,14 @@ class_index: null
 quick: false
 
 roi_size: [128, 128, 128]
-crop_mode: ratio 
-normalize_mode: meanstd 
+crop_mode: ratio
+normalize_mode: meanstd
 
 amp: true
 bundle_root: null
 ckpt_path: "$@bundle_root + '/model'"
 ckpt_save: true
-cache_rate: null                            
+cache_rate: null
 
 determ: false
 fold: 0
@@ -44,7 +44,7 @@ loss:
   softmax: $not @sigmoid
   sigmoid: $@sigmoid
   to_onehot_y: $not @sigmoid
-  
+
 optimizer:
   _target_: torch.optim.AdamW
   lr: "@learning_rate"
@@ -76,4 +76,3 @@ infer:
   ckpt_name: "$@bundle_root + '/model/model.pt'"
   output_path: "$@bundle_root + '/prediction_' + @infer#data_list_key"
   data_list_key: testing
-
