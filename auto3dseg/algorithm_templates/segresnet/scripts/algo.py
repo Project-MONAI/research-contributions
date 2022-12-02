@@ -16,6 +16,7 @@ from typing import Optional
 
 import fire
 import numpy as np
+import shutil
 
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
@@ -238,6 +239,20 @@ class SegresnetAlgo(BundleAlgo):
 
         return fill_records
 
+    def export_to_disk(self, output_path: str, algo_name: str, **kwargs):
+        super().export_to_disk(output_path=output_path, algo_name=algo_name, **kwargs)
+
+        output_path =os.path.join(output_path, algo_name)
+        config = ConfigParser.load_config_file(os.path.join(output_path, "configs/hyper_parameters.yaml"))
+
+        for c in config.get('custom_data_transforms',[]):
+            if "transform" in c and "_target_" in c["transform"]:
+                target = c["transform"]["_target_"]
+                target = "/".join(target.split(".")[:-1]) + ".py"
+                print("Copying custom transform file", target, "into", output_path)
+                shutil.copy(target, output_path)
+            else:
+                raise ValueError("Malformed custom_data_transforms parameter!"+str(c))
 
 if __name__ == "__main__":
     fire.Fire({"SegresnetAlgo": SegresnetAlgo})
