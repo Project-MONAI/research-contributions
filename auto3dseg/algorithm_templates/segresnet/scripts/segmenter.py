@@ -581,10 +581,6 @@ class Segmenter:
             custom_transforms=custom_transforms,
         )
 
-        # FIXME, remove later after https://github.com/Project-MONAI/MONAI/pull/5615
-        if self.distributed:
-            mp.current_process().authkey = np.arange(32, dtype=np.uint8).tobytes()
-
     def parse_input_config(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}, rank: int = 0
     ) -> Tuple[ConfigParser, Dict]:
@@ -672,6 +668,15 @@ class Segmenter:
         # print(config)
         return parser, config
 
+    def get_shared_list(self, length=0):
+        mp.current_process().authkey = np.arange(32, dtype=np.uint8).tobytes()
+        l = mp.Manager().list([None]*length)
+        if self.distributed:
+            l = [l]
+            dist.broadcast_object_list(l)
+            l = l[0]
+        return l
+
     def get_train_loader(self, data, cache_rate=0, persistent_workers=False):
 
         distributed = self.distributed
@@ -680,8 +685,9 @@ class Segmenter:
 
         train_transform = self.data_tranform_builder(augment=True, resample_label=True)
         if cache_rate > 0:
+            runtime_cache = self.get_shared_list(length=len(data))
             train_ds = CacheDataset(
-                data=data, transform=train_transform, copy_cache=False, runtime_cache=True, cache_rate=cache_rate
+                data=data, transform=train_transform, copy_cache=False, cache_rate=cache_rate, runtime_cache=runtime_cache
             )
         else:
             train_ds = Dataset(data=data, transform=train_transform)
@@ -707,8 +713,9 @@ class Segmenter:
         val_transform = self.data_tranform_builder(augment=False, resample_label=resample_label)
 
         if cache_rate > 0:
+            runtime_cache = self.get_shared_list(length=len(data))
             val_ds = CacheDataset(
-                data=data, transform=val_transform, copy_cache=False, runtime_cache=True, cache_rate=cache_rate
+                data=data, transform=val_transform, copy_cache=False, cache_rate=cache_rate, runtime_cache=runtime_cache,
             )
         else:
             val_ds = Dataset(data=data, transform=val_transform)
