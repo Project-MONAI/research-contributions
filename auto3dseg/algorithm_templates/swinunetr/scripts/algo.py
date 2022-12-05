@@ -64,23 +64,22 @@ class SwinunetrAlgo(BundleAlgo):
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
 
+            min_shape = data_stats["stats_summary#image_stats#shape#min"]
+            # reflection-mode padding requires a minimum image for a given patch size
+            spacing = [min( s / int(patch_size[i] / 3 + 1), spacing[i]) for i, s in enumerate(min_shape)]
+
+
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
 
             ct_intensity_xform = {
-                "_target_": "Compose",
-                "transforms": [
-                    {
-                        "_target_": "ScaleIntensityRanged",
-                        "keys": "@image_key",
-                        "a_min": intensity_lower_bound,
-                        "a_max": intensity_upper_bound,
-                        "b_min": 0.0,
-                        "b_max": 1.0,
-                        "clip": True,
-                    },
-                    {"_target_": "CropForegroundd", "keys": ["@image_key", "@label_key"], "source_key": "@image_key"},
-                ],
+                "_target_": "ScaleIntensityRanged",
+                "keys": "@image_key",
+                "a_min": intensity_lower_bound,
+                "a_max": intensity_upper_bound,
+                "b_min": 0.0,
+                "b_max": 1.0,
+                "clip": True,
             }
 
             mr_intensity_transform = {
@@ -102,7 +101,6 @@ class SwinunetrAlgo(BundleAlgo):
                 transforms_train.update({'transforms_train#transforms#5': mr_intensity_transform})
                 transforms_validate.update({'transforms_validate#transforms#5': mr_intensity_transform})
                 transforms_infer.update({'transforms_infer#transforms#5': mr_intensity_transform})
-
 
             fill_records = {
                 'hyper_parameters.yaml': hyper_parameters,
