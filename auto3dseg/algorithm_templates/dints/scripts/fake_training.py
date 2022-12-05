@@ -18,7 +18,7 @@ def objective(trial):
     device_factor = 2.0 if validation_data_device == "gpu" else 1.0
 
     try:
-        cmd = f"bash fake_training_script_dints.sh {num_images_per_batch} {num_patches_per_image} {num_sw_batch_size} {validation_data_device}"
+        cmd = f"bash fake_training_script.sh {num_images_per_batch} {num_patches_per_image} {num_sw_batch_size} {validation_data_device}"
         _ = subprocess.run(cmd.split(), check=True)
     except:
         print("[error] OOM")
