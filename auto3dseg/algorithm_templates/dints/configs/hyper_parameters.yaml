@@ -10,6 +10,7 @@ training:
   amp: true
   determ: false
   input_channels: null
+  sw_input_on_cpu: true
   learning_rate: 0.2
   num_images_per_batch: 2
   num_epochs: 2000

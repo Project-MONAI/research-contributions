@@ -59,6 +59,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
     patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
+    sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     softmax = parser.get_parsed_content("training#softmax")
 
     train_transforms = parser.get_parsed_content("transforms_train")
@@ -340,8 +341,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in val_loader:
-                    val_images = val_data["image"].to(device)
-                    val_labels = val_data["label"].to(device)
+                    if sw_input_on_cpu not True:
+                        val_images = val_data["image"].to(device)
+                        val_labels = val_data["label"].to(device)
 
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_outputs = sliding_window_inference(
@@ -351,6 +353,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             model,
                             mode="gaussian",
                             overlap=overlap_ratio,
+                            sw_device=device,
                         )
 
                     val_outputs = post_pred(val_outputs[0, ...])
