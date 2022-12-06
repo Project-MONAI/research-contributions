@@ -341,9 +341,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in val_loader:
-                    if sw_input_on_cpu not True:
-                        val_images = val_data["image"].to(device)
-                        val_labels = val_data["label"].to(device)
+                    val_images = val_data["image"].to(device) if sw_input_on_cpu is False else val_data["image"]
+                    val_labels = val_data["label"].to(device) if sw_input_on_cpu is False else val_data["label"]
 
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_outputs = sliding_window_inference(

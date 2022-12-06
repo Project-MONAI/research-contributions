@@ -10,7 +10,7 @@ training:
   amp: true
   determ: false
   input_channels: null
-  sw_input_on_cpu: true
+  sw_input_on_cpu: false
   learning_rate: 0.2
   num_images_per_batch: 2
   num_epochs: 2000
@@ -41,7 +41,7 @@ training:
   lr_scheduler:
     _target_: torch.optim.lr_scheduler.StepLR
     optimizer: "$@training#optimizer"
-    step_size: "$max(@training#num_iterations // 5, 1)"
+    step_size: "$max(@training#num_epochs // 5, 1)"
     gamma: 0.5
 
 # fine-tuning
