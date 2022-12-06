@@ -12,7 +12,7 @@ searching:
   num_images_per_batch: 2
   num_epochs: 1000
   num_epochs_per_validation: 20
-  num_epochs_warmup: 500
+  num_warmup_epochs: 500
   num_patches_per_image: 1
   num_sw_batch_size: 2
   output_classes: null
@@ -50,5 +50,5 @@ searching:
     weight_decay: 0
   lr_scheduler:
     _target_: torch.optim.lr_scheduler.StepLR
-    step_size: "$max(int(float(@searching#num_iterations - @searching#num_warmup_iterations) * 0.4), 1)"
+    step_size: "$max(int(float(@searching#num_epochs - @searching#num_warmup_epochs) * 0.4), 1)"
     gamma: 0.5
