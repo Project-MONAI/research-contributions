@@ -10,9 +10,9 @@ searching:
   learning_rate: 0.025
   learning_rate_arch: 0.001
   num_images_per_batch: 2
-  num_iterations: 20000
-  num_iterations_per_validation: 500
-  num_warmup_iterations: 10000
+  num_epochs: 1000
+  num_epochs_per_validation: 20
+  num_epochs_warmup: 500
   num_patches_per_image: 1
   num_sw_batch_size: 2
   output_classes: null
