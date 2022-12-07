@@ -31,10 +31,10 @@ lr_scheduler:
   _target_: torch.optim.lr_scheduler.StepLR
   gamma: 0.5
   optimizer: $@optimizer
-  step_size: $max(@num_iterations // 5, 1)
+  step_size: $max(@num_epochs // 5, 1)
 num_images_per_batch: 3
-num_iterations: 20000
-num_iterations_per_validation: 400
+num_epochs: 2000
+num_epochs_per_validation: 20
 num_patches_per_image: 1
 num_sw_batch_size: 1
 optimizer:
