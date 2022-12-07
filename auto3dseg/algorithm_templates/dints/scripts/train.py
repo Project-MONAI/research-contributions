@@ -54,7 +54,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     fold = parser.get_parsed_content("fold")
     num_images_per_batch = parser.get_parsed_content("training#num_images_per_batch")
     num_epochs = parser.get_parsed_content("training#num_epochs")
-    num_epochs_per_validation = parser.get_parsed_content("training#num_epochs_per_validation")
+    num_epochs_per_validation = parser.get_parsed_content(
+        "training#num_epochs_per_validation"
+    )
     num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
@@ -341,8 +343,16 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in val_loader:
-                    val_images = val_data["image"].to(device) if sw_input_on_cpu is False else val_data["image"]
-                    val_labels = val_data["label"].to(device) if sw_input_on_cpu is False else val_data["label"]
+                    val_images = (
+                        val_data["image"].to(device)
+                        if sw_input_on_cpu is False
+                        else val_data["image"]
+                    )
+                    val_labels = (
+                        val_data["label"].to(device)
+                        if sw_input_on_cpu is False
+                        else val_data["label"]
+                    )
 
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_outputs = sliding_window_inference(
