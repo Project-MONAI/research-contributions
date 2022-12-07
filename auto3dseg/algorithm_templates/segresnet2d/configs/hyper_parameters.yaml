@@ -40,7 +40,7 @@ optimizer:
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.StepLR
   optimizer: "$@optimizer"
-  step_size: "$@num_iterations // 5"
+  step_size: "$max(@num_iterations // 5, 1)"
   gamma: 0.5
 
 # fine-tuning
