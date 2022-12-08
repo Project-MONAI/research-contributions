@@ -505,6 +505,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             model,
                             mode="gaussian",
                             overlap=overlap_ratio,
+                            sw_device=device,
                         )
 
                     val_outputs = post_pred(val_outputs[0, ...])

@@ -19,6 +19,7 @@ output_classes: null
 overlap_ratio: 0.625
 patch_size: [-1, -1, "$@num_adjacent_slices * 2 + 1"]
 patch_size_valid: [-1, -1, "$@num_adjacent_slices * 2 + 1"]
+sw_input_on_cpu: false
 softmax: true
 
 # training

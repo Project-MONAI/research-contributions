@@ -10,7 +10,6 @@ training:
   amp: true
   determ: false
   input_channels: null
-  sw_input_on_cpu: false
   learning_rate: 0.2
   num_images_per_batch: 2
   num_epochs: 2000
@@ -21,6 +20,7 @@ training:
   overlap_ratio: 0.625
   patch_size: null
   patch_size_valid: null
+  sw_input_on_cpu: false
   softmax: true
 
   loss:

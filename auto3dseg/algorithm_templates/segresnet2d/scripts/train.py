@@ -60,6 +60,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     output_classes = parser.get_parsed_content("output_classes")
     overlap_ratio = parser.get_parsed_content("overlap_ratio")
     patch_size_valid = parser.get_parsed_content("patch_size_valid")
+    sw_input_on_cpu = parser.get_parsed_content("sw_input_on_cpu")
     softmax = parser.get_parsed_content("softmax")
 
     train_transforms = parser.get_parsed_content("transforms_train")
@@ -302,11 +303,21 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in val_loader:
-                    val_images = val_data["image"].to(device)
-                    val_labels = val_data["label"].to(device)
+                    val_images = (
+                        val_data["image"].to(device)
+                        if sw_input_on_cpu is False
+                        else val_data["image"]
+                    )
+                    val_labels = (
+                        val_data["label"].to(device)
+                        if sw_input_on_cpu is False
+                        else val_data["label"]
+                    )
 
                     img_size = val_images.size()
-                    val_outputs = torch.zeros((1, output_classes, img_size[-3], img_size[-2], img_size[-1])).to(device)
+                    val_outputs = torch.zeros((1, output_classes, img_size[-3], img_size[-2], img_size[-1]))
+                    if sw_input_on_cpu is False:
+                        val_outputs = val_outputs.to(device)
 
                     with torch.cuda.amp.autocast(enabled=amp):
                         for _k in range(val_images.size()[-1]):
@@ -338,7 +349,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 model,
                                 mode="gaussian",
                                 overlap=overlap_ratio,
-                                padding_mode="reflect",
+                                sw_device=device,
                             )
 
                     val_outputs = post_pred(val_outputs[0, ...])
