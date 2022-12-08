@@ -1,6 +1,9 @@
 ---
 bundle_root: null
 
+transforms:
+  resample_to_spacing: "$@searching#resample_to_spacing"
+
 searching:
   # hyper-parameters
   amp: true
@@ -21,6 +24,7 @@ searching:
   patch_size: null
   patch_size_valid: null
   ram_cost_factor: 0.8
+  resample_to_spacing: null
   softmax: true
 
   # architecture searching

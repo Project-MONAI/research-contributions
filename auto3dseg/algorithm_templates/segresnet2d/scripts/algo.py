@@ -75,6 +75,7 @@ class Segresnet2dAlgo(BundleAlgo):
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
             spacing[-1] = -1.0
+            hyper_parameters.update({"resample_to_spacing": spacing})
 
             intensity_upper_bound = float(
                 data_stats[
@@ -133,12 +134,6 @@ class Segresnet2dAlgo(BundleAlgo):
                 "nonzero": True,
                 "channel_wise": True,
             }
-
-            transforms_train.update({"transforms_train#transforms#3#pixdim": spacing})
-            transforms_validate.update(
-                {"transforms_validate#transforms#3#pixdim": spacing}
-            )
-            transforms_infer.update({"transforms_infer#transforms#3#pixdim": spacing})
 
             if modality.startswith("ct"):
                 transforms_train.update(

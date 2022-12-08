@@ -12,7 +12,7 @@ transforms_infer:
     axcodes: RAS
   - _target_: Spacingd
     keys: "@image_key"
-    pixdim: null
+    pixdim: "$@resample_to_spacing"
     mode: bilinear
     align_corners: true
   - _target_: CastToTyped

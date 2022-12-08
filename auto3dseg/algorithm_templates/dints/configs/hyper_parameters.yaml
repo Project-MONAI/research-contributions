@@ -5,6 +5,9 @@ data_file_base_dir: null
 data_list_file_path: null
 fold: 0
 
+transforms:
+  resample_to_spacing: "$@training#resample_to_spacing"
+
 training:
   # hyper-parameters
   amp: true
@@ -20,6 +23,7 @@ training:
   overlap_ratio: 0.625
   patch_size: null
   patch_size_valid: null
+  resample_to_spacing: null
   sw_input_on_cpu: false
   softmax: true
 

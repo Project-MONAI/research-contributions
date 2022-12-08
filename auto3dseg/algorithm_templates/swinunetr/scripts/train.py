@@ -31,7 +31,7 @@ from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
-from monai.metrics import compute_meandice
+from monai.metrics import compute_dice
 from monai.utils import set_determinism
 from monai.apps import download_url
 
@@ -340,7 +340,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         val_labels = post_label(val_labels[0, ...])
                         val_labels = val_labels[None, ...]
 
-                    value = compute_meandice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
+                    value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
 
                     print(_index + 1, "/", len(val_loader), value)
 

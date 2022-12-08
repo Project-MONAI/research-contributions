@@ -149,11 +149,8 @@ class DintsAlgo(BundleAlgo):
                 "channel_wise": True,
             }
 
-            transforms_train.update({"transforms_train#transforms#3#pixdim": spacing})
-            transforms_validate.update(
-                {"transforms_validate#transforms#3#pixdim": spacing}
-            )
-            transforms_infer.update({"transforms_infer#transforms#3#pixdim": spacing})
+            hyper_parameters.update({"training#resample_to_spacing": spacing})
+            hyper_parameters_search.update({"searching#resample_to_spacing": spacing})
 
             if modality.startswith("ct"):
                 transforms_train.update(
