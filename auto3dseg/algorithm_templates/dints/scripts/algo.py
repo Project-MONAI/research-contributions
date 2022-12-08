@@ -51,7 +51,7 @@ class DintsAlgo(BundleAlgo):
 
             hyper_parameters = {"bundle_root": output_path}
             hyper_parameters_search = {"bundle_root": output_path}
-            network = {}  # no change on network.yaml in segresnet2d
+            network = {}
             network_search = {}
             transforms_train = {}
             transforms_validate = {}

@@ -38,11 +38,13 @@ class Segresnet2dAlgo(BundleAlgo):
                 data_stats.update(data_stats_file)
 
             data_src_cfg = ConfigParser(globals=False)
-            if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
+            if self.data_list_file is not None and os.path.exists(
+                str(self.data_list_file)
+            ):
                 data_src_cfg.read_config(self.data_list_file)
 
             hyper_parameters = {"bundle_root": output_path}
-            network = {}  # no change on network.yaml in segresnet2d
+            network = {}
             transforms_train = {}
             transforms_validate = {}
             transforms_infer = {}
@@ -50,7 +52,8 @@ class Segresnet2dAlgo(BundleAlgo):
             patch_size = [320, 320]
             max_shape = data_stats["stats_summary#image_stats#shape#max"]
             patch_size = [
-                max(32, shape_k // 32 * 32) if shape_k < p_k else p_k for p_k, shape_k in zip(patch_size, max_shape)
+                max(32, shape_k // 32 * 32) if shape_k < p_k else p_k
+                for p_k, shape_k in zip(patch_size, max_shape)
             ]
 
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
@@ -60,8 +63,12 @@ class Segresnet2dAlgo(BundleAlgo):
             hyper_parameters.update({"patch_size#1": patch_size[1]})
             hyper_parameters.update({"patch_size_valid#0": patch_size[0]})
             hyper_parameters.update({"patch_size_valid#1": patch_size[1]})
-            hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
-            hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
+            hyper_parameters.update(
+                {"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])}
+            )
+            hyper_parameters.update(
+                {"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])}
+            )
             hyper_parameters.update({"input_channels": input_channels})
             hyper_parameters.update({"output_classes": output_classes})
 
@@ -69,8 +76,16 @@ class Segresnet2dAlgo(BundleAlgo):
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
             spacing[-1] = -1.0
 
-            intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
-            intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
+            intensity_upper_bound = float(
+                data_stats[
+                    "stats_summary#image_foreground_stats#intensity#percentile_99_5"
+                ]
+            )
+            intensity_lower_bound = float(
+                data_stats[
+                    "stats_summary#image_foreground_stats#intensity#percentile_00_5"
+                ]
+            )
 
             ct_intensity_xform_train_valid = {
                 "_target_": "Compose",
@@ -84,7 +99,11 @@ class Segresnet2dAlgo(BundleAlgo):
                         "b_max": 1.0,
                         "clip": True,
                     },
-                    {"_target_": "CropForegroundd", "keys": ["@image_key", "@label_key"], "source_key": "@image_key"},
+                    {
+                        "_target_": "CropForegroundd",
+                        "keys": ["@image_key", "@label_key"],
+                        "source_key": "@image_key",
+                    },
                 ],
             }
 
@@ -100,7 +119,11 @@ class Segresnet2dAlgo(BundleAlgo):
                         "b_max": 1.0,
                         "clip": True,
                     },
-                    {"_target_": "CropForegroundd", "keys": "@image_key", "source_key": "@image_key"},
+                    {
+                        "_target_": "CropForegroundd",
+                        "keys": "@image_key",
+                        "source_key": "@image_key",
+                    },
                 ],
             }
 
@@ -111,31 +134,45 @@ class Segresnet2dAlgo(BundleAlgo):
                 "channel_wise": True,
             }
 
-            transforms_train.update({'transforms_train#transforms#3#pixdim': spacing})
-            transforms_validate.update({'transforms_validate#transforms#3#pixdim': spacing})
-            transforms_infer.update({'transforms_infer#transforms#3#pixdim': spacing})
+            transforms_train.update({"transforms_train#transforms#3#pixdim": spacing})
+            transforms_validate.update(
+                {"transforms_validate#transforms#3#pixdim": spacing}
+            )
+            transforms_infer.update({"transforms_infer#transforms#3#pixdim": spacing})
 
             if modality.startswith("ct"):
-                transforms_train.update({"transforms_train#transforms#5": ct_intensity_xform_train_valid})
-                transforms_validate.update({"transforms_validate#transforms#5": ct_intensity_xform_train_valid})
-                transforms_infer.update({"transforms_infer#transforms#5": ct_intensity_xform_infer})
+                transforms_train.update(
+                    {"transforms_train#transforms#5": ct_intensity_xform_train_valid}
+                )
+                transforms_validate.update(
+                    {"transforms_validate#transforms#5": ct_intensity_xform_train_valid}
+                )
+                transforms_infer.update(
+                    {"transforms_infer#transforms#5": ct_intensity_xform_infer}
+                )
             else:
-                transforms_train.update({'transforms_train#transforms#5': mr_intensity_transform})
-                transforms_validate.update({'transforms_validate#transforms#5': mr_intensity_transform})
-                transforms_infer.update({'transforms_infer#transforms#5': mr_intensity_transform})
+                transforms_train.update(
+                    {"transforms_train#transforms#5": mr_intensity_transform}
+                )
+                transforms_validate.update(
+                    {"transforms_validate#transforms#5": mr_intensity_transform}
+                )
+                transforms_infer.update(
+                    {"transforms_infer#transforms#5": mr_intensity_transform}
+                )
 
             fill_records = {
-                'hyper_parameters.yaml': hyper_parameters,
-                'network.yaml': network,
-                'transforms_train.yaml': transforms_train,
-                'transforms_validate.yaml': transforms_validate,
-                'transforms_infer.yaml': transforms_infer
-                }
+                "hyper_parameters.yaml": hyper_parameters,
+                "network.yaml": network,
+                "transforms_train.yaml": transforms_train,
+                "transforms_validate.yaml": transforms_validate,
+                "transforms_infer.yaml": transforms_infer,
+            }
         else:
             fill_records = self.fill_records
 
         for yaml_file, yaml_contents in fill_records.items():
-            file_path = os.path.join(output_path, 'configs', yaml_file)
+            file_path = os.path.join(output_path, "configs", yaml_file)
 
             parser = ConfigParser(globals=False)
             parser.read_config(file_path)
@@ -146,12 +183,17 @@ class Segresnet2dAlgo(BundleAlgo):
                     parser[k] = deepcopy(v)  # some values are dicts
                 yaml_contents[k] = deepcopy(parser[k])
 
-            for k, v in kwargs.items():  # override new params that is not in fill_records
-                if (parser.get(k, None) is not None):
+            for (
+                k,
+                v,
+            ) in kwargs.items():  # override new params that is not in fill_records
+                if parser.get(k, None) is not None:
                     parser[k] = deepcopy(v)
                     yaml_contents.update({k: parser[k]})
 
-            ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
+            ConfigParser.export_config_file(
+                parser.get(), file_path, fmt="yaml", default_flow_style=None
+            )
 
         return fill_records
 
