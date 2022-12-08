@@ -7,6 +7,7 @@ searching:
   arch_path: "$@bundle_root + '/arch_ram' + str(@searching#ram_cost_factor) + '_fold' + str(@fold)"
   determ: false
   input_channels: null
+  sw_input_on_cpu: false
   learning_rate: 0.025
   learning_rate_arch: 0.001
   num_images_per_batch: 2

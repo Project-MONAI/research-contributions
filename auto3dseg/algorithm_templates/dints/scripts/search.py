@@ -61,6 +61,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     overlap_ratio = parser.get_parsed_content("searching#overlap_ratio")
     patch_size_valid = parser.get_parsed_content("searching#patch_size_valid")
     ram_cost_factor = parser.get_parsed_content("searching#ram_cost_factor")
+    sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     softmax = parser.get_parsed_content("searching#softmax")
 
     train_transforms = parser.get_parsed_content("transforms_train")
@@ -485,8 +486,16 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in val_loader:
-                    val_images = val_data["image"].to(device)
-                    val_labels = val_data["label"].to(device)
+                    val_images = (
+                        val_data["image"].to(device)
+                        if sw_input_on_cpu is False
+                        else val_data["image"]
+                    )
+                    val_labels = (
+                        val_data["label"].to(device)
+                        if sw_input_on_cpu is False
+                        else val_data["label"]
+                    )
 
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_outputs = sliding_window_inference(
