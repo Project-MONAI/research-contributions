@@ -10,20 +10,17 @@
 # limitations under the License.
 
 import os
+import subprocess
 import sys
 
 from copy import deepcopy
-
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
 from monai.apps.utils import get_logger
 
-import subprocess
 
 logger = get_logger(module_name=__name__)
-import subprocess
 
-logger = get_logger(module_name=__name__)
 
 class DintsAlgo(BundleAlgo):
     def fill_template_config(self, data_stats_file, output_path, **kwargs):
@@ -37,7 +34,7 @@ class DintsAlgo(BundleAlgo):
                 a on/off switch to either use the data_stats_file to fill the template or
                 load it directly from the self.fill_records
         """
-        if kwargs.pop('fill_with_datastats', True):
+        if kwargs.pop("fill_with_datastats", True):
             if data_stats_file is None:
                 return
             data_stats = ConfigParser(globals=False)
@@ -47,12 +44,14 @@ class DintsAlgo(BundleAlgo):
                 data_stats.update(data_stats_file)
 
             data_src_cfg = ConfigParser(globals=False)
-            if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
+            if self.data_list_file is not None and os.path.exists(
+                str(self.data_list_file)
+            ):
                 data_src_cfg.read_config(self.data_list_file)
 
             hyper_parameters = {"bundle_root": output_path}
             hyper_parameters_search = {"bundle_root": output_path}
-            network = {}  # no change on network.yaml in segresnet2d
+            network = {}
             network_search = {}
             transforms_train = {}
             transforms_validate = {}
@@ -61,15 +60,19 @@ class DintsAlgo(BundleAlgo):
             patch_size = [96, 96, 96]
             max_shape = data_stats["stats_summary#image_stats#shape#max"]
             patch_size = [
-                max(32, shape_k // 32 * 32) if shape_k < p_k else p_k for p_k, shape_k in zip(patch_size, max_shape)
+                max(32, shape_k // 32 * 32) if shape_k < p_k else p_k
+                for p_k, shape_k in zip(patch_size, max_shape)
             ]
 
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
 
-
-            hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
-            hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
+            hyper_parameters.update(
+                {"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])}
+            )
+            hyper_parameters.update(
+                {"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])}
+            )
 
             hyper_parameters.update({"training#patch_size": patch_size})
             hyper_parameters.update({"training#patch_size_valid": patch_size})
@@ -84,12 +87,23 @@ class DintsAlgo(BundleAlgo):
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
 
-            epsilon=sys.float_info.epsilon
+            epsilon = sys.float_info.epsilon
             if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
                 spacing = [1.0, 1.0, 1.0]
 
-            intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
-            intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
+            hyper_parameters.update({"training#resample_to_spacing": spacing})
+            hyper_parameters_search.update({"searching#resample_to_spacing": spacing})
+
+            intensity_upper_bound = float(
+                data_stats[
+                    "stats_summary#image_foreground_stats#intensity#percentile_99_5"
+                ]
+            )
+            intensity_lower_bound = float(
+                data_stats[
+                    "stats_summary#image_foreground_stats#intensity#percentile_00_5"
+                ]
+            )
 
             ct_intensity_xform_train_valid = {
                 "_target_": "Compose",
@@ -103,7 +117,11 @@ class DintsAlgo(BundleAlgo):
                         "b_max": 1.0,
                         "clip": True,
                     },
-                    {"_target_": "CropForegroundd", "keys": ["@image_key", "@label_key"], "source_key": "@image_key"},
+                    {
+                        "_target_": "CropForegroundd",
+                        "keys": ["@image_key", "@label_key"],
+                        "source_key": "@image_key",
+                    },
                 ],
             }
 
@@ -119,7 +137,11 @@ class DintsAlgo(BundleAlgo):
                         "b_max": 1.0,
                         "clip": True,
                     },
-                    {"_target_": "CropForegroundd", "keys": "@image_key", "source_key": "@image_key"},
+                    {
+                        "_target_": "CropForegroundd",
+                        "keys": "@image_key",
+                        "source_key": "@image_key",
+                    },
                 ],
             }
 
@@ -130,33 +152,41 @@ class DintsAlgo(BundleAlgo):
                 "channel_wise": True,
             }
 
-            transforms_train.update({'transforms_train#transforms#3#pixdim': spacing})
-            transforms_validate.update({'transforms_validate#transforms#3#pixdim': spacing})
-            transforms_infer.update({'transforms_infer#transforms#3#pixdim': spacing})
-
             if modality.startswith("ct"):
-                transforms_train.update({'transforms_train#transforms#5': ct_intensity_xform_train_valid})
-                transforms_validate.update({'transforms_validate#transforms#5': ct_intensity_xform_train_valid})
-                transforms_infer.update({'transforms_infer#transforms#5': ct_intensity_xform_infer})
+                transforms_train.update(
+                    {"transforms_train#transforms#5": ct_intensity_xform_train_valid}
+                )
+                transforms_validate.update(
+                    {"transforms_validate#transforms#5": ct_intensity_xform_train_valid}
+                )
+                transforms_infer.update(
+                    {"transforms_infer#transforms#5": ct_intensity_xform_infer}
+                )
             else:
-                transforms_train.update({'transforms_train#transforms#5': mr_intensity_transform})
-                transforms_validate.update({'transforms_validate#transforms#5': mr_intensity_transform})
-                transforms_infer.update({'transforms_infer#transforms#5': mr_intensity_transform})
+                transforms_train.update(
+                    {"transforms_train#transforms#5": mr_intensity_transform}
+                )
+                transforms_validate.update(
+                    {"transforms_validate#transforms#5": mr_intensity_transform}
+                )
+                transforms_infer.update(
+                    {"transforms_infer#transforms#5": mr_intensity_transform}
+                )
 
             fill_records = {
-                'hyper_parameters.yaml': hyper_parameters,
-                'hyper_parameters_search.yaml': hyper_parameters_search,
-                'network.yaml': network,
-                'network_search.yaml': network_search,
-                'transforms_train.yaml': transforms_train,
-                'transforms_validate.yaml': transforms_validate,
-                'transforms_infer.yaml': transforms_infer
-                }
+                "hyper_parameters.yaml": hyper_parameters,
+                "hyper_parameters_search.yaml": hyper_parameters_search,
+                "network.yaml": network,
+                "network_search.yaml": network_search,
+                "transforms_train.yaml": transforms_train,
+                "transforms_validate.yaml": transforms_validate,
+                "transforms_infer.yaml": transforms_infer,
+            }
         else:
             fill_records = self.fill_records
 
         for yaml_file, yaml_contents in fill_records.items():
-            file_path = os.path.join(output_path, 'configs', yaml_file)
+            file_path = os.path.join(output_path, "configs", yaml_file)
 
             parser = ConfigParser(globals=False)
             parser.read_config(file_path)
@@ -167,12 +197,17 @@ class DintsAlgo(BundleAlgo):
                     parser[k] = deepcopy(v)  # some values are dicts
                 yaml_contents[k] = deepcopy(parser[k])
 
-            for k, v in kwargs.items():  # override new params that is not in fill_records
-                if (parser.get(k, None) is not None):
+            for (
+                k,
+                v,
+            ) in kwargs.items():  # override new params that is not in fill_records
+                if parser.get(k, None) is not None:
                     parser[k] = deepcopy(v)
                     yaml_contents.update({k: parser[k]})
 
-            ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
+            ConfigParser.export_config_file(
+                parser.get(), file_path, fmt="yaml", default_flow_style=None
+            )
 
         return fill_records
 
@@ -192,21 +227,23 @@ class DintsAlgo(BundleAlgo):
 
         for k, v in params.items():
             if k == "CUDA_VISIBLE_DEVICES":
-                dints_search_params.update({k:v})
+                dints_search_params.update({k: v})
             else:
-                dints_search_params.update({"searching#"+k: v})
+                dints_search_params.update({"searching#" + k: v})
         cmd, devices_info = self._create_cmd(dints_search_params)
-        cmd_search = cmd.replace('train.py', 'search.py')
+        cmd_search = cmd.replace("train.py", "search.py")
         self._run_cmd(cmd_search, devices_info)
 
+        # training
         dints_train_params = {}
         for k, v in params.items():
             if k == "CUDA_VISIBLE_DEVICES":
                 dints_train_params.update({k: v})
             else:
-                dints_train_params.update({"training#"+k: v})
+                dints_train_params.update({"training#" + k: v})
         cmd, devices_info = self._create_cmd(dints_train_params)
         return self._run_cmd(cmd, devices_info)
+
 
 if __name__ == "__main__":
     from monai.utils import optional_import

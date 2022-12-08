@@ -26,10 +26,7 @@ transforms_train:
     mode:
     - bilinear
     - nearest
-    pixdim:
-    - 1.0
-    - 1.0
-    - 1.0
+    pixdim: "$@resample_to_spacing"
   - _target_: CastToTyped
     keys: "@image_key"
     dtype: "$torch.float32"

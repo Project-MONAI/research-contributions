@@ -31,7 +31,7 @@ from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
-from monai.metrics import compute_meandice
+from monai.metrics import compute_dice
 from monai.utils import set_determinism
 
 
@@ -54,12 +54,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     fold = parser.get_parsed_content("fold")
     num_adjacent_slices = parser.get_parsed_content("num_adjacent_slices")
     num_images_per_batch = parser.get_parsed_content("num_images_per_batch")
-    num_iterations = parser.get_parsed_content("num_iterations")
-    num_iterations_per_validation = parser.get_parsed_content("num_iterations_per_validation")
+    num_epochs = parser.get_parsed_content("num_epochs")
+    num_epochs_per_validation = parser.get_parsed_content("num_epochs_per_validation")
     num_sw_batch_size = parser.get_parsed_content("num_sw_batch_size")
     output_classes = parser.get_parsed_content("output_classes")
     overlap_ratio = parser.get_parsed_content("overlap_ratio")
     patch_size_valid = parser.get_parsed_content("patch_size_valid")
+    sw_input_on_cpu = parser.get_parsed_content("sw_input_on_cpu")
     softmax = parser.get_parsed_content("softmax")
 
     train_transforms = parser.get_parsed_content("transforms_train")
@@ -157,7 +158,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     train_loader = DataLoader(train_ds, num_workers=8, batch_size=num_images_per_batch, shuffle=True)
     val_loader = DataLoader(val_ds, num_workers=0, batch_size=1, shuffle=False)
 
-    device = torch.device(f"cuda:{dist.get_rank()}") if torch.cuda.device_count() > 1 else torch.device("cuda:0")
+    device = (
+        torch.device(f"cuda:{os.environ['LOCAL_RANK']}")
+        if world_size > 1
+        else torch.device("cuda:0")
+    )
     torch.cuda.set_device(device)
 
     model = parser.get_parsed_content("network")
@@ -180,10 +185,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     optimizer_part = parser.get_parsed_content("optimizer", instantiate=False)
     optimizer = optimizer_part.instantiate(params=model.parameters())
-
-    num_epochs_per_validation = num_iterations_per_validation // len(train_loader)
-    num_epochs_per_validation = max(num_epochs_per_validation, 1)
-    num_epochs = num_epochs_per_validation * (num_iterations // num_iterations_per_validation)
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         print("num_epochs", num_epochs)
@@ -302,11 +303,21 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in val_loader:
-                    val_images = val_data["image"].to(device)
-                    val_labels = val_data["label"].to(device)
+                    val_images = (
+                        val_data["image"].to(device)
+                        if sw_input_on_cpu is False
+                        else val_data["image"]
+                    )
+                    val_labels = (
+                        val_data["label"].to(device)
+                        if sw_input_on_cpu is False
+                        else val_data["label"]
+                    )
 
                     img_size = val_images.size()
-                    val_outputs = torch.zeros((1, output_classes, img_size[-3], img_size[-2], img_size[-1])).to(device)
+                    val_outputs = torch.zeros((1, output_classes, img_size[-3], img_size[-2], img_size[-1]))
+                    if sw_input_on_cpu is False:
+                        val_outputs = val_outputs.to(device)
 
                     with torch.cuda.amp.autocast(enabled=amp):
                         for _k in range(val_images.size()[-1]):
@@ -338,7 +349,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 model,
                                 mode="gaussian",
                                 overlap=overlap_ratio,
-                                padding_mode="reflect",
+                                sw_device=device,
                             )
 
                     val_outputs = post_pred(val_outputs[0, ...])
@@ -348,7 +359,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         val_labels = post_label(val_labels[0, ...])
                         val_labels = val_labels[None, ...]
 
-                    value = compute_meandice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
+                    value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
 
                     print(_index + 1, "/", len(val_loader), value)
 
