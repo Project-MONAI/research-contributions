@@ -10,8 +10,9 @@
 # limitations under the License.
 
 import os
-from copy import deepcopy
+import sys
 
+from copy import deepcopy
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
 
@@ -72,12 +73,18 @@ class SwinunetrAlgo(BundleAlgo):
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
 
+            epsilon = sys.float_info.epsilon
+            if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
+                spacing = [1.0, 1.0, 1.0]
+
             min_shape = data_stats["stats_summary#image_stats#shape#min"]
             # reflection-mode padding requires a minimum image for a given patch size
             spacing = [
                 min(s / int(patch_size[i] / 3 + 1), spacing[i])
                 for i, s in enumerate(min_shape)
             ]
+
+            hyper_parameters.update({"resample_to_spacing": spacing})
 
             intensity_upper_bound = float(
                 data_stats[
@@ -106,12 +113,6 @@ class SwinunetrAlgo(BundleAlgo):
                 "nonzero": True,
                 "channel_wise": True,
             }
-
-            transforms_train.update({"transforms_train#transforms#3#pixdim": spacing})
-            transforms_validate.update(
-                {"transforms_validate#transforms#3#pixdim": spacing}
-            )
-            transforms_infer.update({"transforms_infer#transforms#3#pixdim": spacing})
 
             if modality.startswith("ct"):
                 transforms_train.update(

@@ -91,6 +91,9 @@ class DintsAlgo(BundleAlgo):
             if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
                 spacing = [1.0, 1.0, 1.0]
 
+            hyper_parameters.update({"training#resample_to_spacing": spacing})
+            hyper_parameters_search.update({"searching#resample_to_spacing": spacing})
+
             intensity_upper_bound = float(
                 data_stats[
                     "stats_summary#image_foreground_stats#intensity#percentile_99_5"
@@ -148,9 +151,6 @@ class DintsAlgo(BundleAlgo):
                 "nonzero": True,
                 "channel_wise": True,
             }
-
-            hyper_parameters.update({"training#resample_to_spacing": spacing})
-            hyper_parameters_search.update({"searching#resample_to_spacing": spacing})
 
             if modality.startswith("ct"):
                 transforms_train.update(
