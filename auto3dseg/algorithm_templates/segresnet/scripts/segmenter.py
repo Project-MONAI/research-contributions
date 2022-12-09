@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import psutil
+import shutil
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
@@ -382,84 +383,6 @@ class DataTransformBuilder:
         return out
 
 
-class SaveCheckpointNonblocking:
-    def __init__(self, non_blocking=True, device=None) -> None:
-
-        self.reset()
-
-        if non_blocking and not ("fork" in mp.get_all_start_methods()):
-            non_blocking = False
-            warnings.warn("non_blocking option is only supported on systems with fork support")
-
-        if non_blocking and torch.cuda.is_available():
-            self._cuda_stream = torch.cuda.Stream(device=device)
-        else:
-            self._cuda_stream = None
-
-        self.non_blocking = non_blocking
-
-    def reset(self, finish_saving=False):
-        if finish_saving:
-            for _, process_p in self._process_dict.items():
-                process_p.join()
-        self._process_dict = {}
-        self.state_dict = None
-
-    def get_state_dict(self, model):
-        if isinstance(model, DistributedDataParallel):
-            state_dict = model.module.state_dict()
-        else:
-            state_dict = model.state_dict()
-        return state_dict
-
-    def copy_state_dict(self, model):
-
-        state_dict = self.get_state_dict(model)
-
-        # Async copy GPU -> CPU memory
-        if self._cuda_stream and self.non_blocking:
-            with torch.cuda.stream(self._cuda_stream):
-                for k, v in state_dict.items():
-                    state_dict[k] = v.to(device=torch.device("cpu"), non_blocking=True, copy=True)
-
-        self.state_dict = state_dict
-
-    def save(self, ckpt: str, model: torch.nn.Module = None, **kwargs):
-
-        # if current ckpt was previously saved, wait for the processes to finish
-        process_p = self._process_dict.pop(ckpt, None)
-        if process_p is not None:
-            process_p.join()
-
-        if model is None:
-            if self._cuda_stream and self.non_blocking:
-                self._cuda_stream.synchronize()  # make sure GPU->CPU finished
-            state_dict = self.state_dict
-            non_blocking = self.non_blocking
-            if state_dict is None:
-                raise ValueError("Model is not provided and state_dict is None, use copy_state_dict() before")
-        else:
-            state_dict = self.get_state_dict(model)
-            non_blocking = False
-
-        def save_process():
-            starttime = time.time()
-            torch.save({"state_dict": state_dict, **kwargs}, ckpt)
-            print("Saving checkpoint process:", ckpt, kwargs, "save_time {:.2f}s".format(time.time() - starttime))
-
-        if non_blocking:
-            # dispatch checkpoint saving in the parallel process
-            ctx = mp.get_context("fork")
-            p = ctx.Process(target=save_process, args=())
-            self._process_dict[ckpt] = p
-            p.start()
-        else:
-            save_process()
-
-    def __del__(self):
-        self.reset(finish_saving=True)
-
-
 class Segmenter:
     def __init__(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, config_dict: Dict = {}, rank: int = 0
@@ -501,22 +424,15 @@ class Segmenter:
         else:
             torch.backends.cudnn.benchmark = True
 
+        if config.get("anisotropic_scales", False) and 'SegResNetDS' in config["network"]["_target_"]:
+            parser.config["network"]["resolution"] = config["resample_resolution"]
+            parser.parse(reset=True)
+            print('Using anisotripic scales', parser['network'])
+
         model = parser.get_parsed_content("network")
 
         if config["pretrained_ckpt_name"] is not None:
-            if not os.path.isfile(config["pretrained_ckpt_name"]):
-                if rank == 0:
-                    warnings.warn("Invalid checkpoint file" + str(config["pretrained_ckpt_name"]))
-            else:
-                checkpoint = torch.load(config["pretrained_ckpt_name"], map_location="cpu")
-                model.load_state_dict(checkpoint["state_dict"], strict=True)
-                start_epoch = checkpoint.get("epoch", 0)
-                best_acc = checkpoint.get("best_acc", 0)
-                print(
-                    "=> loaded checkpoint '{}' (epoch {}) (bestacc {})".format(
-                        config["pretrained_ckpt_name"], start_epoch, best_acc
-                    )
-                )
+            self.checkpoint_load(ckpt=config["pretrained_ckpt_name"], model=model)
 
         if config["cuda"]:
             model = model.cuda(self.rank)
@@ -528,7 +444,7 @@ class Segmenter:
             )
 
         if rank == 0:
-            # print(str(model))
+            print(str(model))
             pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
             print("Total parameters count", pytorch_total_params, "distributed", self.distributed)
 
@@ -549,7 +465,7 @@ class Segmenter:
                 mode="gaussian",
                 cache_roi_weight_map=True,
                 progress=False,
-                cpu_thresh=512**3,
+                cpu_thresh=512**3 // config["output_classes"],
             )
 
         # check for custom transforms
@@ -580,6 +496,10 @@ class Segmenter:
             extra_modalities=config["extra_modalities"],
             custom_transforms=custom_transforms,
         )
+
+        self.lr_scheduler = None
+        self.optimizer = None
+        # end of init
 
     def parse_input_config(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}, rank: int = 0
@@ -668,7 +588,34 @@ class Segmenter:
         # print(config)
         return parser, config
 
-    def get_shared_list(self, length=0):
+    def checkpoint_save(self, ckpt : str, model : torch.nn.Module, **kwargs):
+
+        save_time = time.time()
+        if isinstance(model, torch.nn.parallel.DistributedDataParallel):
+            state_dict = model.module.state_dict()
+        else:
+            state_dict = model.state_dict()
+        torch.save({"state_dict": state_dict, **kwargs}, ckpt)
+
+        save_time = time.time() - save_time
+        print("Saving checkpoint process:", ckpt, kwargs, "save_time {:.2f}s".format(save_time))
+
+        return save_time
+
+    def checkpoint_load(self, ckpt : str, model : torch.nn.Module, **kwargs):
+
+        if not os.path.isfile(ckpt):
+            if self.rank == 0:
+                warnings.warn("Invalid checkpoint file" + str(ckpt))
+        else:
+            checkpoint = torch.load(ckpt, map_location="cpu")
+            model.load_state_dict(checkpoint["state_dict"], strict=True)
+            epoch = checkpoint.get("epoch", 0)
+            best_metric = checkpoint.get("best_metric", 0)
+            print(f"=> loaded checkpoint {ckpt} (epoch {epoch}) (best_metric {best_metric})")
+
+
+    def get_shared_memory_list(self, length=0):
         mp.current_process().authkey = np.arange(32, dtype=np.uint8).tobytes()
         l = mp.Manager().list([None]*length)
         if self.distributed:
@@ -685,7 +632,7 @@ class Segmenter:
 
         train_transform = self.data_tranform_builder(augment=True, resample_label=True)
         if cache_rate > 0:
-            runtime_cache = self.get_shared_list(length=len(data))
+            runtime_cache = self.get_shared_memory_list(length=len(data))
             train_ds = CacheDataset(
                 data=data, transform=train_transform, copy_cache=False, cache_rate=cache_rate, runtime_cache=runtime_cache
             )
@@ -713,7 +660,7 @@ class Segmenter:
         val_transform = self.data_tranform_builder(augment=False, resample_label=resample_label)
 
         if cache_rate > 0:
-            runtime_cache = self.get_shared_list(length=len(data))
+            runtime_cache = self.get_shared_memory_list(length=len(data))
             val_ds = CacheDataset(
                 data=data, transform=val_transform, copy_cache=False, cache_rate=cache_rate, runtime_cache=runtime_cache,
             )
@@ -757,16 +704,22 @@ class Segmenter:
         use_amp = config["amp"]
         use_cuda = config["cuda"]
         ckpt_path = config["ckpt_path"]
+        sigmoid = config["sigmoid"]
 
-        train_files, validation_files = datafold_read(
-            datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=config["fold"]
-        )
+        if config.get("validation_key", None) is not None:
+            train_files, _ = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=-1)
+            validation_files, _ = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=-1, key=config["validation_key"])
+        else:
+            train_files, validation_files = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=config["fold"])
 
         if config["quick"]:  # quick run on a smaller subset of files
             train_files, validation_files = train_files[:8], validation_files[:8]
         if self.rank == 0:
             print("train_files files", len(train_files), "validation files", len(validation_files))
 
+        if len(validation_files)==0:
+            warnings.warn("No validation files found!")
+            
         cache_rate_train, cache_rate_val = self.get_cache_rate(
             train_cases=len(train_files), validation_cases=len(validation_files)
         )
@@ -776,18 +729,24 @@ class Segmenter:
             data=validation_files, cache_rate=cache_rate_val, resample_label=True, persistent_workers=True
         )
 
-        optimizer_part = self.parser.get_parsed_content("optimizer", instantiate=False)
-        optimizer = optimizer_part.instantiate(params=model.parameters())
+        if self.optimizer is None:
+            optimizer_part = self.parser.get_parsed_content("optimizer", instantiate=False)
+            optimizer = optimizer_part.instantiate(params=model.parameters())
+        else:
+            optimizer = self.optimizer
 
-        lr_scheduler = WarmupCosineSchedule(
-            optimizer=optimizer, warmup_steps=config["warmup_epochs"], warmup_multiplier=0.1, t_total=num_epochs
-        )
+        if self.lr_scheduler is None:
+            lr_scheduler = WarmupCosineSchedule(optimizer=optimizer, warmup_steps=config["warmup_epochs"], warmup_multiplier=0.1, t_total=num_epochs)
+        else:
+            lr_scheduler = self.lr_scheduler
 
-        tb_writer = ckpt_saver = None
-        csv_path = progress_path = best_ckpt_path = intermediate_ckpt_path = None
+        tb_writer = None
+        csv_path = progress_path = None
 
         if rank == 0 and ckpt_path is not None:
             # rank 0 is responsible for heavy lifting of logging/saving
+            progress_path = os.path.join(ckpt_path, "progress.yaml")
+
             tb_writer = SummaryWriter(log_dir=ckpt_path)
             print("Writing Tensorboard logs to ", tb_writer.log_dir)
 
@@ -805,18 +764,18 @@ class Segmenter:
                     "epoch_time",
                     "total_time",
                     "loader_delay",
-                ],
+                ]
             )
 
-            progress_path = os.path.join(ckpt_path, "progress.yaml")
+        best_ckpt_path = intermediate_ckpt_path = None
+        do_torch_save = (rank == 0) and ckpt_path is not None and config["ckpt_save"]
+        if do_torch_save:
+            best_ckpt_path = os.path.join(ckpt_path, "model.pt")
+            intermediate_ckpt_path = os.path.join(ckpt_path, "model_final.pt")
 
-            if config["ckpt_save"]:
-                best_ckpt_path = os.path.join(ckpt_path, "model.pt")
-                intermediate_ckpt_path = os.path.join(ckpt_path, "model_final.pt")
-                ckpt_saver = SaveCheckpointNonblocking(non_blocking=True)
 
         best_metric = -1
-        best_metric_epoch = 0
+        best_metric_epoch = -1
         total_time = pre_loop_time = time.time()
 
         for epoch in range(num_epochs):
@@ -837,6 +796,7 @@ class Segmenter:
                 epoch=epoch,
                 rank=rank,
                 num_epochs=num_epochs,
+                sigmoid=sigmoid,
                 use_amp=use_amp,
                 use_cuda=use_cuda,
             )
@@ -853,16 +813,13 @@ class Segmenter:
                     train_time,
                 )
 
-                if ckpt_saver is not None:
-                    ckpt_saver.copy_state_dict(model)  # non-blocking copy
-
                 if tb_writer is not None:
                     tb_writer.add_scalar("train/loss", train_loss, epoch)
                     tb_writer.add_scalar("train/acc", np.mean(train_acc), epoch)
 
             # validate every num_epochs_per_validation epochs (defaults to 1, every epoch)
             val_acc_mean = -1
-            if (epoch + 1) % config["num_epochs_per_validation"] == 0 and val_loader is not None:
+            if (epoch + 1) % config["num_epochs_per_validation"] == 0 and val_loader is not None and len(val_loader)>0:
 
                 start_time = time.time()
                 val_loss, val_acc = self.val_epoch(
@@ -874,9 +831,11 @@ class Segmenter:
                     epoch=epoch,
                     rank=rank,
                     num_epochs=num_epochs,
+                    sigmoid=sigmoid,
                     use_amp=use_amp,
                     use_cuda=use_cuda,
                 )
+
                 validation_time = "{:.2f}s".format(time.time() - start_time)
 
                 val_acc_mean = float(np.mean(val_acc))
@@ -908,14 +867,17 @@ class Segmenter:
                     if val_acc_mean > best_metric:
                         print(f"New best metric ({best_metric:.6f} --> {val_acc_mean:.6f}). ")
                         best_metric, best_metric_epoch = val_acc_mean, epoch
-                        if ckpt_saver is not None:
-                            ckpt_saver.save(ckpt=best_ckpt_path, epoch=best_metric_epoch, best_metric=best_metric)
+                        save_time = 0
+                        if do_torch_save:
+                            save_time = self.checkpoint_save(ckpt=best_ckpt_path, model=self.model, epoch=best_metric_epoch, best_metric=best_metric)
+
                         if progress_path is not None:
                             self.save_progress_yaml(
                                 progress_path=progress_path,
                                 ckpt=best_ckpt_path,
                                 best_avg_dice_score_epoch=best_metric_epoch,
                                 best_avg_dice_score=best_metric,
+                                save_time = save_time,
                                 **timing_dict,
                             )
                     if csv_path is not None:
@@ -930,14 +892,15 @@ class Segmenter:
                         )
 
             # save intermediate checkpoint every num_epochs_per_saving epochs
-            if ((epoch + 1) % config["num_epochs_per_saving"] == 0) and ckpt_saver is not None:
-                ckpt_saver.save(ckpt=intermediate_ckpt_path, epoch=epoch, best_metric=val_acc_mean)
+            if do_torch_save and ((epoch + 1) % config["num_epochs_per_saving"] == 0 or epoch == num_epochs-1):
+                if epoch != best_metric_epoch:
+                    self.checkpoint_save(ckpt=intermediate_ckpt_path, model=self.model, epoch=epoch, best_metric=val_acc_mean)
+                else:
+                    shutil.copyfile(best_ckpt_path, intermediate_ckpt_path) #if already saved once
 
             if lr_scheduler is not None:
                 lr_scheduler.step()
 
-            if ckpt_saver is not None:
-                ckpt_saver.reset()
             total_time = time.time()
         #### end of main epoch loop
 
@@ -948,9 +911,6 @@ class Segmenter:
             print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
             tb_writer.flush()
             tb_writer.close()
-
-        if ckpt_saver is not None:
-            ckpt_saver.reset(finish_saving=True)
 
         return best_metric
 
@@ -964,14 +924,18 @@ class Segmenter:
         invert = val_config.get("invert", True)
 
         if validation_files is None:
-            _, validation_files = datafold_read(
-                datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=config["fold"]
-            )
+            if config.get("validation_key", None) is not None:
+                validation_files, _ = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=-1, key=config["validation_key"])
+            else:
+                _, validation_files = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=config["fold"])
+
+        print("validation files", len(validation_files))
+        if len(validation_files)==0:
+            warnings.warn("No validation files found!")
+            return
 
         val_loader = self.get_val_loader(data=validation_files, resample_label=not invert)
         val_transform = val_loader.dataset.transform
-
-        print("validation files", len(validation_files))
 
         post_transforms = None
         if save_mask or invert:
@@ -991,6 +955,7 @@ class Segmenter:
             loss_function=self.loss_function,
             acc_function=self.acc_function,
             rank=self.rank,
+            sigmoid=self.config["sigmoid"],
             use_amp=self.config["amp"],
             use_cuda=self.config["cuda"],
             post_transforms=post_transforms,
@@ -1023,8 +988,11 @@ class Segmenter:
                 basedir=self.config["data_file_base_dir"],
                 fold=-1,
                 key=testing_key,
-            )  # fixme
+            )  
         print("testing_files files", len(testing_files))
+        if len(testing_files)==0:
+            warnings.warn("No testing_files files found!")
+            return
 
         inf_loader = self.get_val_loader(data=testing_files, resample_label=False)
         inf_transform = inf_loader.dataset.transform
@@ -1043,6 +1011,7 @@ class Segmenter:
             val_loader=inf_loader,
             sliding_inferrer=self.sliding_inferrer,
             rank=self.rank,
+            sigmoid=self.config["sigmoid"],
             use_amp=self.config["amp"],
             use_cuda=self.config["cuda"],
             post_transforms=post_transforms,
@@ -1080,9 +1049,7 @@ class Segmenter:
         post_transforms = DataTransformBuilder.get_postprocess_transform(
             save_mask=save_mask, invert=True, transform=inf_transform, sigmoid=sigmoid, output_path=output_path
         )
-        batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[
-            0
-        ]  # make Meta tensor
+        batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[0]  # make Meta tensor
         pred = [post_transforms(x)["pred"] for x in decollate_batch(batch_data)]
 
         pred = pred[0]
@@ -1109,7 +1076,7 @@ class Segmenter:
 
         model.train()
         device = torch.device(rank) if use_cuda else torch.device("cpu")
-        # print('Train_epoch device', device, 'use_amp', use_amp, 'use_cuda', use_cuda)
+        # print('Train epoch device', device, 'use_amp', use_amp, 'use_cuda', use_cuda)
 
         run_loss = CumulativeAverage()
         run_acc = CumulativeAverage()
@@ -1205,11 +1172,7 @@ class Segmenter:
             pred = logits2pred(logits, sigmoid=sigmoid)
 
             if post_transforms:
-                batch_data["pred"] = convert_to_dst_type(
-                    pred, batch_data["image"], dtype=pred.dtype, device=pred.device
-                )[
-                    0
-                ]  # make Meta tensor
+                batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[0]  # make Meta tensor
                 pred = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)])
 
                 if pred.shape != logits.shape:
