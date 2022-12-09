@@ -719,7 +719,7 @@ class Segmenter:
 
         if len(validation_files)==0:
             warnings.warn("No validation files found!")
-            
+
         cache_rate_train, cache_rate_val = self.get_cache_rate(
             train_cases=len(train_files), validation_cases=len(validation_files)
         )
@@ -988,7 +988,7 @@ class Segmenter:
                 basedir=self.config["data_file_base_dir"],
                 fold=-1,
                 key=testing_key,
-            )  
+            )
         print("testing_files files", len(testing_files))
         if len(testing_files)==0:
             warnings.warn("No testing_files files found!")
