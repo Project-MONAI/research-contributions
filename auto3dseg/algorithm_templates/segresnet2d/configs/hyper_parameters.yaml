@@ -11,14 +11,16 @@ input_channels: null
 learning_rate: 0.2
 num_adjacent_slices: 1
 num_images_per_batch: 2
-num_iterations: 40000
-num_iterations_per_validation: 500
+num_epochs: 2000
+num_epochs_per_validation: 20
 num_patches_per_image: 1
 num_sw_batch_size: 2
 output_classes: null
 overlap_ratio: 0.625
 patch_size: [-1, -1, "$@num_adjacent_slices * 2 + 1"]
 patch_size_valid: [-1, -1, "$@num_adjacent_slices * 2 + 1"]
+resample_to_spacing: null
+sw_input_on_cpu: false
 softmax: true
 
 # training
@@ -40,7 +42,7 @@ optimizer:
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.StepLR
   optimizer: "$@optimizer"
-  step_size: "$max(@num_iterations // 5, 1)"
+  step_size: "$max(@num_epochs // 5, 1)"
   gamma: 0.5
 
 # fine-tuning

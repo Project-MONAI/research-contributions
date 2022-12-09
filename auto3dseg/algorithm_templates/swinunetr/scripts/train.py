@@ -31,7 +31,7 @@ from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
-from monai.metrics import compute_meandice
+from monai.metrics import compute_dice
 from monai.utils import set_determinism
 from monai.apps import download_url
 
@@ -56,8 +56,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     finetune = parser.get_parsed_content("finetune")
     fold = parser.get_parsed_content("fold")
     num_images_per_batch = parser.get_parsed_content("num_images_per_batch")
-    num_iterations = parser.get_parsed_content("num_iterations")
-    num_iterations_per_validation = parser.get_parsed_content("num_iterations_per_validation")
+    num_epochs = parser.get_parsed_content("num_epochs")
+    num_epochs_per_validation = parser.get_parsed_content("num_epochs_per_validation")
     num_sw_batch_size = parser.get_parsed_content("num_sw_batch_size")
     output_classes = parser.get_parsed_content("output_classes")
     overlap_ratio = parser.get_parsed_content("overlap_ratio")
@@ -159,7 +159,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     train_loader = DataLoader(train_ds, num_workers=2, batch_size=num_images_per_batch, shuffle=True)
     val_loader = DataLoader(val_ds, num_workers=2, batch_size=1, shuffle=False)
 
-    device = torch.device(f"cuda:{dist.get_rank()}") if torch.cuda.device_count() > 1 else torch.device("cuda:0")
+    device = (
+        torch.device(f"cuda:{os.environ['LOCAL_RANK']}")
+        if world_size > 1
+        else torch.device("cuda:0")
+    )
     torch.cuda.set_device(device)
 
     model = parser.get_parsed_content("network")
@@ -201,10 +205,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     optimizer_part = parser.get_parsed_content("optimizer", instantiate=False)
     optimizer = optimizer_part.instantiate(params=model.parameters())
-
-    num_epochs_per_validation = num_iterations_per_validation // len(train_loader)
-    num_epochs_per_validation = max(num_epochs_per_validation, 1)
-    num_epochs = num_epochs_per_validation * (num_iterations // num_iterations_per_validation)
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         print("num_epochs", num_epochs)
@@ -333,6 +333,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             model,
                             mode="gaussian",
                             overlap=overlap_ratio,
+                            sw_device=device,
                         )
 
                     val_outputs = post_pred(val_outputs[0, ...])
@@ -342,7 +343,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         val_labels = post_label(val_labels[0, ...])
                         val_labels = val_labels[None, ...]
 
-                    value = compute_meandice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
+                    value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
 
                     print(_index + 1, "/", len(val_loader), value)
 

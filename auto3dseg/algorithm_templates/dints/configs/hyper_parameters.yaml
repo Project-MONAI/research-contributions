@@ -5,6 +5,9 @@ data_file_base_dir: null
 data_list_file_path: null
 fold: 0
 
+transforms:
+  resample_to_spacing: "$@training#resample_to_spacing"
+
 training:
   # hyper-parameters
   amp: true
@@ -12,14 +15,16 @@ training:
   input_channels: null
   learning_rate: 0.2
   num_images_per_batch: 2
-  num_iterations: 40000
-  num_iterations_per_validation: 500
+  num_epochs: 2000
+  num_epochs_per_validation: 20
   num_patches_per_image: 1
   num_sw_batch_size: 2
   output_classes: null
   overlap_ratio: 0.625
   patch_size: null
   patch_size_valid: null
+  resample_to_spacing: null
+  sw_input_on_cpu: false
   softmax: true
 
   loss:
@@ -40,7 +45,7 @@ training:
   lr_scheduler:
     _target_: torch.optim.lr_scheduler.StepLR
     optimizer: "$@training#optimizer"
-    step_size: "$max(@training#num_iterations // 5, 1)"
+    step_size: "$max(@training#num_epochs // 5, 1)"
     gamma: 0.5
 
 # fine-tuning

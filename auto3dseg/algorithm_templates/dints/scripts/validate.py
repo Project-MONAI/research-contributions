@@ -25,7 +25,7 @@ from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch
 from monai.inferers import sliding_window_inference
-from monai.metrics import compute_meandice
+from monai.metrics import compute_dice
 
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
@@ -167,7 +167,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 val_labels = post_pred(val_labels[0, ...])
                 val_labels = val_labels[None, ...]
 
-            value = compute_meandice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
+            value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
 
             metric_count += len(value)
             metric_sum += value.sum().item()
