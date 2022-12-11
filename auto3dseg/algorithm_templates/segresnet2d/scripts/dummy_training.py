@@ -8,8 +8,8 @@ import yaml
 
 
 def objective(trial):
-    num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 20)
-    num_patches_per_image = trial.suggest_int("num_patches_per_image", 1, 20)
+    num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 40)
+    num_patches_per_image = trial.suggest_int("num_patches_per_image", 1, 40)
     num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 40)
     validation_data_device = trial.suggest_categorical(
         "validation_data_device", ["cpu", "gpu"]
@@ -18,7 +18,7 @@ def objective(trial):
     device_factor = 2.0 if validation_data_device == "gpu" else 1.0
 
     try:
-        cmd = f"bash fake_training_script_swinunetr.sh {num_images_per_batch} {num_patches_per_image} {num_sw_batch_size} {validation_data_device}"
+        cmd = f"bash dummy_training_script.sh {num_images_per_batch} {num_patches_per_image} {num_sw_batch_size} {validation_data_device}"
         _ = subprocess.run(cmd.split(), check=True)
     except:
         print("[error] OOM")
@@ -44,7 +44,7 @@ def objective(trial):
     dict_file["validation_data_device"] = str(validation_data_device)
     dict_file["value"] = int(value)
 
-    with open("hyper_param_swinunetr.yaml", "a") as out_file:
+    with open("hyper_param_segresnet2d.yaml", "a") as out_file:
         yaml.dump([dict_file], stream=out_file)
 
     return value
