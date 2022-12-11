@@ -13,10 +13,7 @@ transforms_infer:
     align_corners: true
     keys: '@image_key'
     mode: bilinear
-    pixdim:
-    - 1.0
-    - 1.0
-    - 1.0
+    pixdim: "$@resample_to_spacing"
   - _target_: CastToTyped
     keys: "@image_key"
     dtype: "$torch.float32"
