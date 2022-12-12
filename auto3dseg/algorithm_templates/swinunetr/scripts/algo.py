@@ -178,7 +178,12 @@ class SwinunetrAlgo(BundleAlgo):
 
         # customize parameters for gpu
         if kwargs.pop("gpu_customization", False):
-            fill_records = self.customize_param_for_gpu(output_path, fill_records)
+            num_trials_custom_gpu = kwargs.pop("num_trials_custom_gpu", 60)
+            fill_records = self.customize_param_for_gpu(
+                output_path,
+                fill_records,
+                num_trials_custom_gpu,
+            )
 
         return fill_records
 
