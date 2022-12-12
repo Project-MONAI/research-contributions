@@ -306,7 +306,7 @@ class DintsAlgo(BundleAlgo):
                     ConfigParser.export_config_file(
                         parser.get(), file_path, fmt="yaml", default_flow_style=None
                     )
-            
+
         self.batch_size_optimized = True
 
     def train(self, train_params=None):
