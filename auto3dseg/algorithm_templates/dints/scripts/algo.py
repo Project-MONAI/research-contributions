@@ -266,7 +266,7 @@ class DintsAlgo(BundleAlgo):
         if os.path.exists(opt_result_file):
             with open(opt_result_file) as in_file:
                 best_trial = yaml.full_load(in_file)
-        
+
         if not os.path.exists(opt_result_file) or "dints" not in best_trial:
             study = optuna.create_study()
             study.optimize(objective, n_trials=6)
