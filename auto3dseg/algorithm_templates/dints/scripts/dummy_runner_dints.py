@@ -13,17 +13,17 @@ from torch.cuda.amp import GradScaler, autocast
 
 
 class DummyRunnerDiNTS(object):
-    def __init__(self):
+    def __init__(self, output_path):
         config_file = []
         config_file.append(
-            os.path.join("work_dir", "dints_0", "configs", "hyper_parameters.yaml")
+            os.path.join(output_path, "configs", "hyper_parameters.yaml")
         )
-        config_file.append(os.path.join("work_dir", "dints_0", "configs", "network.yaml"))
+        config_file.append(os.path.join(output_path, "configs", "network.yaml"))
         config_file.append(
-            os.path.join("work_dir", "dints_0", "configs", "transforms_train.yaml")
+            os.path.join(output_path, "configs", "transforms_train.yaml")
         )
         config_file.append(
-            os.path.join("work_dir", "dints_0", "configs", "transforms_validate.yaml")
+            os.path.join(output_path, "configs", "transforms_validate.yaml")
         )
 
         parser = ConfigParser()
@@ -55,7 +55,7 @@ class DummyRunnerDiNTS(object):
 
         train_transforms = parser.get_parsed_content("transforms_train")
 
-        data_stats_file = os.path.join("work_dir", "datastats.yaml")
+        data_stats_file = os.path.join(output_path, "..", "datastats.yaml")
         with open(data_stats_file) as f_data_stat:
             data_stat = yaml.full_load(f_data_stat)
 
