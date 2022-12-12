@@ -216,7 +216,7 @@ class Segresnet2dAlgo(BundleAlgo):
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
 
             try:
-                cmd = "python {0:s}dummy_runner_segresnet2d.py ".format(os.path.join(output_path, "scripts") + os.sep)
+                cmd = "python {0:s}dummy_runner.py ".format(os.path.join(output_path, "scripts") + os.sep)
                 cmd += "--output_path {0:s} ".format(output_path)
                 cmd += "run "
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
