@@ -248,7 +248,7 @@ class Segresnet2dAlgo(BundleAlgo):
         if os.path.exists(opt_result_file):
             with open(opt_result_file) as in_file:
                 best_trial = yaml.full_load(in_file)
-        
+
         if not os.path.exists(opt_result_file) or "segresnet2d" not in best_trial:
             study = optuna.create_study()
             study.optimize(objective, n_trials=6)
@@ -288,7 +288,7 @@ class Segresnet2dAlgo(BundleAlgo):
                     ConfigParser.export_config_file(
                         parser.get(), file_path, fmt="yaml", default_flow_style=None
                     )
-            
+
         self.batch_size_optimized = True
 
 if __name__ == "__main__":
