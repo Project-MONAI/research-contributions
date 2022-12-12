@@ -182,7 +182,7 @@ class SwinunetrAlgo(BundleAlgo):
 
         return fill_records
 
-    def customize_param_for_gpu(self, output_path, fill_records):
+    def customize_param_for_gpu(self, output_path, fill_records, num_trials=60):
         # optimize batch size for model training
         import optuna
 
@@ -228,7 +228,7 @@ class SwinunetrAlgo(BundleAlgo):
 
         if not os.path.exists(opt_result_file) or "swunetr" not in best_trial:
             study = optuna.create_study()
-            study.optimize(objective, n_trials=60)
+            study.optimize(objective, n_trials=num_trials)
             trial = study.best_trial
             best_trial = {}
             best_trial["num_images_per_batch"] = int(trial.params["num_images_per_batch"])
