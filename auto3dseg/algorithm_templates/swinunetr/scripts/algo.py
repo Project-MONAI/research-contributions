@@ -230,7 +230,7 @@ class SwinunetrAlgo(BundleAlgo):
 
         if not os.path.exists(opt_result_file) or "swunetr" not in best_trial:
             study = optuna.create_study()
-            study.optimize(objective, n_trials=20)
+            study.optimize(objective, n_trials=100)
             trial = study.best_trial
             best_trial = {}
             best_trial["num_images_per_batch"] = int(trial.params["num_images_per_batch"])
