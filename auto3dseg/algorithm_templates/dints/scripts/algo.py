@@ -218,8 +218,8 @@ class DintsAlgo(BundleAlgo):
             )
 
         # customize parameters for gpu
-        if "skip_gpu_customization" not in kwargs or skip_gpu_customization is not True:
-            _ = self.customize_param_for_gpu(output_path, fill_records)
+        if kwargs.pop("gpu_customization", False):
+            fill_records = self.customize_param_for_gpu(output_path, fill_records)
 
         return fill_records
 
@@ -310,6 +310,8 @@ class DintsAlgo(BundleAlgo):
                     )
 
         self.batch_size_optimized = True
+
+        return fill_records
 
     def train(self, train_params=None):
         """

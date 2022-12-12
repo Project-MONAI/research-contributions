@@ -177,8 +177,8 @@ class SwinunetrAlgo(BundleAlgo):
             )
 
         # customize parameters for gpu
-        if "skip_gpu_customization" not in kwargs or skip_gpu_customization is not True:
-            _ = self.customize_param_for_gpu(output_path, fill_records)
+        if kwargs.pop("gpu_customization", False):
+            fill_records = self.customize_param_for_gpu(output_path, fill_records)
 
         return fill_records
 
@@ -187,10 +187,8 @@ class SwinunetrAlgo(BundleAlgo):
         import optuna
 
         def objective(trial):
-            # num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 40)
-            # num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 40)
-            num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 4)
-            num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 4)
+            num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 40)
+            num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 40)
             validation_data_device = trial.suggest_categorical("validation_data_device", ["cpu", "gpu"])
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
 
@@ -271,6 +269,9 @@ class SwinunetrAlgo(BundleAlgo):
                     )
 
         self.batch_size_optimized = True
+
+        return fill_records
+
 
 if __name__ == "__main__":
     from monai.utils import optional_import

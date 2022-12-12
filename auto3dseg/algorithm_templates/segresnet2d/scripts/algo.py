@@ -200,8 +200,8 @@ class Segresnet2dAlgo(BundleAlgo):
             )
 
         # customize parameters for gpu
-        if "skip_gpu_customization" not in kwargs or skip_gpu_customization is not True:
-            _ = self.customize_param_for_gpu(output_path, fill_records)
+        if kwargs.pop("gpu_customization", False):
+            fill_records = self.customize_param_for_gpu(output_path, fill_records)
 
         return fill_records
 
@@ -290,6 +290,9 @@ class Segresnet2dAlgo(BundleAlgo):
                     )
 
         self.batch_size_optimized = True
+
+        return fill_records
+
 
 if __name__ == "__main__":
     from monai.utils import optional_import
