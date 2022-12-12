@@ -12,6 +12,7 @@
 import os
 import subprocess
 import sys
+import yaml
 
 from copy import deepcopy
 from monai.apps.auto3dseg import BundleAlgo
@@ -186,8 +187,10 @@ class SwinunetrAlgo(BundleAlgo):
         import optuna
 
         def objective(trial):
-            num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 40)
-            num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 40)
+            # num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 40)
+            # num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 40)
+            num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 4)
+            num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 4)
             validation_data_device = trial.suggest_categorical("validation_data_device", ["cpu", "gpu"])
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
 
@@ -243,7 +246,7 @@ class SwinunetrAlgo(BundleAlgo):
         else:
             with open(opt_result_file) as in_file:
                 best_trial = yaml.full_load(in_file)
-            best_trial = best_trial["dints"]
+            best_trial = best_trial["swunetr"]
 
         if best_trial["value"] < 0:
             fill_records["hyper_parameters.yaml"].update({"num_images_per_batch": best_trial["num_images_per_batch"]})

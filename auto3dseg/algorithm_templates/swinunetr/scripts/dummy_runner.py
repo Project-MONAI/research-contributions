@@ -62,8 +62,10 @@ class DummyRunnerSwinUNETR(object):
 
         self.max_shape = [-1, -1, -1]
         for _k in range(len(data_stat["stats_by_cases"])):
-            image_shape = data_stat["stats_by_cases"][_k]["image_stats"]["shape"][0]
-            image_spacing = data_stat["stats_by_cases"][_k]["image_stats"]["spacing"][0]
+            image_shape = data_stat["stats_by_cases"][_k]["image_stats"]["shape"]
+            image_shape = np.squeeze(image_shape)
+            image_spacing = data_stat["stats_by_cases"][_k]["image_stats"]["spacing"]
+            image_spacing = np.squeeze(image_spacing)
             image_spacing = [np.abs(image_spacing[_i]) for _i in range(3)]
 
             for _l in range(3):
@@ -71,7 +73,7 @@ class DummyRunnerSwinUNETR(object):
                     self.max_shape[_l],
                     int(np.ceil(float(image_shape[_l]) * image_spacing[_l] / pixdim[_l])),
                 )
-        print("max_shape", max_shape)
+        print("max_shape", self.max_shape)
 
     def run(
         self,
@@ -132,7 +134,7 @@ class DummyRunnerSwinUNETR(object):
 
                 scaler.scale(loss).backward()
                 scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 0.5)
                 scaler.step(self.optimizer)
                 scaler.update()
 
