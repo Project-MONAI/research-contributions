@@ -228,10 +228,8 @@ class DintsAlgo(BundleAlgo):
         import optuna
 
         def objective(trial):
-            # num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 20)
-            # num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 40)
-            num_images_per_batch = trial.suggest_int("num_images_per_batch", 3, 4)
-            num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 2)
+            num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 20)
+            num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 40)
             validation_data_device = trial.suggest_categorical("validation_data_device", ["cpu", "gpu"])
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
 
@@ -265,9 +263,13 @@ class DintsAlgo(BundleAlgo):
         mem = round(float(mem) / 1024.0)
 
         opt_result_file = os.path.join(output_path, "..", f"gpu_opt_{mem}gb.yaml")
-        if not os.path.exists(opt_result_file):
+        if os.path.exists(opt_result_file):
+            with open(opt_result_file) as in_file:
+                best_trial = yaml.full_load(in_file)
+        
+        if not os.path.exists(opt_result_file) or "dints" not in best_trial:
             study = optuna.create_study()
-            study.optimize(objective, n_trials=2)
+            study.optimize(objective, n_trials=6)
             trial = study.best_trial
             best_trial = {}
             best_trial["num_images_per_batch"] = int(trial.params["num_images_per_batch"])
