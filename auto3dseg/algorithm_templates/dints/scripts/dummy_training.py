@@ -40,4 +40,8 @@ os.system("clear")
 
 study = optuna.create_study()
 study.optimize(objective, n_trials=100)
-print(study.best_value)
+best_trial = study.best_trial
+
+print("\n-----  Finished Optimization  -----")
+print('Optimal value: {}'.format(best_trial.value))
+print("Best hyperparameters: {}".format(best_trial.params))
