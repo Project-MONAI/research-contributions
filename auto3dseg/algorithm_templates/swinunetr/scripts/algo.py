@@ -10,11 +10,19 @@
 # limitations under the License.
 
 import os
+import subprocess
 import sys
 
 from copy import deepcopy
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
+
+
+def get_gpu_available_memory():
+    command = "nvidia-smi --query-gpu=memory.free --format=csv"
+    memory_free_info = subprocess.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
+    memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
+    return memory_free_values
 
 
 class SwinunetrAlgo(BundleAlgo):
@@ -167,8 +175,99 @@ class SwinunetrAlgo(BundleAlgo):
                 parser.get(), file_path, fmt="yaml", default_flow_style=None
             )
 
+        # customize parameters for gpu
+        if "skip_gpu_customization" not in kwargs or skip_gpu_customization is not True:
+            _ = self.customize_param_for_gpu(output_path, fill_records)
+
         return fill_records
 
+    def customize_param_for_gpu(self, output_path, fill_records):
+        # optimize batch size for model training
+        import optuna
+
+        def objective(trial):
+            num_images_per_batch = trial.suggest_int("num_images_per_batch", 1, 40)
+            num_sw_batch_size = trial.suggest_int("num_sw_batch_size", 1, 40)
+            validation_data_device = trial.suggest_categorical("validation_data_device", ["cpu", "gpu"])
+            device_factor = 2.0 if validation_data_device == "gpu" else 1.0
+
+            try:
+                cmd = "python {0:s}dummy_runner.py ".format(os.path.join(output_path, "scripts") + os.sep)
+                cmd += "--output_path {0:s} ".format(output_path)
+                cmd += "run "
+                cmd += f"--num_images_per_batch {num_images_per_batch} "
+                cmd += f"--num_sw_batch_size {num_sw_batch_size} "
+                cmd += f"--validation_data_device {validation_data_device}"
+                _ = subprocess.run(cmd.split(), check=True)
+            except:
+                print("[error] OOM")
+                return (
+                    float(num_images_per_batch)
+                    * float(num_sw_batch_size)
+                    * device_factor
+                )
+
+            value = (
+                -1.0
+                * float(num_images_per_batch)
+                * float(num_sw_batch_size)
+                * device_factor
+            )
+
+            return value
+
+        mem = get_gpu_available_memory()
+        mem = mem[0] if type(mem) is list else mem
+        mem = round(float(mem) / 1024.0)
+
+        opt_result_file = os.path.join(output_path, "..", f"gpu_opt_{mem}gb.yaml")
+        if os.path.exists(opt_result_file):
+            with open(opt_result_file) as in_file:
+                best_trial = yaml.full_load(in_file)
+
+        if not os.path.exists(opt_result_file) or "swunetr" not in best_trial:
+            study = optuna.create_study()
+            study.optimize(objective, n_trials=6)
+            trial = study.best_trial
+            best_trial = {}
+            best_trial["num_images_per_batch"] = int(trial.params["num_images_per_batch"])
+            best_trial["num_sw_batch_size"] = int(trial.params["num_sw_batch_size"])
+            best_trial["validation_data_device"] = trial.params["validation_data_device"]
+            best_trial["value"] = int(trial.value)
+            with open(opt_result_file, "a") as out_file:
+                yaml.dump({"swunetr": best_trial}, stream=out_file)
+
+            print("\n-----  Finished Optimization  -----")
+            print('Optimal value: {}'.format(best_trial["value"]))
+            print("Best hyperparameters: {}".format(best_trial))
+        else:
+            with open(opt_result_file) as in_file:
+                best_trial = yaml.full_load(in_file)
+            best_trial = best_trial["dints"]
+
+        if best_trial["value"] < 0:
+            fill_records["hyper_parameters.yaml"].update({"num_images_per_batch": best_trial["num_images_per_batch"]})
+            fill_records["hyper_parameters.yaml"].update({"num_sw_batch_size": best_trial["num_sw_batch_size"]})
+            if best_trial["validation_data_device"] == "cpu":
+                fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": True})
+            else:
+                fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": False})
+
+            for yaml_file, yaml_contents in fill_records.items():
+                if "hyper_parameters" in yaml_file:
+                    file_path = os.path.join(output_path, "configs", yaml_file)
+
+                    parser = ConfigParser(globals=False)
+                    parser.read_config(file_path)
+                    for k, v in yaml_contents.items():
+                        parser[k] = deepcopy(v)
+                        yaml_contents[k] = deepcopy(parser[k])
+
+                    ConfigParser.export_config_file(
+                        parser.get(), file_path, fmt="yaml", default_flow_style=None
+                    )
+
+        self.batch_size_optimized = True
 
 if __name__ == "__main__":
     from monai.utils import optional_import
