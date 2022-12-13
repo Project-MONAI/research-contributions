@@ -71,7 +71,7 @@ from monai.transforms import (
 from monai.utils import MetricReduction, convert_to_dst_type, optional_import, set_determinism
 
 
-class DiceAccuracy:
+class DiceHelper:
     def __init__(
         self,
         sigmoid: bool = False,
@@ -97,6 +97,30 @@ class DiceAccuracy:
         self.activate = activate
 
     def __call__(self, y_pred: Union[torch.Tensor, list], y: torch.Tensor):
+
+        n_pred_ch = y_pred.shape[1]
+
+        if self.softmax:
+            if n_pred_ch > 1:
+                y_pred = torch.argmax(y_pred, dim=1, keepdim=True)
+                y_pred = one_hot(y_pred, num_classes=n_pred_ch, dim=1)
+        elif self.sigmoid:
+            if self.activate:
+                y_pred = torch.sigmoid(y_pred)
+            y_pred = (y_pred > 0.5).float()
+
+        if self.to_onehot_y and n_pred_ch > 1 and y.shape[1] == 1:
+            y = one_hot(y, num_classes=n_pred_ch, dim=1)
+
+        data = compute_dice(
+            y_pred=y_pred, y=y, include_background=self.include_background, ignore_empty=self.ignore_empty
+        )
+
+        f, not_nans = do_metric_reduction(data, self.reduction)
+        return (f, not_nans) if self.get_not_nans else f
+
+
+def get_dice_accuracy(y_pred: Union[torch.Tensor, list], y: torch.Tensor):
 
         n_pred_ch = y_pred.shape[1]
 
@@ -450,7 +474,7 @@ class Segmenter:
         self.loss_function = parser.get_parsed_content("loss")
         self.loss_function = DeepSupervisionLoss(self.loss_function)
 
-        self.acc_function = DiceAccuracy(sigmoid=config["sigmoid"])
+        self.acc_function = DiceHelper(sigmoid=config["sigmoid"])
         self.grad_scaler = GradScaler(enabled=config["amp"])
 
         if parser.get("sliding_inferrer") is not None:
