@@ -69,7 +69,7 @@ validate:
   ckpt_name: "$@bundle_root + '/model/model.pt'"
   output_path: "$@bundle_root + '/prediction_validation'"
   save_mask: false
-  invert: false
+  invert: true
 
 infer:
   enabled: false

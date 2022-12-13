@@ -335,11 +335,9 @@ class DataTransformBuilder:
         cls, save_mask=False, invert=False, transform=None, sigmoid=False, output_path=None
     ) -> Compose:
 
-        # print('post_process callback:', idx, logits.shape, logits.device)
         ts = []
         if invert and transform is not None:
             ts.append(Invertd(keys="pred", orig_keys="image", transform=transform, nearest_interp=False))
-            # ts.append(DataStatsd(keys=['pred'], allow_missing_keys=True, additional_info = lambda x: x.meta ))
 
         if save_mask and output_path is not None:
             ts.append(CopyItemsd(keys="pred", times=1, names="seg"))
@@ -388,28 +386,30 @@ class Segmenter:
         self, config_file: Optional[Union[str, Sequence[str]]] = None, config_dict: Dict = {}, rank: int = 0
     ) -> None:
 
-        if rank == 0:
-            print("Segmenter", rank, config_file, config_dict)
-
         self.rank = rank
         self.distributed = dist.is_initialized()
 
-        if self.distributed and torch.cuda.is_available() and dist.get_backend() == dist.Backend.NCCL:
-            torch.cuda.set_device(rank)
+        if rank == 0:
+            print("Segmenter", rank, config_file, config_dict)
 
         np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True)
         warnings.filterwarnings(
             action="ignore", module=r"monai\.transforms\.utils", lineno=564
-        )  # silence tge warning about missing class in groundtruth
+        )  # silence warning about missing class in groundtruth
 
         if "fork" in mp.get_all_start_methods():
             mp.set_start_method("fork", force=True)  # lambda functions fail to pickle without it
         else:
-            warnings.warn(
-                "Multiprocessing method fork is not available in your system, some non-picklable objects (such as Lambda functions) may fail"
-            )
+            warnings.warn("Multiprocessing method fork is not available, some non-picklable objects (e.g. lambda ) may fail")
 
         parser, config = self.parse_input_config(config_file=config_file, override=config_dict, rank=rank)
+
+        if config["cuda"] and torch.cuda.is_available():
+            self.device = torch.device(self.rank)
+            if self.distributed and dist.get_backend() == dist.Backend.NCCL:
+                torch.cuda.set_device(rank)
+        else:
+            self.device = torch.device("cpu")
 
         if rank == 0:
             print(yaml.safe_dump(config))
@@ -421,7 +421,7 @@ class Segmenter:
 
         if config["determ"]:
             set_determinism(seed=0)
-        else:
+        elif torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
 
         if config.get("anisotropic_scales", False) and 'SegResNetDS' in config["network"]["_target_"]:
@@ -434,8 +434,7 @@ class Segmenter:
         if config["pretrained_ckpt_name"] is not None:
             self.checkpoint_load(ckpt=config["pretrained_ckpt_name"], model=model)
 
-        if config["cuda"]:
-            model = model.cuda(self.rank)
+        model = model.to(self.device)
 
         if self.distributed:
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -444,7 +443,6 @@ class Segmenter:
             )
 
         if rank == 0:
-            print(str(model))
             pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
             print("Total parameters count", pytorch_total_params, "distributed", self.distributed)
 
@@ -499,7 +497,7 @@ class Segmenter:
 
         self.lr_scheduler = None
         self.optimizer = None
-        # end of init
+
 
     def parse_input_config(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}, rank: int = 0
@@ -585,7 +583,6 @@ class Segmenter:
             if "_target_" not in str(v):
                 config[k] = parser.get_parsed_content(k)
 
-        # print(config)
         return parser, config
 
     def checkpoint_save(self, ckpt : str, model : torch.nn.Module, **kwargs):
@@ -616,13 +613,48 @@ class Segmenter:
 
 
     def get_shared_memory_list(self, length=0):
+
         mp.current_process().authkey = np.arange(32, dtype=np.uint8).tobytes()
-        l = mp.Manager().list([None]*length)
+        shl0 = mp.Manager().list([None]*length)
+
+
         if self.distributed:
-            l = [l]
-            dist.broadcast_object_list(l)
-            l = l[0]
-        return l
+            # to support multi-node training, we need check for a local process group
+            is_multinode = False
+
+            if dist.is_torchelastic_launched():
+                local_world_size = int(os.getenv("LOCAL_WORLD_SIZE"))
+                world_size = int(os.getenv("WORLD_SIZE"))
+                group_rank = int(os.getenv("GROUP_RANK"))
+                if world_size > local_world_size:
+                    is_multinode = True
+                    # we're in multi-node, get local world sizes
+                    lw = torch.tensor(local_world_size, dtype=torch.int, device=self.device)
+                    lw_sizes = [torch.zeros_like(lw) for _ in range(world_size)]
+                    dist.all_gather(tensor_list=lw_sizes, tensor=lw)
+
+                    src = g_rank = 0
+                    while src < world_size:
+                        shl_list = [shl0]
+                        # create sub-groups local to a node, to share memory only within a node
+                        # and broadcast shared list within a node
+                        group = dist.new_group(ranks=list(range(src, src + local_world_size)))
+                        dist.broadcast_object_list(shl_list, src=src, group=group, device=self.device)
+                        dist.destroy_process_group(group)
+                        if group_rank==g_rank:
+                            shl = shl_list[0]
+                        src = src + lw_sizes[src].item() #rank of first process in the next node
+                        g_rank += 1 
+
+
+            if not is_multinode:
+                shl_list = [shl0]
+                dist.broadcast_object_list(shl_list, src=0,  device=self.device)
+                shl = shl_list[0]
+            
+        return shl
+
+
 
     def get_train_loader(self, data, cache_rate=0, persistent_workers=False):
 
@@ -761,9 +793,7 @@ class Segmenter:
                     "time",
                     "train_time",
                     "validation_time",
-                    "epoch_time",
-                    "total_time",
-                    "loader_delay",
+                    "epoch_time"
                 ]
             )
 
@@ -776,7 +806,7 @@ class Segmenter:
 
         best_metric = -1
         best_metric_epoch = -1
-        total_time = pre_loop_time = time.time()
+        pre_loop_time = time.time()
 
         for epoch in range(num_epochs):
 
@@ -859,9 +889,7 @@ class Segmenter:
                     timing_dict = dict(
                         train_time=train_time,
                         validation_time=validation_time,
-                        epoch_time="{:.2f}s".format(time.time() - epoch_time),
-                        total_time="{:.2f}s".format(time.time() - total_time),
-                        loader_delay="{:.2f}s".format(total_time - epoch_time),
+                        epoch_time="{:.2f}s".format(time.time() - epoch_time)
                     )
 
                     if val_acc_mean > best_metric:
@@ -901,7 +929,6 @@ class Segmenter:
             if lr_scheduler is not None:
                 lr_scheduler.step()
 
-            total_time = time.time()
         #### end of main epoch loop
 
         train_loader = None
@@ -1032,7 +1059,8 @@ class Segmenter:
 
         start_time = time.time()
         sigmoid = self.config["sigmoid"]
-        device = torch.device(self.rank) if self.config["cuda"] else torch.device("cpu")
+        # device = torch.device(self.rank) if self.config["cuda"] else torch.device("cpu")
+        device = self.device
 
         inf_transform = self.data_tranform_builder(augment=False, resample_label=False)
 
@@ -1076,7 +1104,6 @@ class Segmenter:
 
         model.train()
         device = torch.device(rank) if use_cuda else torch.device("cpu")
-        # print('Train epoch device', device, 'use_amp', use_amp, 'use_cuda', use_cuda)
 
         run_loss = CumulativeAverage()
         run_acc = CumulativeAverage()
@@ -1088,7 +1115,6 @@ class Segmenter:
             data = batch_data["image"].as_subclass(torch.Tensor).to(device=device)
             target = batch_data["label"].as_subclass(torch.Tensor).to(device=device)
 
-            # print('Target shape',target.shape, 'data', data.shape, batch_data["image_meta_dict"]["filename_or_obj"][0])
             optimizer.zero_grad(set_to_none=True)
 
             with autocast(enabled=use_amp):
@@ -1164,7 +1190,6 @@ class Segmenter:
 
             data = batch_data["image"].as_subclass(torch.Tensor).to(device=device)
 
-            # print(rank, 'Validation received data', batch_data['image'].shape, 'target', batch_data['label'].shape)
             with autocast(enabled=use_amp):
                 logits = sliding_inferrer(inputs=data, network=model)
 
@@ -1194,7 +1219,6 @@ class Segmenter:
                         loss = loss_function(logits, target)
                         run_loss.append(loss.to(device=device), count=batch_size)
 
-                # print(acc.cpu().numpy(), batch_data["image_meta_dict"]["filename_or_obj"][0])
                 avg_loss = run_loss.aggregate()
                 avg_acc = run_acc.aggregate()
 
@@ -1233,7 +1257,7 @@ class Segmenter:
                 avail_memory = psutil.virtual_memory().available
                 cache_rate = min(0.5 * avail_memory / float(approx_cache_required), 1.0)
                 if cache_rate < 0.1:
-                    cache_rate = 0.0  # dont cache small amounts
+                    cache_rate = 0.0  # don't cache small amounts
 
                 if self.rank == 0:
                     print(
@@ -1307,8 +1331,6 @@ def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]
 
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     dist_available = dist.is_available()
-
-    print(rank, "run_segmenter_worker dist_available:", dist_available, "initialized", dist.is_initialized())
 
     if dist_available:
         mgpu = override.get("mgpu", None)
