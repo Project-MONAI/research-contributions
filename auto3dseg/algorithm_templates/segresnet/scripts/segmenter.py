@@ -644,14 +644,14 @@ class Segmenter:
                         if group_rank==g_rank:
                             shl = shl_list[0]
                         src = src + lw_sizes[src].item() #rank of first process in the next node
-                        g_rank += 1 
+                        g_rank += 1
 
 
             if not is_multinode:
                 shl_list = [shl0]
                 dist.broadcast_object_list(shl_list, src=0,  device=self.device)
                 shl = shl_list[0]
-            
+
         return shl
 
 
