@@ -70,6 +70,41 @@ from monai.transforms import (
 )
 from monai.utils import MetricReduction, convert_to_dst_type, optional_import, set_determinism
 
+from monai.transforms.transform import MapTransform
+from monai.config import KeysCollection
+from typing import Dict, Hashable, Mapping, List, Optional
+
+class LabelEmbedClassIndex(MapTransform):
+    """
+    Label embedding according to class_index
+    """
+    def __init__(
+        self,
+        keys: KeysCollection = "label",
+        allow_missing_keys: bool = False,
+        class_index: Optional[List] = None,
+
+    ) -> None:
+        """
+        Args:
+            keys: keys of the corresponding items to be compared to the source_key item shape.
+            allow_missing_keys: do not raise exception if key is missing.
+            class_index: a list of class indices
+        """
+        super().__init__(keys=keys, allow_missing_keys=allow_missing_keys)
+        self.class_index = class_index
+
+    def label_mapping(self, x: torch.Tensor) -> torch.Tensor:
+        dtype = x.dtype
+        return torch.cat([sum([x==i for i in c]) for c in self.class_index], dim=0).to(dtype=dtype)
+
+    def __call__(self, data: Mapping[Hashable, torch.Tensor]) -> Dict[Hashable, torch.Tensor]:
+        d = dict(data)
+        if self.class_index is not None:
+            for key in self.key_iterator(d):
+                d[key] = self.label_mapping(d[key])
+        return d
+        
 
 class DiceHelper:
     def __init__(
@@ -330,6 +365,9 @@ class DataTransformBuilder:
 
         return ts
 
+    def get_final_transforms(self):
+        return self.get_custom("final_transforms")
+
     @classmethod
     def get_postprocess_transform(
         cls, save_mask=False, invert=False, transform=None, sigmoid=False, output_path=None
@@ -366,6 +404,8 @@ class DataTransformBuilder:
         if augment:
             ts.extend(self.get_crop_transforms())
             ts.extend(self.get_augment_transforms())
+
+        ts.extend(self.get_final_transforms())
 
         return Compose(ts)
 
@@ -483,6 +523,12 @@ class Segmenter:
         if len(custom_transforms) > 0 and rank == 0:
             print("Using custom transforms", custom_transforms)
 
+        
+        if isinstance(config["class_index"], list) and len(config["class_index"])>0:
+            # custom label embedding, if class_index provided
+            custom_transforms.setdefault("final_transforms", [])
+            custom_transforms["final_transforms"].append(LabelEmbedClassIndex(keys="label", class_index=config["class_index"], allow_missing_keys=True))
+
         self.data_tranform_builder = DataTransformBuilder(
             roi_size=config["roi_size"],
             resample=config["resample"],
@@ -558,6 +604,7 @@ class Segmenter:
         config.setdefault("extra_modalities", {})
         config.setdefault("intensity_bounds", [-250, 250])
 
+        config.setdefault("class_index", None)
         config.setdefault("class_names", [])
         if not isinstance(config["class_names"], (list, tuple)):
             config["class_names"] = []
@@ -646,11 +693,13 @@ class Segmenter:
                         src = src + lw_sizes[src].item() #rank of first process in the next node
                         g_rank += 1
 
-
             if not is_multinode:
                 shl_list = [shl0]
                 dist.broadcast_object_list(shl_list, src=0,  device=self.device)
                 shl = shl_list[0]
+
+        else:
+            shl = shl0
 
         return shl
 
