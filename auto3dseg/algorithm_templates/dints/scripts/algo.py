@@ -221,13 +221,13 @@ class DintsAlgo(BundleAlgo):
 
         # customize parameters for gpu
         if kwargs.pop("gpu_customization", False):
-            if kwargs.pop("gpu_customization_specs", {}):
-                fill_records = self.customize_param_for_gpu(
-                    output_path,
-                    data_stats_file,
-                    fill_records,
-                    gpu_customization_specs,
-                )
+            gpu_customization_specs = kwargs.pop("gpu_customization_specs", {})
+            fill_records = self.customize_param_for_gpu(
+                output_path,
+                data_stats_file,
+                fill_records,
+                gpu_customization_specs,
+            )
 
         return fill_records
 
