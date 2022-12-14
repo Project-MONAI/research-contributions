@@ -26,6 +26,7 @@ else:
 
 class InferClass:
     def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, rank: int = 0, **override):
+        override["infer#enabled"] = True
         self.segmenter = Segmenter(rank=rank, config_file=config_file, config_dict=override)
 
     def infer(self, image_file):
