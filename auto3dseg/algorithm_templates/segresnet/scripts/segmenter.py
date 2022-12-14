@@ -120,30 +120,6 @@ class DiceHelper:
         return (f, not_nans) if self.get_not_nans else f
 
 
-def get_dice_accuracy(y_pred: Union[torch.Tensor, list], y: torch.Tensor):
-
-        n_pred_ch = y_pred.shape[1]
-
-        if self.softmax:
-            if n_pred_ch > 1:
-                y_pred = torch.argmax(y_pred, dim=1, keepdim=True)
-                y_pred = one_hot(y_pred, num_classes=n_pred_ch, dim=1)
-        elif self.sigmoid:
-            if self.activate:
-                y_pred = torch.sigmoid(y_pred)
-            y_pred = (y_pred > 0.5).float()
-
-        if self.to_onehot_y and n_pred_ch > 1 and y.shape[1] == 1:
-            y = one_hot(y, num_classes=n_pred_ch, dim=1)
-
-        data = compute_dice(
-            y_pred=y_pred, y=y, include_background=self.include_background, ignore_empty=self.ignore_empty
-        )
-
-        f, not_nans = do_metric_reduction(data, self.reduction)
-        return (f, not_nans) if self.get_not_nans else f
-
-
 def logits2pred(logits, sigmoid=False, dim=1):
     if isinstance(logits, (list, tuple)):
         logits = logits[0]
@@ -370,7 +346,7 @@ class DataTransformBuilder:
                 SaveImaged(
                     keys=["seg"],
                     output_dir=output_path,
-                    output_postfix="seg",
+                    output_postfix="",
                     output_dtype=np.uint8,
                     separate_folder=False,
                     squeeze_end_dims=True,
@@ -980,7 +956,9 @@ class Segmenter:
             else:
                 _, validation_files = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=config["fold"])
 
-        print("validation files", len(validation_files))
+        if self.rank==0:
+            print("validation files", len(validation_files))
+
         if len(validation_files)==0:
             warnings.warn("No validation files found!")
             return
@@ -1040,7 +1018,9 @@ class Segmenter:
                 fold=-1,
                 key=testing_key,
             )
-        print("testing_files files", len(testing_files))
+
+        if self.rank==0:
+            print("testing_files files", len(testing_files))
         if len(testing_files)==0:
             warnings.warn("No testing_files files found!")
             return
@@ -1083,15 +1063,13 @@ class Segmenter:
 
         start_time = time.time()
         sigmoid = self.config["sigmoid"]
-        # device = torch.device(self.rank) if self.config["cuda"] else torch.device("cpu")
-        device = self.device
 
         inf_transform = self.data_tranform_builder(augment=False, resample_label=False)
 
         batch_data = inf_transform([image_file])
         batch_data = list_data_collate([batch_data])
 
-        data = batch_data["image"].as_subclass(torch.Tensor).to(device)
+        data = batch_data["image"].as_subclass(torch.Tensor).to(self.device)
 
         with autocast(enabled=self.config["amp"]):
             logits = self.sliding_inferrer(inputs=data, network=self.model)
