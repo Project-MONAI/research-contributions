@@ -104,7 +104,7 @@ class LabelEmbedClassIndex(MapTransform):
             for key in self.key_iterator(d):
                 d[key] = self.label_mapping(d[key])
         return d
-        
+
 
 class DiceHelper:
     def __init__(
@@ -523,7 +523,7 @@ class Segmenter:
         if len(custom_transforms) > 0 and rank == 0:
             print("Using custom transforms", custom_transforms)
 
-        
+
         if isinstance(config["class_index"], list) and len(config["class_index"])>0:
             # custom label embedding, if class_index provided
             custom_transforms.setdefault("final_transforms", [])
