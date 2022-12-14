@@ -161,23 +161,26 @@ class SegresnetAlgo(BundleAlgo):
 
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
-
-            if "ct" in modality:
-                spacing = [1.0, 1.0, 1.0]
-                config["normalize_mode"] = "range"
-
-            elif "mr" in modality:
-                spacing = data_stats["stats_summary#image_stats#spacing#median"]
-                config["normalize_mode"] = "meanstd"
-
             config["intensity_bounds"] = [intensity_lower_bound, intensity_upper_bound]
 
+            spacing = data_stats["stats_summary#image_stats#spacing#median"]
+
+            if "ct" in modality:
+                config["normalize_mode"] = "range"
+                if not config.get("anisotropic_scales", False):
+                    spacing = [1.0, 1.0, 1.0]
+
+            elif "mr" in modality:
+                config["normalize_mode"] = "meanstd"
+
+            config["resample_resolution"] = spacing
+            
             ###########################################
             spacing_lower_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_00_5"])
             spacing_upper_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_99_5"])
             config["spacing_lower"] = spacing_lower_bound.tolist()
             config["spacing_upper"] = spacing_upper_bound.tolist()
-            config["resample_resolution"] = spacing
+            
 
             ###########################################
             if np.any(spacing_lower_bound / np.array(spacing) < 0.5) or np.any(
