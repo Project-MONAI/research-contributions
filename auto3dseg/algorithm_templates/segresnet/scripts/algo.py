@@ -174,13 +174,13 @@ class SegresnetAlgo(BundleAlgo):
                 config["normalize_mode"] = "meanstd"
 
             config["resample_resolution"] = spacing
-            
+
             ###########################################
             spacing_lower_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_00_5"])
             spacing_upper_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_99_5"])
             config["spacing_lower"] = spacing_lower_bound.tolist()
             config["spacing_upper"] = spacing_upper_bound.tolist()
-            
+
 
             ###########################################
             if np.any(spacing_lower_bound / np.array(spacing) < 0.5) or np.any(
