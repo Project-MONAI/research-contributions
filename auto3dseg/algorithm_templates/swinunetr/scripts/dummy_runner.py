@@ -21,7 +21,7 @@ from torch.cuda.amp import GradScaler, autocast
 
 
 class DummyRunnerSwinUNETR(object):
-    def __init__(self, output_path):
+    def __init__(self, output_path, data_stats_file):
         config_file = []
         config_file.append(
             os.path.join(output_path, "configs", "hyper_parameters.yaml")
@@ -62,7 +62,6 @@ class DummyRunnerSwinUNETR(object):
 
         train_transforms = parser.get_parsed_content("transforms_train")
 
-        data_stats_file = os.path.join("work_dir", "datastats.yaml")
         with open(data_stats_file) as f_data_stat:
             data_stat = yaml.full_load(f_data_stat)
 

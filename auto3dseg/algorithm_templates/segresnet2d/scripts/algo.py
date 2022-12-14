@@ -204,13 +204,14 @@ class Segresnet2dAlgo(BundleAlgo):
             num_trials_custom_gpu = kwargs.pop("num_trials_custom_gpu", 60)
             fill_records = self.customize_param_for_gpu(
                 output_path,
+                data_stats_file,
                 fill_records,
                 num_trials_custom_gpu,
             )
 
         return fill_records
 
-    def customize_param_for_gpu(self, output_path, fill_records, num_trials=60):
+    def customize_param_for_gpu(self, output_path, data_stats_file, fill_records, num_trials=60):
         # optimize batch size for model training
         import optuna
 
@@ -223,6 +224,7 @@ class Segresnet2dAlgo(BundleAlgo):
             try:
                 cmd = "python {0:s}dummy_runner.py ".format(os.path.join(output_path, "scripts") + os.sep)
                 cmd += "--output_path {0:s} ".format(output_path)
+                cmd += "--data_stats_file {0:s} ".format(data_stats_file)
                 cmd += "run "
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
