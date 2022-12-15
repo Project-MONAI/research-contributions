@@ -23,7 +23,7 @@ cache_rate: null
 determ: false
 fold: 0
 learning_rate: 2.0e-4
-num_images_per_batch: 1
+batch_size: 1
 num_epochs: 300
 warmup_epochs: 3
 sigmoid: false

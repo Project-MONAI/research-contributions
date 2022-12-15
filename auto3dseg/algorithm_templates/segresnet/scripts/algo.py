@@ -17,6 +17,8 @@ from typing import Optional
 import fire
 import numpy as np
 import shutil
+import subprocess
+import yaml
 
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
@@ -53,8 +55,22 @@ def roi_ensure_levels(levels, roi_size, image_size):
     return levels, roi_size
 
 
+def get_gpu_available_memory():
+    command = "nvidia-smi --query-gpu=memory.free --format=csv"
+    memory_free_info = (
+        subprocess.check_output(command.split()).decode("ascii").split("\n")[:-1][1:]
+    )
+    memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
+    return memory_free_values
+
+
 class SegresnetAlgo(BundleAlgo):
-    def fill_template_config(self, data_stats_file: Optional[str] = None, output_path: Optional[str] = None, **kwargs):
+    def fill_template_config(
+        self,
+        data_stats_file: Optional[str] = None,
+        output_path: Optional[str] = None,
+        **kwargs,
+    ):
         """
         Fill the freshly copied config templates
 
@@ -74,19 +90,25 @@ class SegresnetAlgo(BundleAlgo):
             config = {"bundle_root": output_path}
 
             if data_stats_file is None or not os.path.exists(data_stats_file):
-                raise ValueError("data_stats_file unable to read: " + str(data_stats_file))
+                raise ValueError(
+                    "data_stats_file unable to read: " + str(data_stats_file)
+                )
 
             data_stats = ConfigParser(globals=False)
             data_stats.read_config(str(data_stats_file))
 
-            if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
+            if self.data_list_file is not None and os.path.exists(
+                str(self.data_list_file)
+            ):
                 input_config = ConfigParser.load_config_file(self.data_list_file)
                 print("Loaded self.data_list_file", self.data_list_file)
             else:
                 print("Unable to load self.data_list_file", self.data_list_file)
 
             config["data_file_base_dir"] = os.path.abspath(input_config.pop("dataroot"))
-            config["data_list_file_path"] = os.path.abspath(input_config.pop("datalist"))
+            config["data_list_file_path"] = os.path.abspath(
+                input_config.pop("datalist")
+            )
 
             ##########
             if "modality" in input_config:
@@ -96,7 +118,9 @@ class SegresnetAlgo(BundleAlgo):
                 modality = "ct"
 
             if modality not in ["ct", "mri"]:
-                raise ValueError("Modality must be either CT or MRI, but got" + str(modality))
+                raise ValueError(
+                    "Modality must be either CT or MRI, but got" + str(modality)
+                )
             config["modality"] = modality
 
             input_channels = data_stats["stats_summary#image_stats#channels#max"] + len(
@@ -110,7 +134,10 @@ class SegresnetAlgo(BundleAlgo):
             # update config config
             roi_size = [224, 224, 144]  # default roi
             levels = 5  # default number of hierarchical levels
-            image_size = [int(i) for i in data_stats["stats_summary#image_stats#shape#percentile_99_5"]]
+            image_size = [
+                int(i)
+                for i in data_stats["stats_summary#image_stats#shape#percentile_99_5"]
+            ]
             config["image_size"] = image_size
 
             ###########################################
@@ -159,8 +186,16 @@ class SegresnetAlgo(BundleAlgo):
 
             ###########################################
 
-            intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
-            intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
+            intensity_lower_bound = float(
+                data_stats[
+                    "stats_summary#image_foreground_stats#intensity#percentile_00_5"
+                ]
+            )
+            intensity_upper_bound = float(
+                data_stats[
+                    "stats_summary#image_foreground_stats#intensity#percentile_99_5"
+                ]
+            )
             config["intensity_bounds"] = [intensity_lower_bound, intensity_upper_bound]
 
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
@@ -176,11 +211,14 @@ class SegresnetAlgo(BundleAlgo):
             config["resample_resolution"] = spacing
 
             ###########################################
-            spacing_lower_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_00_5"])
-            spacing_upper_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_99_5"])
+            spacing_lower_bound = np.array(
+                data_stats["stats_summary#image_stats#spacing#percentile_00_5"]
+            )
+            spacing_upper_bound = np.array(
+                data_stats["stats_summary#image_stats#spacing#percentile_99_5"]
+            )
             config["spacing_lower"] = spacing_lower_bound.tolist()
             config["spacing_upper"] = spacing_upper_bound.tolist()
-
 
             ###########################################
             if np.any(spacing_lower_bound / np.array(spacing) < 0.5) or np.any(
@@ -241,25 +279,145 @@ class SegresnetAlgo(BundleAlgo):
                     yaml_contents.update({k: parser[k]})
 
             ConfigParser.export_config_file(
-                parser.get(), file_path, fmt="yaml", default_flow_style=None, sort_keys=False
+                parser.get(),
+                file_path,
+                fmt="yaml",
+                default_flow_style=None,
+                sort_keys=False,
             )
+
+        # customize parameters for gpu
+        if kwargs.pop("gpu_customization", True):
+            gpu_customization_specs = kwargs.pop("gpu_customization_specs", {})
+            fill_records = self.customize_param_for_gpu(
+                output_path,
+                data_stats_file,
+                fill_records,
+                gpu_customization_specs,
+            )
+
+        return fill_records
+
+    def customize_param_for_gpu(
+        self, output_path, data_stats_file, fill_records, gpu_customization_specs
+    ):
+        # optimize batch size for model training
+        import optuna
+
+        # default range
+        # num_trials = 10
+        # range_num_images_per_batch = [1, 6]
+
+        num_trials = 2
+        range_num_images_per_batch = [1, 2]
+
+        # load customized range
+        if (
+            "segresnet" in gpu_customization_specs
+            or "universal" in gpu_customization_specs
+        ):
+            specs_section = (
+                "segresnet" if "segresnet" in gpu_customization_specs else "universal"
+            )
+            specs = gpu_customization_specs[specs_section]
+
+            if "num_trials" in specs:
+                num_trials = specs["num_trials"]
+
+            if "range_num_images_per_batch" in specs:
+                range_num_images_per_batch = specs["range_num_images_per_batch"]
+
+        def objective(trial):
+            num_images_per_batch = trial.suggest_int(
+                "num_images_per_batch",
+                range_num_images_per_batch[0],
+                range_num_images_per_batch[1],
+            )
+
+            try:
+                cmd = "python {0:s}dummy_runner.py ".format(
+                    os.path.join(output_path, "scripts") + os.sep
+                )
+                cmd += "--output_path {0:s} ".format(output_path)
+                cmd += "--data_stats_file {0:s} ".format(data_stats_file)
+                cmd += "run "
+                cmd += f"--num_images_per_batch {num_images_per_batch} "
+                _ = subprocess.run(cmd.split(), check=True)
+            except:
+                print("[error] OOM")
+                return num_images_per_batch
+
+            value = -1.0 * float(num_images_per_batch)
+
+            return value
+
+        mem = get_gpu_available_memory()
+        mem = min(mem) if type(mem) is list else mem
+        mem = round(float(mem) / 1024.0)
+
+        opt_result_file = os.path.join(output_path, "..", f"gpu_opt_{mem}gb.yaml")
+        if os.path.exists(opt_result_file):
+            with open(opt_result_file) as in_file:
+                best_trial = yaml.full_load(in_file)
+
+        if not os.path.exists(opt_result_file) or "segresnet" not in best_trial:
+            study = optuna.create_study()
+            study.optimize(objective, n_trials=num_trials)
+            trial = study.best_trial
+            best_trial = {}
+            best_trial["num_images_per_batch"] = max(
+                int(trial.params["num_images_per_batch"]) - 1, 1
+            )
+            best_trial["value"] = int(trial.value)
+            with open(opt_result_file, "a") as out_file:
+                yaml.dump({"segresnet": best_trial}, stream=out_file)
+
+            print("\n-----  Finished Optimization  -----")
+            print("Optimal value: {}".format(best_trial["value"]))
+            print("Best hyperparameters: {}".format(best_trial))
+        else:
+            with open(opt_result_file) as in_file:
+                best_trial = yaml.full_load(in_file)
+            best_trial = best_trial["segresnet"]
+
+        if best_trial["value"] < 0:
+            fill_records["hyper_parameters.yaml"].update(
+                {"batch_size": best_trial["num_images_per_batch"]}
+            )
+
+            for yaml_file, yaml_contents in fill_records.items():
+                if "hyper_parameters" in yaml_file:
+                    file_path = os.path.join(output_path, "configs", yaml_file)
+
+                    parser = ConfigParser(globals=False)
+                    parser.read_config(file_path)
+                    for k, v in yaml_contents.items():
+                        parser[k] = copy.deepcopy(v)
+                        yaml_contents[k] = copy.deepcopy(parser[k])
+
+                    ConfigParser.export_config_file(
+                        parser.get(), file_path, fmt="yaml", default_flow_style=None
+                    )
 
         return fill_records
 
     def export_to_disk(self, output_path: str, algo_name: str, **kwargs):
         super().export_to_disk(output_path=output_path, algo_name=algo_name, **kwargs)
 
-        output_path =os.path.join(output_path, algo_name)
-        config = ConfigParser.load_config_file(os.path.join(output_path, "configs/hyper_parameters.yaml"))
+        output_path = os.path.join(output_path, algo_name)
+        config = ConfigParser.load_config_file(
+            os.path.join(output_path, "configs/hyper_parameters.yaml")
+        )
 
-        for c in config.get('custom_data_transforms',[]):
+        for c in config.get("custom_data_transforms", []):
             if "transform" in c and "_target_" in c["transform"]:
                 target = c["transform"]["_target_"]
                 target = "/".join(target.split(".")[:-1]) + ".py"
                 print("Copying custom transform file", target, "into", output_path)
                 shutil.copy(target, output_path)
             else:
-                raise ValueError("Malformed custom_data_transforms parameter!"+str(c))
+                raise ValueError("Malformed custom_data_transforms parameter!" + str(c))
+
 
 if __name__ == "__main__":
     fire.Fire({"SegresnetAlgo": SegresnetAlgo})
