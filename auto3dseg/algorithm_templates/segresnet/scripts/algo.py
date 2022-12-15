@@ -129,18 +129,19 @@ class SegresnetAlgo(BundleAlgo):
             config["warmup_epochs"] = int(np.ceil(0.01 * max_epochs))
 
             ###########################################
-            sigmoid = False
+            sigmoid = input_config.pop("sigmoid", False)
             class_names = input_config.pop("class_names", None)
             class_index = input_config.pop("class_index", None)
 
             if class_names is None:
                 class_names = class_index = None
             elif not isinstance(class_names, list):
-                warnings.warn("Class_names must be a list")
+                warnings.warn("class_names must be a list")
                 class_names = class_index = None
             elif isinstance(class_names, list) and isinstance(class_names[0], dict):
-                class_names = [x["name"] for x in config["class_names"]]
-                class_index = [x["index"] for x in config["class_names"]]
+                class_index = [x["index"] for x in class_names]
+                class_names = [x["name"] for x in class_names]
+
                 # check for overlap
                 all_ind = []
                 for a in class_index:
@@ -153,27 +154,33 @@ class SegresnetAlgo(BundleAlgo):
             config["class_index"] = class_index
             config["sigmoid"] = sigmoid
 
+            if sigmoid and class_index is not None:
+                config["output_classes"] = len(class_index)
+
             ###########################################
 
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
+            config["intensity_bounds"] = [intensity_lower_bound, intensity_upper_bound]
+
+            spacing = data_stats["stats_summary#image_stats#spacing#median"]
 
             if "ct" in modality:
-                spacing = [1.0, 1.0, 1.0]
                 config["normalize_mode"] = "range"
+                if not config.get("anisotropic_scales", False):
+                    spacing = [1.0, 1.0, 1.0]
 
             elif "mr" in modality:
-                spacing = data_stats["stats_summary#image_stats#spacing#median"]
                 config["normalize_mode"] = "meanstd"
 
-            config["intensity_bounds"] = [intensity_lower_bound, intensity_upper_bound]
+            config["resample_resolution"] = spacing
 
             ###########################################
             spacing_lower_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_00_5"])
             spacing_upper_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_99_5"])
             config["spacing_lower"] = spacing_lower_bound.tolist()
             config["spacing_upper"] = spacing_upper_bound.tolist()
-            config["resample_resolution"] = spacing
+
 
             ###########################################
             if np.any(spacing_lower_bound / np.array(spacing) < 0.5) or np.any(
