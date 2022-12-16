@@ -24,6 +24,7 @@ training:
   num_patches_per_image: 1
   num_sw_batch_size: 2
   num_workers: 8
+  num_cache_workers: 8
   output_classes: null
   overlap_ratio: 0.625
   patch_size: null

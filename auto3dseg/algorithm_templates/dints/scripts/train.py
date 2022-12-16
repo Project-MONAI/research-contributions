@@ -146,14 +146,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         data=train_files,
         transform=train_transforms,
         cache_rate=train_cache_rate,
-        num_workers=8,
+        num_workers=parser.get_parsed_content("training#num_cache_workers"),
         progress=False,
     )
     val_ds = monai.data.CacheDataset(
         data=val_files,
         transform=val_transforms,
         cache_rate=validate_cache_rate,
-        num_workers=2,
+        num_workers=parser.get_parsed_content("training#num_cache_workers"),
         progress=False,
     )
 

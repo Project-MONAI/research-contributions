@@ -601,6 +601,7 @@ class Segmenter:
         config.setdefault("resample", False)
         config.setdefault("roi_size", [128, 128, 128])
         config.setdefault("num_workers", 4)
+        config.setdefault("num_cache_workers", 1)
         config.setdefault("extra_modalities", {})
         config.setdefault("intensity_bounds", [-250, 250])
 
@@ -715,7 +716,7 @@ class Segmenter:
         if cache_rate > 0:
             runtime_cache = self.get_shared_memory_list(length=len(data))
             train_ds = CacheDataset(
-                data=data, transform=train_transform, copy_cache=False, cache_rate=cache_rate, runtime_cache=runtime_cache
+                data=data, transform=train_transform, copy_cache=False, cache_rate=cache_rate, runtime_cache=runtime_cache, num_workers=self.config["num_cache_workers"]
             )
         else:
             train_ds = Dataset(data=data, transform=train_transform)
@@ -743,7 +744,7 @@ class Segmenter:
         if cache_rate > 0:
             runtime_cache = self.get_shared_memory_list(length=len(data))
             val_ds = CacheDataset(
-                data=data, transform=val_transform, copy_cache=False, cache_rate=cache_rate, runtime_cache=runtime_cache,
+                data=data, transform=val_transform, copy_cache=False, cache_rate=cache_rate, runtime_cache=runtime_cache, num_workers=self.config["num_cache_workers"]
             )
         else:
             val_ds = Dataset(data=data, transform=val_transform)
