@@ -19,7 +19,11 @@ training:
   num_epochs_per_validation: 20
   num_patches_per_image: 1
   num_sw_batch_size: 2
+<<<<<<< HEAD
   num_workers: 8
+=======
+  num_workers:
+>>>>>>> 0203af6e8d93205f5967d13657516dfd4cc1e8c3
   output_classes: null
   overlap_ratio: 0.625
   patch_size: null
