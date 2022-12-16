@@ -305,11 +305,8 @@ class SegresnetAlgo(BundleAlgo):
         import optuna
 
         # default range
-        # num_trials = 10
-        # range_num_images_per_batch = [1, 6]
-
-        num_trials = 2
-        range_num_images_per_batch = [1, 2]
+        num_trials = 10
+        range_num_images_per_batch = [1, 6]
 
         # load customized range
         if (
