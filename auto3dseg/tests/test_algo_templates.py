@@ -48,7 +48,6 @@ algo_templates = os.path.join("auto3dseg", "algorithm_templates")
 
 sys.path.insert(0, algo_templates)
 
-n_data = 8
 num_gpus = 4 if torch.cuda.device_count() > 4 else torch.cuda.device_count()
 num_images_per_batch = 2
 num_epochs = 2
