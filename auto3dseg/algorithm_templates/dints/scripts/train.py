@@ -171,7 +171,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         )
 
     train_loader = DataLoader(
-        train_ds, num_workers=8, batch_size=num_images_per_batch, shuffle=True
+        train_ds,
+        num_workers=parser.get_parsed_content("training#num_workers"),
+        batch_size=num_images_per_batch,
+        shuffle=True,
     )
     val_loader = DataLoader(val_ds, num_workers=0, batch_size=1, shuffle=False)
 

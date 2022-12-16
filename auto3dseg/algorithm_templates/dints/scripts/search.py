@@ -196,10 +196,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         )
 
     train_loader_a = ThreadDataLoader(
-        train_ds_a, num_workers=6, batch_size=num_images_per_batch, shuffle=True
+        train_ds_a, num_workers=parser.get_parsed_content("searching#num_workers"), batch_size=num_images_per_batch, shuffle=True
     )
     train_loader_w = ThreadDataLoader(
-        train_ds_w, num_workers=6, batch_size=num_images_per_batch, shuffle=True
+        train_ds_w, num_workers=parser.get_parsed_content("searching#num_workers"), batch_size=num_images_per_batch, shuffle=True
     )
     val_loader = ThreadDataLoader(val_ds, num_workers=0, batch_size=1, shuffle=False)
 
