@@ -9,6 +9,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import copy
 import os
 import warnings
@@ -324,6 +325,13 @@ class SegresnetAlgo(BundleAlgo):
             if "range_num_images_per_batch" in specs:
                 range_num_images_per_batch = specs["range_num_images_per_batch"]
 
+        mem = get_gpu_available_memory()
+        device_id = np.argmin(mem) if type(mem) is list else 0
+        print(f"gpu device {device_id} with minimum memory")
+
+        mem = min(mem) if type(mem) is list else mem
+        mem = round(float(mem) / 1024.0)
+
         def objective(trial):
             num_images_per_batch = trial.suggest_int(
                 "num_images_per_batch",
@@ -337,6 +345,7 @@ class SegresnetAlgo(BundleAlgo):
                 )
                 cmd += "--output_path {0:s} ".format(output_path)
                 cmd += "--data_stats_file {0:s} ".format(data_stats_file)
+                cmd += "--device_id {0:d} ".format(device_id)
                 cmd += "run "
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
                 _ = subprocess.run(cmd.split(), check=True)
@@ -347,10 +356,6 @@ class SegresnetAlgo(BundleAlgo):
             value = -1.0 * float(num_images_per_batch)
 
             return value
-
-        mem = get_gpu_available_memory()
-        mem = min(mem) if type(mem) is list else mem
-        mem = round(float(mem) / 1024.0)
 
         opt_result_file = os.path.join(output_path, "..", f"gpu_opt_{mem}gb.yaml")
         if os.path.exists(opt_result_file):

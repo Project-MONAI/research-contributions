@@ -22,7 +22,7 @@ from torch.cuda.amp import GradScaler, autocast
 
 
 class DummyRunnerSegResNet(object):
-    def __init__(self, output_path, data_stats_file):
+    def __init__(self, output_path, data_stats_file, device_id: int = 0):
         config_file = []
         config_file.append(
             os.path.join(output_path, "configs", "hyper_parameters.yaml")
@@ -31,7 +31,7 @@ class DummyRunnerSegResNet(object):
         parser = ConfigParser()
         parser.read_config(config_file)
 
-        self.device = torch.device("cuda:0")
+        self.device = torch.device("cuda:{0:d}".format(device_id))
         torch.cuda.set_device(self.device)
 
         self.amp = parser.get_parsed_content("amp")

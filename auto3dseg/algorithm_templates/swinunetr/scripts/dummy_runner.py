@@ -21,7 +21,7 @@ from torch.cuda.amp import GradScaler, autocast
 
 
 class DummyRunnerSwinUNETR(object):
-    def __init__(self, output_path, data_stats_file):
+    def __init__(self, output_path, data_stats_file, device_id: int = 0):
         config_file = []
         config_file.append(
             os.path.join(output_path, "configs", "hyper_parameters.yaml")
@@ -37,7 +37,7 @@ class DummyRunnerSwinUNETR(object):
         parser = ConfigParser()
         parser.read_config(config_file)
 
-        self.device = torch.device("cuda:0")
+        self.device = torch.device("cuda:{0:d}".format(device_id))
         torch.cuda.set_device(self.device)
 
         self.input_channels = parser.get_parsed_content("input_channels")
@@ -68,7 +68,7 @@ class DummyRunnerSwinUNETR(object):
         pixdim = parser.get_parsed_content("transforms_train#transforms#3#pixdim")
         pixdim = [np.abs(pixdim[_i]) for _i in range(3)]
 
-        self.max_shape = [-1, -1, -1]
+        self.max_shape = [0, 0, 0]
         for _k in range(len(data_stat["stats_by_cases"])):
             image_shape = data_stat["stats_by_cases"][_k]["image_stats"]["shape"]
             image_shape = np.squeeze(image_shape)
@@ -76,11 +76,14 @@ class DummyRunnerSwinUNETR(object):
             image_spacing = np.squeeze(image_spacing)
             image_spacing = [np.abs(image_spacing[_i]) for _i in range(3)]
 
-            for _l in range(3):
-                self.max_shape[_l] = max(
-                    self.max_shape[_l],
-                    int(np.ceil(float(image_shape[_l]) * image_spacing[_l] / pixdim[_l])),
+            new_shape = [
+                int(
+                    np.ceil(float(image_shape[_l]) * image_spacing[_l] / pixdim[_l])
                 )
+                for _l in range(3)
+            ]
+            if np.prod(new_shape) > np.prod(self.max_shape):
+                self.max_shape = new_shape
         print("max_shape", self.max_shape)
 
     def run(
