@@ -365,8 +365,6 @@ class DintsAlgo(BundleAlgo):
                         parser.get(), file_path, fmt="yaml", default_flow_style=None
                     )
 
-        self.batch_size_optimized = True
-
         return fill_records
 
     def train(self, train_params=None):

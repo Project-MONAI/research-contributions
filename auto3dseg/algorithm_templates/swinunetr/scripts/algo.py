@@ -323,8 +323,6 @@ class SwinunetrAlgo(BundleAlgo):
                         parser.get(), file_path, fmt="yaml", default_flow_style=None
                     )
 
-        self.batch_size_optimized = True
-
         return fill_records
 
 
