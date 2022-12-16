@@ -20,7 +20,6 @@ searching:
   num_patches_per_image: 1
   num_sw_batch_size: 2
   num_workers: 6
-  num_workers:
   output_classes: null
   overlap_ratio: 0.625
   patch_size: null
