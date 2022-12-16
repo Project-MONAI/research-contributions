@@ -15,6 +15,7 @@ num_epochs: 2000
 num_epochs_per_validation: 20
 num_patches_per_image: 2
 num_sw_batch_size: 2
+num_workers: 8
 output_classes: null
 overlap_ratio: 0.625
 patch_size: [-1, -1, "$@num_adjacent_slices * 2 + 1"]
