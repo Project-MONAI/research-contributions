@@ -36,6 +36,13 @@ from monai.metrics import compute_dice
 from monai.utils import set_determinism
 
 
+def try_except(func, default=None, expected_exc=(Exception,)):
+    try:
+        return func()
+    except expected_exc:
+        return default
+
+
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -152,50 +159,30 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         )[dist.get_rank()]
     print("val_files:", len(val_files))
 
-    if torch.cuda.device_count() >= 4:
-        train_ds_a = monai.data.CacheDataset(
-            data=train_files_a,
-            transform=train_transforms,
-            cache_rate=1.0,
-            num_workers=8,
-            progress=False,
-        )
-        train_ds_w = monai.data.CacheDataset(
-            data=train_files_w,
-            transform=train_transforms,
-            cache_rate=1.0,
-            num_workers=8,
-            progress=False,
-        )
-        val_ds = monai.data.CacheDataset(
-            data=val_files,
-            transform=val_transforms,
-            cache_rate=1.0,
-            num_workers=2,
-            progress=False,
-        )
-    else:
-        train_ds_a = monai.data.CacheDataset(
-            data=train_files_a,
-            transform=train_transforms,
-            cache_rate=float(torch.cuda.device_count()) / 4.0,
-            num_workers=8,
-            progress=False,
-        )
-        train_ds_w = monai.data.CacheDataset(
-            data=train_files_w,
-            transform=train_transforms,
-            cache_rate=float(torch.cuda.device_count()) / 4.0,
-            num_workers=8,
-            progress=False,
-        )
-        val_ds = monai.data.CacheDataset(
-            data=val_files,
-            transform=val_transforms,
-            cache_rate=float(torch.cuda.device_count()) / 4.0,
-            num_workers=2,
-            progress=False,
-        )
+    train_cache_rate = float(parser.get_parsed_content("train_cache_rate"))
+    validate_cache_rate = float(parser.get_parsed_content("validate_cache_rate"))
+
+    train_ds_a = monai.data.CacheDataset(
+        data=train_files_a,
+        transform=train_transforms,
+        cache_rate=train_cache_rate,
+        num_workers=8,
+        progress=False,
+    )
+    train_ds_w = monai.data.CacheDataset(
+        data=train_files_w,
+        transform=train_transforms,
+        cache_rate=train_cache_rate,
+        num_workers=8,
+        progress=False,
+    )
+    val_ds = monai.data.CacheDataset(
+        data=val_files,
+        transform=val_transforms,
+        cache_rate=validate_cache_rate,
+        num_workers=2,
+        progress=False,
+    )
 
     train_loader_a = ThreadDataLoader(
         train_ds_a,

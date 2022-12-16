@@ -139,37 +139,24 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         )[dist.get_rank()]
     print("val_files:", len(val_files))
 
-    if torch.cuda.device_count() >= 4:
-        train_ds = monai.data.CacheDataset(
-            data=train_files,
-            transform=train_transforms,
-            cache_rate=1.0,
-            num_workers=8,
-            progress=False,
-        )
-        val_ds = monai.data.CacheDataset(
-            data=val_files,
-            transform=val_transforms,
-            cache_rate=1.0,
-            num_workers=2,
-            progress=False,
-        )
-    else:
-        train_ds = monai.data.CacheDataset(
-            data=train_files,
-            transform=train_transforms,
-            cache_rate=float(torch.cuda.device_count()) / 4.0,
-            num_workers=8,
-            progress=False,
-        )
-        val_ds = monai.data.CacheDataset(
-            data=val_files,
-            transform=val_transforms,
-            cache_rate=float(torch.cuda.device_count()) / 4.0,
-            num_workers=2,
-            progress=False,
-        )
+    train_cache_rate = float(parser.get_parsed_content("train_cache_rate"))
+    validate_cache_rate = float(parser.get_parsed_content("validate_cache_rate"))
 
+    train_ds = monai.data.CacheDataset(
+        data=train_files,
+        transform=train_transforms,
+        cache_rate=train_cache_rate,
+        num_workers=8,
+        progress=False,
+    )
+    val_ds = monai.data.CacheDataset(
+        data=val_files,
+        transform=val_transforms,
+        cache_rate=validate_cache_rate,
+        num_workers=2,
+        progress=False,
+    )
+    
     train_loader = DataLoader(
         train_ds,
         num_workers=parser.get_parsed_content("num_workers"),

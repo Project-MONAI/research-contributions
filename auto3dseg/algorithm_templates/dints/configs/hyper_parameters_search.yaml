@@ -4,6 +4,10 @@ bundle_root: null
 transforms:
   resample_to_spacing: "$@searching#resample_to_spacing"
 
+cache_rate: 1
+train_cache_rate: "$@cache_rate"
+validate_cache_rate: "$@cache_rate"
+
 searching:
   # hyper-parameters
   amp: true

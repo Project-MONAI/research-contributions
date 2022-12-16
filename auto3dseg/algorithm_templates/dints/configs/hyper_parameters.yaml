@@ -8,6 +8,10 @@ fold: 0
 transforms:
   resample_to_spacing: "$@training#resample_to_spacing"
 
+cache_rate: 1
+train_cache_rate: "$@cache_rate"
+validate_cache_rate: "$@cache_rate"
+
 training:
   # hyper-parameters
   amp: true
