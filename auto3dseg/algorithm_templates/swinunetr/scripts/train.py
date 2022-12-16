@@ -156,7 +156,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         num_workers=2,
         progress=False,
     )
-    
+
     train_loader = DataLoader(
         train_ds,
         num_workers=parser.get_parsed_content("num_workers"),
