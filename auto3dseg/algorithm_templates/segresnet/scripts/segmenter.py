@@ -585,7 +585,7 @@ class Segmenter:
         config.setdefault("fold", 0)
         config.setdefault("batch_size", 1)
         config.setdefault("num_epochs", 300)
-        config.setdefault("warmup_epochs", 3)
+        config.setdefault("num_warmup_epochs", 3)
         config.setdefault("num_epochs_per_validation", 1)
         config.setdefault("num_epochs_per_saving", 10)
         config.setdefault("determ", False)
@@ -817,7 +817,7 @@ class Segmenter:
             optimizer = self.optimizer
 
         if self.lr_scheduler is None:
-            lr_scheduler = WarmupCosineSchedule(optimizer=optimizer, warmup_steps=config["warmup_epochs"], warmup_multiplier=0.1, t_total=num_epochs)
+            lr_scheduler = WarmupCosineSchedule(optimizer=optimizer, warmup_steps=config["num_warmup_epochs"], warmup_multiplier=0.1, t_total=num_epochs)
         else:
             lr_scheduler = self.lr_scheduler
 
