@@ -4,6 +4,10 @@ bundle_root: null
 transforms:
   resample_to_spacing: "$@searching#resample_to_spacing"
 
+cache_rate: 1
+train_cache_rate: "$@cache_rate"
+validate_cache_rate: "$@cache_rate"
+
 searching:
   # hyper-parameters
   amp: true
@@ -19,6 +23,8 @@ searching:
   num_warmup_epochs: 500
   num_patches_per_image: 1
   num_sw_batch_size: 2
+  num_workers: 6
+  num_cache_workers: 8
   output_classes: null
   overlap_ratio: 0.625
   patch_size: null

@@ -9,6 +9,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import os
 import subprocess
 import yaml
@@ -245,6 +246,13 @@ class Segresnet2dAlgo(BundleAlgo):
             if "range_num_sw_batch_size" in specs:
                 range_num_sw_batch_size = specs["range_num_sw_batch_size"]
 
+        mem = get_gpu_available_memory()
+        device_id = np.argmin(mem) if type(mem) is list else 0
+        print(f"[info] gpu device {device_id} with minimum memory")
+
+        mem = min(mem) if type(mem) is list else mem
+        mem = round(float(mem) / 1024.0)
+
         def objective(trial):
             num_images_per_batch = trial.suggest_int(
                 "num_images_per_batch",
@@ -267,6 +275,7 @@ class Segresnet2dAlgo(BundleAlgo):
                 )
                 cmd += "--output_path {0:s} ".format(output_path)
                 cmd += "--data_stats_file {0:s} ".format(data_stats_file)
+                cmd += "--device_id {0:d} ".format(device_id)
                 cmd += "run "
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
@@ -289,10 +298,6 @@ class Segresnet2dAlgo(BundleAlgo):
 
             return value
 
-        mem = get_gpu_available_memory()
-        mem = mem[0] if type(mem) is list else mem
-        mem = round(float(mem) / 1024.0)
-
         opt_result_file = os.path.join(output_path, "..", f"gpu_opt_{mem}gb.yaml")
         if os.path.exists(opt_result_file):
             with open(opt_result_file) as in_file:
@@ -303,10 +308,12 @@ class Segresnet2dAlgo(BundleAlgo):
             study.optimize(objective, n_trials=num_trials)
             trial = study.best_trial
             best_trial = {}
-            best_trial["num_images_per_batch"] = int(
-                trial.params["num_images_per_batch"]
+            best_trial["num_images_per_batch"] = max(
+                int(trial.params["num_images_per_batch"]) - 1, 1
             )
-            best_trial["num_sw_batch_size"] = int(trial.params["num_sw_batch_size"])
+            best_trial["num_sw_batch_size"] = max(
+                int(trial.params["num_sw_batch_size"]) - 1, 1
+            )
             best_trial["validation_data_device"] = trial.params[
                 "validation_data_device"
             ]
@@ -345,8 +352,6 @@ class Segresnet2dAlgo(BundleAlgo):
                     ConfigParser.export_config_file(
                         parser.get(), file_path, fmt="yaml", default_flow_style=None
                     )
-
-        self.batch_size_optimized = True
 
         return fill_records
 

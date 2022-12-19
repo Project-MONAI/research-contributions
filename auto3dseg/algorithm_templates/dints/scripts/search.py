@@ -36,6 +36,13 @@ from monai.metrics import compute_dice
 from monai.utils import set_determinism
 
 
+def try_except(func, default=None, expected_exc=(Exception,)):
+    try:
+        return func()
+    except expected_exc:
+        return default
+
+
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -54,7 +61,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     fold = parser.get_parsed_content("fold")
     num_images_per_batch = parser.get_parsed_content("searching#num_images_per_batch")
     num_epochs = parser.get_parsed_content("searching#num_epochs")
-    num_epochs_per_validation = parser.get_parsed_content("searching#num_epochs_per_validation")
+    num_epochs_per_validation = parser.get_parsed_content(
+        "searching#num_epochs_per_validation"
+    )
     num_epochs_warmup = parser.get_parsed_content("searching#num_warmup_epochs")
     num_sw_batch_size = parser.get_parsed_content("searching#num_sw_batch_size")
     output_classes = parser.get_parsed_content("searching#output_classes")
@@ -150,56 +159,42 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         )[dist.get_rank()]
     print("val_files:", len(val_files))
 
-    if torch.cuda.device_count() >= 4:
-        train_ds_a = monai.data.CacheDataset(
-            data=train_files_a,
-            transform=train_transforms,
-            cache_rate=1.0,
-            num_workers=8,
-            progress=False,
-        )
-        train_ds_w = monai.data.CacheDataset(
-            data=train_files_w,
-            transform=train_transforms,
-            cache_rate=1.0,
-            num_workers=8,
-            progress=False,
-        )
-        val_ds = monai.data.CacheDataset(
-            data=val_files,
-            transform=val_transforms,
-            cache_rate=1.0,
-            num_workers=2,
-            progress=False,
-        )
-    else:
-        train_ds_a = monai.data.CacheDataset(
-            data=train_files_a,
-            transform=train_transforms,
-            cache_rate=float(torch.cuda.device_count()) / 4.0,
-            num_workers=8,
-            progress=False,
-        )
-        train_ds_w = monai.data.CacheDataset(
-            data=train_files_w,
-            transform=train_transforms,
-            cache_rate=float(torch.cuda.device_count()) / 4.0,
-            num_workers=8,
-            progress=False,
-        )
-        val_ds = monai.data.CacheDataset(
-            data=val_files,
-            transform=val_transforms,
-            cache_rate=float(torch.cuda.device_count()) / 4.0,
-            num_workers=2,
-            progress=False,
-        )
+    train_cache_rate = float(parser.get_parsed_content("train_cache_rate"))
+    validate_cache_rate = float(parser.get_parsed_content("validate_cache_rate"))
+
+    train_ds_a = monai.data.CacheDataset(
+        data=train_files_a,
+        transform=train_transforms,
+        cache_rate=train_cache_rate,
+        num_workers=parser.get_parsed_content("searching#num_cache_workers"),
+        progress=False,
+    )
+    train_ds_w = monai.data.CacheDataset(
+        data=train_files_w,
+        transform=train_transforms,
+        cache_rate=train_cache_rate,
+        num_workers=parser.get_parsed_content("searching#num_cache_workers"),
+        progress=False,
+    )
+    val_ds = monai.data.CacheDataset(
+        data=val_files,
+        transform=val_transforms,
+        cache_rate=validate_cache_rate,
+        num_workers=parser.get_parsed_content("searching#num_cache_workers"),
+        progress=False,
+    )
 
     train_loader_a = ThreadDataLoader(
-        train_ds_a, num_workers=6, batch_size=num_images_per_batch, shuffle=True
+        train_ds_a,
+        num_workers=parser.get_parsed_content("searching#num_workers"),
+        batch_size=num_images_per_batch,
+        shuffle=True,
     )
     train_loader_w = ThreadDataLoader(
-        train_ds_w, num_workers=6, batch_size=num_images_per_batch, shuffle=True
+        train_ds_w,
+        num_workers=parser.get_parsed_content("searching#num_workers"),
+        batch_size=num_images_per_batch,
+        shuffle=True,
     )
     val_loader = ThreadDataLoader(val_ds, num_workers=0, batch_size=1, shuffle=False)
 

@@ -48,22 +48,18 @@ algo_templates = os.path.join("auto3dseg", "algorithm_templates")
 
 sys.path.insert(0, algo_templates)
 
-num_epochs = 1
-n_data = 8
 num_gpus = 4 if torch.cuda.device_count() > 4 else torch.cuda.device_count()
 num_images_per_batch = 2
+num_epochs = 2
 num_epochs_per_validation = 1
-num_iterations = int(num_epochs * n_data / num_images_per_batch / num_gpus)
-len_train_loader = int(n_data / num_gpus / num_images_per_batch)
-num_iterations_per_validation = len_train_loader * num_epochs_per_validation
+num_warmup_epochs = 1
 
 train_param = {
     "CUDA_VISIBLE_DEVICES": [x for x in range(num_gpus)],
-    "num_iterations": num_iterations,
-    "num_iterations_per_validation": num_iterations_per_validation,
+    "num_epochs_per_validation": num_epochs_per_validation,
     "num_images_per_batch": num_images_per_batch,
     "num_epochs": num_epochs,
-    "num_warmup_iterations": num_iterations_per_validation,
+    "num_warmup_epochs": num_warmup_epochs,
     "use_pretrain": False,
     "pretrained_path": "",
 }

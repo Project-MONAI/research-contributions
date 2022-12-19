@@ -1,5 +1,10 @@
 amp: true
 bundle_root: null
+
+cache_rate: 1
+train_cache_rate: "$@cache_rate"
+validate_cache_rate: "$@cache_rate"
+
 ckpt_path: $@bundle_root + '/model_fold' + str(@fold)
 use_pretrain: true
 pretrained_path: $@bundle_root + '/pretrained_model' + '/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt'
@@ -37,6 +42,8 @@ num_epochs: 2000
 num_epochs_per_validation: 20
 num_patches_per_image: 1
 num_sw_batch_size: 1
+num_workers: 2
+num_cache_workers: 8
 optimizer:
   _target_: torch.optim.AdamW
   lr: '@learning_rate'

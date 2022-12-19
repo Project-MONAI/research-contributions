@@ -23,9 +23,10 @@ cache_rate: null
 determ: false
 fold: 0
 learning_rate: 2.0e-4
+batch_size: $@num_images_per_batch
 num_images_per_batch: 1
 num_epochs: 300
-warmup_epochs: 3
+num_warmup_epochs: 3
 sigmoid: false
 resample: false
 resample_resolution: [1, 1, 1]
