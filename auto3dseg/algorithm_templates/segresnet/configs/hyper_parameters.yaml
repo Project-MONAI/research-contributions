@@ -35,7 +35,6 @@ intensity_bounds: null
 num_epochs_per_validation: 1
 num_epochs_per_saving: 1
 num_workers: 4
-num_cache_workers: 1
 
 loss:
   _target_: DiceCELoss
