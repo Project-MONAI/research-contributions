@@ -392,12 +392,12 @@ class DintsAlgo(BundleAlgo):
         # keys must be allowed without "searching" and "training", such as 'num_epochs'. If a key can be found in
         # searching in hyper_parameter_search.yaml or training in hyper_parameter.yaml, the key can be used directly
         # without the prefix searching# or training#
-        
+
         output_path = self.fill_records["hyper_parameters.yaml"]["bundle_root"]
 
         parser = ConfigParser(globals=False)
         parser.read_config(os.path.join(output_path, "configs", "hyper_parameters_search.yaml"))
-        
+
         allow_search_set = [k for k in parser.get("searching")]
 
         parser = ConfigParser(globals=False)
