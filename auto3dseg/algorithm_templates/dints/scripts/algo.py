@@ -388,8 +388,24 @@ class DintsAlgo(BundleAlgo):
         if train_params is not None:
             params = deepcopy(train_params)
 
+        # Overriding DiNTS parameters typically needs searching#<key> or training#<key>, but for API alignment, some
+        # keys must be allowed without "searching" and "training", such as 'num_epochs'. If a key can be found in
+        # searching in hyper_parameter_search.yaml or training in hyper_parameter.yaml, the key can be used directly
+        # without the prefix searching# or training#
+        
+        output_path = self.fill_records["hyper_parameters.yaml"]["bundle_root"]
+
+        parser = ConfigParser(globals=False)
+        parser.read_config(os.path.join(output_path, "configs", "hyper_parameters_search.yaml"))
+        
+        allow_search_set = [k for k in parser.get("searching")]
+
+        parser = ConfigParser(globals=False)
+        parser.read_config(os.path.join(output_path, "configs", "hyper_parameters.yaml"))
+        allow_train_set = [k for k in parser.get("training")]
+
         for k, v in params.items():
-            if k == "CUDA_VISIBLE_DEVICES":
+            if k not in allow_search_set:
                 dints_search_params.update({k: v})
             else:
                 dints_search_params.update({"searching#" + k: v})
@@ -400,7 +416,7 @@ class DintsAlgo(BundleAlgo):
         # training
         dints_train_params = {}
         for k, v in params.items():
-            if k == "CUDA_VISIBLE_DEVICES":
+            if k not in allow_train_set:
                 dints_train_params.update({k: v})
             else:
                 dints_train_params.update({"training#" + k: v})
