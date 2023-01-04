@@ -63,11 +63,11 @@ finetune:
 validate:
   ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
   save_mask: true
-  ouptut_path: "$@bundle_root + '/prediction_fold' + str(@fold)"
+  output_path: "$@bundle_root + '/prediction_fold' + str(@fold)"
 
 # inference
 infer:
   ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
   fast: false
   data_list_key: testing
-  ouptut_path: "$@bundle_root + '/prediction_' + @infer#data_list_key"
+  output_path: "$@bundle_root + '/prediction_' + @infer#data_list_key"
