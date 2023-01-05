@@ -47,7 +47,7 @@ class InferClass:
 
         ckpt_name = parser.get_parsed_content("infer")["ckpt_name"]
         data_list_key = parser.get_parsed_content("infer")["data_list_key"]
-        output_path = parser.get_parsed_content("infer")["ouptut_path"]
+        output_path = parser.get_parsed_content("infer")["output_path"]
 
         if not os.path.exists(output_path):
             os.makedirs(output_path, exist_ok=True)

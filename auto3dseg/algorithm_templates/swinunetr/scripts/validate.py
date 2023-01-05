@@ -48,7 +48,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     softmax = parser.get_parsed_content("softmax")
 
     ckpt_name = parser.get_parsed_content("validate")["ckpt_name"]
-    output_path = parser.get_parsed_content("validate")["ouptut_path"]
+    output_path = parser.get_parsed_content("validate")["output_path"]
     save_mask = parser.get_parsed_content("validate")["save_mask"]
 
     if not os.path.exists(output_path):

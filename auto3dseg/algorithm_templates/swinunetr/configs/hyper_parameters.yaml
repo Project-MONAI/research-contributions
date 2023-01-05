@@ -19,7 +19,7 @@ infer:
   ckpt_name: $@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'
   data_list_key: testing
   fast: false
-  ouptut_path: $@bundle_root + '/prediction_' + @infer#data_list_key
+  output_path: $@bundle_root + '/prediction_' + @infer#data_list_key
 input_channels: 1
 learning_rate: 0.0001
 loss:
@@ -62,5 +62,5 @@ resample_to_spacing: null
 softmax: true
 validate:
   ckpt_name: $@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'
-  ouptut_path: $@bundle_root + '/prediction_fold' + str(@fold)
+  output_path: $@bundle_root + '/prediction_fold' + str(@fold)
   save_mask: true
