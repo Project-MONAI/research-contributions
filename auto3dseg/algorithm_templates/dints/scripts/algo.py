@@ -394,10 +394,8 @@ class DintsAlgo(BundleAlgo):
         # without the prefix searching# or training#
 
         output_path = self.fill_records["hyper_parameters.yaml"]["bundle_root"]
-
         parser = ConfigParser(globals=False)
         parser.read_config(os.path.join(output_path, "configs", "hyper_parameters_search.yaml"))
-
         allow_search_set = [k for k in parser.get("searching")]
 
         parser = ConfigParser(globals=False)
