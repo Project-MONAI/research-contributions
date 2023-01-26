@@ -418,7 +418,7 @@ class DintsAlgo(BundleAlgo):
             else:
                 logger.info(
                     f"The keys {k} cannot be found in the {config_search_fname} for architecture search. "
-                    f"Skipped overriding key {k} in search."
+                    f"Skipped overriding key {k}."
                 )
 
         cmd, devices_info = self._create_cmd(dints_search_params)
@@ -435,7 +435,7 @@ class DintsAlgo(BundleAlgo):
             else:
                 logger.info(
                     f"The keys {k} cannot be found in the {config_fname} for training. "
-                    f"Skipped overriding key {k} in train."
+                    f"Skipped overriding key {k}."
                 )
         cmd, devices_info = self._create_cmd(dints_train_params)
         return self._run_cmd(cmd, devices_info)
