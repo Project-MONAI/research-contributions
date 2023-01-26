@@ -395,18 +395,32 @@ class DintsAlgo(BundleAlgo):
 
         output_path = self.fill_records["hyper_parameters.yaml"]["bundle_root"]
         parser = ConfigParser(globals=False)
-        parser.read_config(os.path.join(output_path, "configs", "hyper_parameters_search.yaml"))
+        config_search_fname = os.path.join(output_path, "configs", "hyper_parameters_search.yaml")
+        parser.read_config(config_search_fname)
         allow_search_set = [k for k in parser.get("searching")]
+        allow_search_set_root = [k for k in parser.get()]
 
         parser = ConfigParser(globals=False)
-        parser.read_config(os.path.join(output_path, "configs", "hyper_parameters.yaml"))
+        config_fname = os.path.join(output_path, "configs", "hyper_parameters.yaml")
+        parser.read_config(config_fname)
         allow_train_set = [k for k in parser.get("training")]
+        allow_train_set_root = [k for k in parser.get()]
 
+        allow_search_set_root.append("CUDA_VISIBLE_DEVICES")
+        allow_train_set_root.append("CUDA_VISIBLE_DEVICES")
+
+        # architecture search
         for k, v in params.items():
-            if k not in allow_search_set:
+            if k in allow_search_set_root:
                 dints_search_params.update({k: v})
-            else:
+            elif k in allow_search_set:
                 dints_search_params.update({"searching#" + k: v})
+            else:
+                logger.info(
+                    f"The keys {k} cannot be found in the {config_search_fname} for architecture search. "
+                    f"Skipped overriding key {k} in search."
+                )
+            
         cmd, devices_info = self._create_cmd(dints_search_params)
         cmd_search = cmd.replace("train.py", "search.py")
         self._run_cmd(cmd_search, devices_info)
@@ -414,10 +428,15 @@ class DintsAlgo(BundleAlgo):
         # training
         dints_train_params = {}
         for k, v in params.items():
-            if k not in allow_train_set:
+            if k in allow_train_set_root:
                 dints_train_params.update({k: v})
-            else:
+            elif k in allow_train_set:
                 dints_train_params.update({"training#" + k: v})
+            else:
+                logger.info(
+                    f"The keys {k} cannot be found in the {config_fname} for training. "
+                    f"Skipped overriding key {k} in train."
+                )
         cmd, devices_info = self._create_cmd(dints_train_params)
         return self._run_cmd(cmd, devices_info)
 
