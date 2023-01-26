@@ -420,7 +420,7 @@ class DintsAlgo(BundleAlgo):
                     f"The keys {k} cannot be found in the {config_search_fname} for architecture search. "
                     f"Skipped overriding key {k} in search."
                 )
-            
+
         cmd, devices_info = self._create_cmd(dints_search_params)
         cmd_search = cmd.replace("train.py", "search.py")
         self._run_cmd(cmd_search, devices_info)
