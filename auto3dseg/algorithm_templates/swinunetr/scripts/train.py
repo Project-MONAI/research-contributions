@@ -324,7 +324,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 )
                 writer.add_scalar("Loss/train", loss.item(), epoch_len * epoch + step)
 
-            lr_scheduler.step()
+        lr_scheduler.step()
 
         if torch.cuda.device_count() > 1:
             dist.barrier()
