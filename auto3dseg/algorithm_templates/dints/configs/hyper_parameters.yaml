@@ -49,10 +49,10 @@ training:
     momentum: 0.9
     weight_decay: 4.0e-05
   lr_scheduler:
-    _target_: torch.optim.lr_scheduler.StepLR
+    _target_: torch.optim.lr_scheduler.PolynomialLR
     optimizer: "$@training#optimizer"
-    step_size: "$max(@training#num_epochs // 5, 1)"
-    gamma: 0.5
+    power: 0.5,
+    total_iters: '$@training#num_epochs // @training#num_per_validation_epochs + 1'
 
 # fine-tuning
 finetune:
