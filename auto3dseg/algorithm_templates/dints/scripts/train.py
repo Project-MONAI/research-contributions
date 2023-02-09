@@ -54,8 +54,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     fold = parser.get_parsed_content("fold")
     num_images_per_batch = parser.get_parsed_content("training#num_images_per_batch")
     num_epochs = parser.get_parsed_content("training#num_epochs")
-    num_per_validation_epochs = parser.get_parsed_content(
-        "training#num_per_validation_epochs"
+    num_epochs_per_validation = parser.get_parsed_content(
+        "training#num_epochs_per_validation"
     )
     num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
     output_classes = parser.get_parsed_content("training#output_classes")
@@ -143,7 +143,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     validate_cache_rate = float(parser.get_parsed_content("validate_cache_rate"))
 
     train_ds = monai.data.CacheDataset(
-        data=train_files * num_per_validation_epochs,
+        data=train_files * num_epochs_per_validation,
         transform=train_transforms,
         cache_rate=train_cache_rate,
         hash_as_key=True,
@@ -206,7 +206,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         print("num_epochs", num_epochs)
-        print("num_per_validation_epochs", num_per_validation_epochs)
+        print("num_epochs_per_validation", num_epochs_per_validation)
 
     lr_scheduler_part = parser.get_parsed_content(
         "training#lr_scheduler", instantiate=False
@@ -242,7 +242,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
             print("[info] amp enabled")
 
-    val_interval = num_per_validation_epochs
+    val_interval = num_epochs_per_validation
     best_metric = -1
     best_metric_epoch = -1
     idx_iter = 0
@@ -256,13 +256,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     start_time = time.time()
 
-    num_rounds = int(np.ceil(float(num_epochs) // float(num_per_validation_epochs)))
+    num_rounds = int(np.ceil(float(num_epochs) // float(num_epochs_per_validation)))
     for _round in range(num_rounds):
-        epoch = (_round + 1) * num_per_validation_epochs
+        epoch = (_round + 1) * num_epochs_per_validation
         lr = lr_scheduler.get_last_lr()[0]
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
             print("-" * 10)
-            print(f"epoch {_round * num_per_validation_epochs + 1}/{num_epochs}")
+            print(f"epoch {_round * num_epochs_per_validation + 1}/{num_epochs}")
             print(f"learning rate is set to {lr}")
 
         model.train()
