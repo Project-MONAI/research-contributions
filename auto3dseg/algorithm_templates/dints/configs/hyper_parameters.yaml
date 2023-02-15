@@ -51,7 +51,7 @@ training:
   lr_scheduler:
     _target_: torch.optim.lr_scheduler.PolynomialLR
     optimizer: "$@training#optimizer"
-    power: 0.5,
+    power: 0.5
     total_iters: '$@training#num_epochs // @training#num_epochs_per_validation + 1'
 
 # fine-tuning
