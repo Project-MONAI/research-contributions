@@ -22,7 +22,7 @@ training:
   num_epochs: 2000
   num_epochs_per_validation: 20
   num_patches_per_image: 1
-  num_sw_batch_size: 2
+  num_sw_batch_size: 8
   num_workers: 8
   num_cache_workers: 8
   output_classes: null
