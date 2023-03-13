@@ -189,7 +189,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         model_dict = torch.load(pretrained_path)["state_dict"]
         for key in model_dict.keys():
             if "out" not in key:
-                store_dict[key] = model_dict[key]
+                store_dict[key].copy_(model_dict[key])
 
         model.load_state_dict(store_dict)
         print("Use pretrained weights")
