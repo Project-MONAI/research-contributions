@@ -32,6 +32,7 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
+from monai.networks.utils import pytorch_after
 from monai.utils import set_determinism
 
 
@@ -207,6 +208,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         print("num_epochs", num_epochs)
         print("num_epochs_per_validation", num_epochs_per_validation)
+
+    # patch fix to support PolynomialLR use in PyTorch <= 1.12
+    if  "PolynomialLR" in parser.get("training#lr_scheduler#_target_") and not pytorch_after(1,13):
+        dints_dir = os.path.dirname(os.path.dirname(__file__))
+        sys.path.insert(0, dints_dir)
+        parser["training#lr_scheduler#_target_"] = "scripts.utils.PolynomialLR"
 
     lr_scheduler_part = parser.get_parsed_content(
         "training#lr_scheduler", instantiate=False
