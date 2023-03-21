@@ -7,6 +7,7 @@ A unit test script is provided to evaluate the integrity of all algorithm templa
 
 ```
 python auto3dseg/tests/test_algo_templates.py
+python auto3dseg/tests/test_gpu_customization.py
 ```
 
 ## Adding new templates
