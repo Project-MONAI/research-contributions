@@ -74,7 +74,10 @@ class DummyRunnerSegResNet2D(object):
                              "Please update MONAI >= 1.2 and re-run the data analyzer on your dataset.")
 
         image_size_mm = data_stat["stats_summary"]["image_stats"]["sizemm"]["percentile_99_5"]
-        self.max_shape = [int(np.ceil(image_size_mm[_l] / pixdim[_l])) for _l in range(3)]
+        # the spacing pixdim[2] is -1. It may introduce errors and so it needs to be replaced
+        self.max_shape = [
+                int(np.ceil(image_size_mm[_l] / pixdim[_l])) for _l in range(2)
+            ] + [data_stat["stats_summary"]["image_stats"]["shape"]["max"][2]]
         print("max_shape", self.max_shape)
 
     def run(
