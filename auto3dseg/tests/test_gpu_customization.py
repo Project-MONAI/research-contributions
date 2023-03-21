@@ -162,5 +162,6 @@ class TestGpuCustomization(unittest.TestCase):
 
         shutil.rmtree(work_dir)
 
+
 if __name__ == "__main__":
     unittest.main()
