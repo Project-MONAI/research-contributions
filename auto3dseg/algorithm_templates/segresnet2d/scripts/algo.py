@@ -281,13 +281,15 @@ class Segresnet2dAlgo(BundleAlgo):
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
                 cmd += f"--validation_data_device {validation_data_device}"
                 _ = subprocess.run(cmd.split(), check=True)
-            except:
-                print("[error] OOM")
-                return (
-                    float(num_images_per_batch)
-                    * float(num_sw_batch_size)
-                    * device_factor
-                )
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    return (
+                        float(num_images_per_batch)
+                        * float(num_sw_batch_size)
+                        * device_factor
+                    )
+                else:
+                    raise(e)
 
             value = (
                 -1.0
