@@ -29,6 +29,20 @@ def get_gpu_available_memory():
 
 
 class Segresnet2dAlgo(BundleAlgo):
+    def pre_check_skip_algo(self):
+        if self.data_stats_files is None:
+            return
+        data_stats = ConfigParser(globals=False)
+        if os.path.exists(str(self.data_stats_files)):
+            data_stats.read_config(str(self.data_stats_files))
+        else:
+            data_stats.update(self.data_stats_files)
+        spacing = data_stats["stats_summary#image_stats#spacing#median"]
+        if len(spacing) > 2:
+            if spacing[-1] < 10 * (spacing[0] + spacing[1]) / 2:
+                self.skip_bundlegen = True
+                self.skip_info = f'2D network is skipped due to median spacing of {spacing}'
+
     def fill_template_config(self, data_stats_file, output_path, **kwargs):
         """
         Fill the freshly copied config templates
@@ -85,7 +99,7 @@ class Segresnet2dAlgo(BundleAlgo):
             hyper_parameters.update({"output_classes": output_classes})
 
             modality = data_src_cfg.get("modality", "ct").lower()
-            spacing = data_stats["stats_summary#image_stats#spacing#median"]
+            spacing = deepcopy(data_stats["stats_summary#image_stats#spacing#median"])
             spacing[-1] = -1.0
             hyper_parameters.update({"resample_to_spacing": spacing})
 
@@ -175,6 +189,7 @@ class Segresnet2dAlgo(BundleAlgo):
                 "transforms_validate.yaml": transforms_validate,
                 "transforms_infer.yaml": transforms_infer,
             }
+            self.check_skip_algo(data_stats)
         else:
             fill_records = self.fill_records
 
