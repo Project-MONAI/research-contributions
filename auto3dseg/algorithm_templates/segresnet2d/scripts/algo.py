@@ -39,9 +39,9 @@ class Segresnet2dAlgo(BundleAlgo):
             data_stats.update(self.data_stats_files)
         spacing = data_stats["stats_summary#image_stats#spacing#median"]
         if len(spacing) > 2:
-            if spacing[-1] < 10 * (spacing[0] + spacing[1]) / 2:
+            if spacing[-1] < 3 * (spacing[0] + spacing[1]) / 2:
                 self.skip_bundlegen = True
-                self.skip_info = f'2D network is skipped due to median spacing of {spacing}'
+                self.skip_info = f'2D network is skipped due to median spacing of {spacing}.'
 
     def fill_template_config(self, data_stats_file, output_path, **kwargs):
         """
@@ -189,7 +189,6 @@ class Segresnet2dAlgo(BundleAlgo):
                 "transforms_validate.yaml": transforms_validate,
                 "transforms_infer.yaml": transforms_infer,
             }
-            self.check_skip_algo(data_stats)
         else:
             fill_records = self.fill_records
 
