@@ -30,6 +30,11 @@ def get_gpu_available_memory():
 
 class Segresnet2dAlgo(BundleAlgo):
     def pre_check_skip_algo(self):
+        """
+        Precheck if the algorithm needs to be skipped.
+        If the median spacing of the dataset is not highly anisotropic (res_z < 3*(res_x + rex_y)/2), 
+        the 2D segresnet will be skipped by setting self.skip_bundlegen=True
+        """
         if self.data_stats_files is None:
             return
         data_stats = ConfigParser(globals=False)
