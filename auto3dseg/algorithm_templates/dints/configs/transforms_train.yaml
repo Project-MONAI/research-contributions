@@ -8,6 +8,7 @@ transforms_train:
   overrides:
     mode: [bilinear, nearest]
     padding_mode: [border, border]
+    # device: "cuda"
     dtype: "$torch.float32"
   transforms:
   - _target_: LoadImaged
@@ -39,7 +40,7 @@ transforms_train:
     spatial_size: "@training#patch_size"
     mode: [constant, constant]
 
-  - _target_: IdentityD  # make the label uptodate (the next transform requires label_key input
+  - _target_: IdentityD  # make the label uptodate (the next transform requires label_key input)
     keys: ["@label_key"]
 
   # data augmentation
@@ -63,7 +64,7 @@ transforms_train:
     mode: [trilinear, nearest]
     prob: 0.16
 
-  - _target_: IdentityD   # make image up-to-date
+  - _target_: IdentityD   # make image up-to-date, before this line the cropping hasn't been applied
     keys: ["@image_key"]
 
   - _target_: RandGaussianSmoothd
