@@ -38,7 +38,6 @@ class DummyRunnerSwinUNETR(object):
         parser.read_config(config_file)
 
         self.device = torch.device("cuda:{0:d}".format(device_id))
-        torch.cuda.set_device(self.device)
 
         self.input_channels = parser.get_parsed_content("input_channels")
         self.patch_size = parser.get_parsed_content("patch_size")

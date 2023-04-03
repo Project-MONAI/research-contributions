@@ -38,7 +38,6 @@ class DummyRunnerSegResNet2D(object):
         parser.read_config(config_file)
 
         self.device = torch.device("cuda:{0:d}".format(device_id))
-        torch.cuda.set_device(self.device)
 
         self.input_channels = parser.get_parsed_content("input_channels")
         self.num_adjacent_slices = parser.get_parsed_content("num_adjacent_slices")
