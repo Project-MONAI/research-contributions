@@ -233,6 +233,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     best_metric_epoch = -1
     idx_iter = 0
     metric_dim = output_classes - 1 if softmax else output_classes
+    val_devices = {}
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
@@ -322,9 +323,15 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 val_images = val_data["image"]
                 val_labels = val_data["label"]
 
+                val_filename = val_data["image_meta_dict"]["filename_or_obj"][0]
+                if val_filename not in val_devices:
+                    val_devices[val_filename] = device
+                elif sw_input_on_cpu:
+                    val_devices[val_filename] = "cpu"
+
                 try:
-                    val_images = val_images.to(device)
-                    val_labels = val_labels.to(device)
+                    val_images = val_images.to(val_devices[val_filename])
+                    val_labels = val_labels.to(val_devices[val_filename])
 
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_outputs = sliding_window_inference(
@@ -337,6 +344,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             sw_device=device,
                         )
                 except:
+                    val_devices[val_filename] = "cpu"
+
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_outputs = sliding_window_inference(
                             val_images,
@@ -345,7 +354,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             model,
                             mode="gaussian",
                             overlap=overlap_ratio,
-                            sw_device="cpu",
+                            sw_device=device,
                         )
 
                 val_outputs = post_pred(val_outputs[0, ...])
