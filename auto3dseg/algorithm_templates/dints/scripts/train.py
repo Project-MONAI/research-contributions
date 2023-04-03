@@ -289,7 +289,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                 print(f"[{str(datetime.now())[:19]}] " + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
-                writer.add_scalar("Loss/train", loss.item(), epoch_len * num_rounds + step)
+                writer.add_scalar("train/loss", loss.item(), epoch_len * num_rounds + step)
 
         lr_scheduler.step()
 
@@ -376,13 +376,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                 for _c in range(metric_dim):
                     print(f"evaluation metric - class {_c + 1:d}:", metric[2 * _c] / metric[2 * _c + 1])
+                    writer.add_scalar(f"val/acc/class{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
                 avg_metric = 0
                 for _c in range(metric_dim):
                     avg_metric += metric[2 * _c] / metric[2 * _c + 1]
                 avg_metric = avg_metric / float(metric_dim)
                 print("avg_metric", avg_metric)
 
-                writer.add_scalar("Accuracy/validation", avg_metric, epoch)
+                writer.add_scalar("val/acc", avg_metric, epoch)
 
                 if avg_metric > best_metric:
                     best_metric = avg_metric
