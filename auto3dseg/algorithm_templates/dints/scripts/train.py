@@ -322,16 +322,28 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 val_images = val_data["image"].to(device) if sw_input_on_cpu is False else val_data["image"]
                 val_labels = val_data["label"].to(device) if sw_input_on_cpu is False else val_data["label"]
 
-                with torch.cuda.amp.autocast(enabled=amp):
-                    val_outputs = sliding_window_inference(
-                        val_images,
-                        patch_size_valid,
-                        num_sw_batch_size,
-                        model,
-                        mode="gaussian",
-                        overlap=overlap_ratio,
-                        sw_device=device,
-                    )
+                try:
+                    with torch.cuda.amp.autocast(enabled=amp):
+                        val_outputs = sliding_window_inference(
+                            val_images,
+                            patch_size_valid,
+                            num_sw_batch_size,
+                            model,
+                            mode="gaussian",
+                            overlap=overlap_ratio,
+                            sw_device=device,
+                        )
+                except:
+                    with torch.cuda.amp.autocast(enabled=amp):
+                        val_outputs = sliding_window_inference(
+                            val_images,
+                            patch_size_valid,
+                            num_sw_batch_size,
+                            model,
+                            mode="gaussian",
+                            overlap=overlap_ratio,
+                            sw_device="cpu",
+                        )
 
                 val_outputs = post_pred(val_outputs[0, ...])
                 val_outputs = val_outputs[None, ...]
