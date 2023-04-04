@@ -15,6 +15,9 @@ validate_cache_rate: "$@cache_rate"
 training:
   # hyper-parameters
   amp: true
+  early_stop: true
+  early_stop_delta: 0
+  early_stop_patience: 20
   determ: false
   input_channels: null
   learning_rate: 0.2
