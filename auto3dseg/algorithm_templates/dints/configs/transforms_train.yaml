@@ -10,7 +10,7 @@ transforms_train:
     padding_mode: [border, border]
     # device: "cuda"
     dtype: "$torch.float32"
-    verbose: false  # whether to print more pending operations info
+  verbose: false  # whether to print more pending operations info
   transforms:
   - _target_: LoadImaged
     keys: ["@image_key", "@label_key"]
