@@ -113,7 +113,7 @@ class EarlyStopping:
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-    if type(config_file) == str and ',' in config_file:
+    if isinstance(config_file, str) and ',' in config_file:
         config_file = config_file.split(',')
 
     torch.set_float32_matmul_precision("high")
@@ -462,9 +462,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             model.eval()
             with torch.no_grad():
                 metric = torch.zeros(
-                    metric_dim * 2,
-                    dtype=torch.float,
-                    device=device)
+                    metric_dim * 2, dtype=torch.float, device=device)
                 metric_sum = 0.0
                 metric_mat = []
                 val_images = None

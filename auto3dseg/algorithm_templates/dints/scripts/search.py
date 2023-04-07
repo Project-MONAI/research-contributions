@@ -47,7 +47,7 @@ def try_except(func, default=None, expected_exc=(Exception,)):
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-    if type(config_file) == str and ',' in config_file:
+    if isinstance(config_file, str) and ',' in config_file:
         config_file = config_file.split(',')
 
     _args = _update_args(config_file=config_file, **override)
