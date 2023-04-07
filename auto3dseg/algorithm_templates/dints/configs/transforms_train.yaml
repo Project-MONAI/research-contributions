@@ -42,6 +42,7 @@ transforms_train:
     num_classes: "@training#output_classes"
     spatial_size: "@training#patch_size"
     num_samples: "@training#num_patches_per_image"
+    warn: false
   - _target_: RandRotated
     keys: ["@image_key", "@label_key"]
     range_x: 0.3
