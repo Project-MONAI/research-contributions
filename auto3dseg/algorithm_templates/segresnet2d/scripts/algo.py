@@ -29,6 +29,26 @@ def get_gpu_available_memory():
 
 
 class Segresnet2dAlgo(BundleAlgo):
+    def pre_check_skip_algo(self, skip_bundlegen: bool=False, skip_info: str=''):
+        """
+        Precheck if the algorithm needs to be skipped.
+        If the median spacing of the dataset is not highly anisotropic (res_z < 3*(res_x + rex_y)/2),
+        the 2D segresnet will be skipped by setting self.skip_bundlegen=True.
+        """
+        if self.data_stats_files is None:
+            return
+        data_stats = ConfigParser(globals=False)
+        if os.path.exists(str(self.data_stats_files)):
+            data_stats.read_config(str(self.data_stats_files))
+        else:
+            data_stats.update(self.data_stats_files)
+        spacing = data_stats["stats_summary#image_stats#spacing#median"]
+        if len(spacing) > 2:
+            if spacing[-1] < 3 * (spacing[0] + spacing[1]) / 2:
+                skip_bundlegen = True
+                skip_info = f'2D network is skipped due to median spacing of {spacing}.'
+        return skip_bundlegen, skip_info
+
     def fill_template_config(self, data_stats_file, output_path, **kwargs):
         """
         Fill the freshly copied config templates
@@ -85,7 +105,7 @@ class Segresnet2dAlgo(BundleAlgo):
             hyper_parameters.update({"output_classes": output_classes})
 
             modality = data_src_cfg.get("modality", "ct").lower()
-            spacing = data_stats["stats_summary#image_stats#spacing#median"]
+            spacing = deepcopy(data_stats["stats_summary#image_stats#spacing#median"])
             spacing[-1] = -1.0
             hyper_parameters.update({"resample_to_spacing": spacing})
 
