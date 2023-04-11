@@ -260,7 +260,7 @@ class DintsAlgo(BundleAlgo):
 
         mem = get_mem_from_visible_gpus()
         device_id = np.argmin(mem)
-        print(f"[info] gpu device {device_id} with minimum memory in {mem}")
+        print(f"[info] device {device_id} in visible GPU list has the minimum memory.")
 
         mem = min(mem) if type(mem) is list else mem
         mem = round(float(mem) / 1024.0)
