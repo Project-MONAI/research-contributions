@@ -22,6 +22,7 @@ import shutil
 from monai.apps.auto3dseg import AlgoEnsembleBestByFold, AlgoEnsembleBestN, AlgoEnsembleBuilder, BundleGen, DataAnalyzer
 from monai.bundle.config_parser import ConfigParser
 from monai.data import create_test_image_3d
+from monai.utils.enums import AlgoKeys
 
 sim_datalist = {
     "testing": [
@@ -123,9 +124,9 @@ def auto_run(work_dir, data_src_cfg, algos):
     bundle_generator.generate(work_dir, num_fold=1)
     history = bundle_generator.get_history()
 
-    for h in history:
-        for name, algo in h.items():
-            algo.train(train_param)
+    for algo_dict in history:
+        algo = algo_dict[AlgoKeys.ALGO]
+        algo.train(train_param)
 
     builder = AlgoEnsembleBuilder(history, data_src_cfg_file)
     builder.set_ensemble_method(AlgoEnsembleBestN(n_best=len(history)))  # inference all models
