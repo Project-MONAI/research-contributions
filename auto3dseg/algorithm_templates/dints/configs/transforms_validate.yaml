@@ -18,12 +18,18 @@ transforms_validate:
     mode: [bilinear, nearest]
     align_corners: [true, true]
   - _target_: CastToTyped
-    keys: "@image_key"
-    dtype: "$torch.float32"
-  - PLACEHOLDER_INTENSITY_NORMALIZATION
-  - _target_: CastToTyped
     keys: ["@image_key", "@label_key"]
     dtype: ["$torch.float32", "$torch.uint8"]
   - _target_: EnsureTyped
     keys: ['@image_key', '@label_key']
     track_meta: false
+  # - _target_: CastToTyped
+  #   keys: "@image_key"
+  #   dtype: "$torch.float32"
+  - PLACEHOLDER_INTENSITY_NORMALIZATION
+  # - _target_: CastToTyped
+  #   keys: ["@image_key", "@label_key"]
+  #   dtype: ["$torch.float32", "$torch.uint8"]
+  # - _target_: EnsureTyped
+  #   keys: ['@image_key', '@label_key']
+  #   track_meta: false

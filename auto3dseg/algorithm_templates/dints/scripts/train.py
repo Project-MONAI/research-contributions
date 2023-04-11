@@ -362,7 +362,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         for _round in tqdm(
                 range(num_rounds),
-                desc="DiNTS model training...",
+                desc=f"DiNTS - model training - fold {fold} ...",
                 unit="round"):
             epoch = (_round + 1) * num_epochs_per_validation
             lr = lr_scheduler.get_last_lr()[0]
@@ -484,7 +484,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         val_images = val_images.to(val_devices[val_filename])
                         val_labels = val_labels.to(val_devices[val_filename])
 
-                        with torch.cuda.amp.autocast(enabled=amp):
+                        # with torch.cuda.amp.autocast(enabled=amp):
+                        with autocast(enabled=amp):
                             val_outputs = sliding_window_inference(
                                 val_images,
                                 patch_size_valid,
@@ -496,7 +497,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     except BaseException:
                         val_devices[val_filename] = "cpu"
 
-                        with torch.cuda.amp.autocast(enabled=amp):
+                        # with torch.cuda.amp.autocast(enabled=amp):
+                        with autocast(enabled=amp):
                             val_outputs = sliding_window_inference(
                                 val_images,
                                 patch_size_valid,
@@ -516,14 +518,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             value[0, _k - 1] = compute_dice(
                                 y_pred=val_outputs[:, _k: _k + 1],
                                 y=(val_labels == _k).float(),
-                                include_background=not softmax,
-                            )
+                                include_background=not softmax)
                     else:
                         value = compute_dice(
                             y_pred=val_outputs,
                             y=val_labels,
-                            include_background=not softmax
-                        )
+                            include_background=not softmax)
 
                     logger.debug(_index + 1, "/", len(val_loader), value)
 
@@ -624,9 +624,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         dist.destroy_process_group()
 
     if es:
-        logger.warning("DiNTS model training finished with early stop")
+        logger.warning("DiNTS - model training - fold {fold}: finished with early stop")
     else:
-        logger.warning("DiNTS model training finished")
+        logger.warning("DiNTS - model training - fold {fold}: finished")
 
     return
 

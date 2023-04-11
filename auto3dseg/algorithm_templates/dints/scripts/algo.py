@@ -165,23 +165,23 @@ class DintsAlgo(BundleAlgo):
 
             if modality.startswith("ct"):
                 transforms_train.update(
-                    {"transforms_train#transforms#5": ct_intensity_xform_train_valid}
+                    {"transforms_train#transforms#6": ct_intensity_xform_train_valid}
                 )
                 transforms_validate.update(
-                    {"transforms_validate#transforms#5": ct_intensity_xform_train_valid}
+                    {"transforms_validate#transforms#6": ct_intensity_xform_train_valid}
                 )
                 transforms_infer.update(
-                    {"transforms_infer#transforms#5": ct_intensity_xform_infer}
+                    {"transforms_infer#transforms#6": ct_intensity_xform_infer}
                 )
             else:
                 transforms_train.update(
-                    {"transforms_train#transforms#5": mr_intensity_transform}
+                    {"transforms_train#transforms#6": mr_intensity_transform}
                 )
                 transforms_validate.update(
-                    {"transforms_validate#transforms#5": mr_intensity_transform}
+                    {"transforms_validate#transforms#6": mr_intensity_transform}
                 )
                 transforms_infer.update(
-                    {"transforms_infer#transforms#5": mr_intensity_transform}
+                    {"transforms_infer#transforms#6": mr_intensity_transform}
                 )
 
             fill_records = {

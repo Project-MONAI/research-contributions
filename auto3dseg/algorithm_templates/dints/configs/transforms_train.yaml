@@ -3,10 +3,17 @@ image_key: image
 label_key: label
 transforms_train:
   _target_: Compose
+  lazy_evaluation: true
+  override_keys: ["@image_key", "@label_key"]
+  overrides:
+    mode: [bilinear, nearest]
+    padding_mode: [border, border]
+    # device: "cuda"
+    dtype: "$torch.float32"
+    # verbose: false  # whether to print more pending operations info
   transforms:
   - _target_: LoadImaged
     keys: ["@image_key", "@label_key"]
-    image_only: true
   - _target_: EnsureChannelFirstd
     keys: ["@image_key", "@label_key"]
   - _target_: Orientationd
@@ -18,22 +25,31 @@ transforms_train:
     mode: [bilinear, nearest]
     align_corners: [true, true]
   - _target_: CastToTyped
-    keys: "@image_key"
-    dtype: "$torch.float32"
-  - PLACEHOLDER_INTENSITY_NORMALIZATION
-  - _target_: CastToTyped
     keys: ["@image_key", "@label_key"]
-    dtype: ["$torch.float16", "$torch.uint8"]
+    dtype: ["$torch.float32", "$torch.uint8"]
   - _target_: EnsureTyped
     keys: ["@image_key", "@label_key"]
     track_meta: false
-  - _target_: CastToTyped
-    keys: "@image_key"
-    dtype: "$torch.float32"
+  - PLACEHOLDER_INTENSITY_NORMALIZATION
+  # - _target_: CastToTyped
+  #   keys: "@image_key"
+  #   dtype: "$torch.float32"
+  # - PLACEHOLDER_INTENSITY_NORMALIZATION
+  # - _target_: CastToTyped
+  #   keys: ["@image_key", "@label_key"]
+  #   dtype: ["$torch.float16", "$torch.uint8"]
+  # - _target_: EnsureTyped
+  #   keys: ["@image_key", "@label_key"]
+  # - _target_: CastToTyped
+  #   keys: "@image_key"
+  #   dtype: "$torch.float32"
   - _target_: SpatialPadd
     keys: ["@image_key", "@label_key"]
     spatial_size: "@training#patch_size"
     mode: [constant, constant]
+
+  - _target_: IdentityD  # make the label uptodate (the next transform requires label_key input)
+    keys: ["@label_key"]
 
   # data augmentation
   - _target_: RandCropByLabelClassesd
@@ -42,20 +58,23 @@ transforms_train:
     num_classes: "@training#output_classes"
     spatial_size: "@training#patch_size"
     num_samples: "@training#num_patches_per_image"
-    warn: false
-  - _target_: RandRotated
-    keys: ["@image_key", "@label_key"]
-    range_x: 0.3
-    range_y: 0.3
-    range_z: 0.3
-    mode: [bilinear, nearest]
-    prob: 0.2
-  - _target_: RandZoomd
-    keys: ["@image_key", "@label_key"]
-    min_zoom: 0.8
-    max_zoom: 1.2
-    mode: [trilinear, nearest]
-    prob: 0.16
+  # - _target_: RandRotated
+  #   keys: ["@image_key", "@label_key"]
+  #   range_x: 0.3
+  #   range_y: 0.3
+  #   range_z: 0.3
+  #   mode: [bilinear, nearest]
+  #   prob: 0.2
+  # - _target_: RandZoomd
+  #   keys: ["@image_key", "@label_key"]
+  #   min_zoom: 0.8
+  #   max_zoom: 1.2
+  #   mode: [trilinear, nearest]
+  #   prob: 0.16
+
+  - _target_: IdentityD   # make image up-to-date, before this line the cropping hasn't been applied
+    keys: ["@image_key"]
+
   - _target_: RandGaussianSmoothd
     keys: "@image_key"
     sigma_x: [0.5, 1.15]
