@@ -18,7 +18,8 @@ import yaml
 from copy import deepcopy
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
-
+from monai.apps.utils import get_logger
+logger = get_logger(module_name=__name__)
 
 def get_gpu_available_memory():
     command = "nvidia-smi --query-gpu=memory.free --format=csv"
@@ -71,16 +72,17 @@ class SwinunetrAlgo(BundleAlgo):
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
 
-            hyper_parameters.update({"patch_size": patch_size})
-            hyper_parameters.update({"patch_size_valid": patch_size})
             hyper_parameters.update(
                 {"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])}
             )
             hyper_parameters.update(
                 {"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])}
             )
-            hyper_parameters.update({"input_channels": input_channels})
-            hyper_parameters.update({"output_classes": output_classes})
+            
+            hyper_parameters.update({"training#patch_size": patch_size})
+            hyper_parameters.update({"training#patch_size_valid": patch_size})
+            hyper_parameters.update({"training#input_channels": input_channels})
+            hyper_parameters.update({"training#output_classes": output_classes})
 
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
@@ -89,14 +91,7 @@ class SwinunetrAlgo(BundleAlgo):
             if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
                 spacing = [1.0, 1.0, 1.0]
 
-            min_shape = data_stats["stats_summary#image_stats#shape#min"]
-            # reflection-mode padding requires a minimum image for a given patch size
-            spacing = [
-                min(s / int(patch_size[i] / 3 + 1), spacing[i])
-                for i, s in enumerate(min_shape)
-            ]
-
-            hyper_parameters.update({"resample_to_spacing": spacing})
+            hyper_parameters.update({"training#resample_to_spacing": spacing})
 
             intensity_upper_bound = float(
                 data_stats[
@@ -108,17 +103,45 @@ class SwinunetrAlgo(BundleAlgo):
                     "stats_summary#image_foreground_stats#intensity#percentile_00_5"
                 ]
             )
-
-            ct_intensity_xform = {
-                "_target_": "ScaleIntensityRanged",
-                "keys": "@image_key",
-                "a_min": intensity_lower_bound,
-                "a_max": intensity_upper_bound,
-                "b_min": 0.0,
-                "b_max": 1.0,
-                "clip": True,
+            
+            ct_intensity_xform_train_valid = {
+                "_target_": "Compose",
+                "transforms": [
+                    {
+                        "_target_": "ScaleIntensityRanged",
+                        "keys": "@image_key",
+                        "a_min": intensity_lower_bound,
+                        "a_max": intensity_upper_bound,
+                        "b_min": 0.0,
+                        "b_max": 1.0,
+                        "clip": True,
+                    },
+                    {
+                        "_target_": "CropForegroundd",
+                        "keys": ["@image_key", "@label_key"],
+                        "source_key": "@image_key",
+                    },
+                ],
             }
-
+            ct_intensity_xform_infer = {
+                "_target_": "Compose",
+                "transforms": [
+                    {
+                        "_target_": "ScaleIntensityRanged",
+                        "keys": "@image_key",
+                        "a_min": intensity_lower_bound,
+                        "a_max": intensity_upper_bound,
+                        "b_min": 0.0,
+                        "b_max": 1.0,
+                        "clip": True,
+                    },
+                    {
+                        "_target_": "CropForegroundd",
+                        "keys": "@image_key",
+                        "source_key": "@image_key",
+                    },
+                ],
+            }
             mr_intensity_transform = {
                 "_target_": "NormalizeIntensityd",
                 "keys": "@image_key",
@@ -128,13 +151,13 @@ class SwinunetrAlgo(BundleAlgo):
 
             if modality.startswith("ct"):
                 transforms_train.update(
-                    {"transforms_train#transforms#5": ct_intensity_xform}
+                    {"transforms_train#transforms#5": ct_intensity_xform_train_valid}
                 )
                 transforms_validate.update(
-                    {"transforms_validate#transforms#5": ct_intensity_xform}
+                    {"transforms_validate#transforms#5": ct_intensity_xform_train_valid}
                 )
                 transforms_infer.update(
-                    {"transforms_infer#transforms#5": ct_intensity_xform}
+                    {"transforms_infer#transforms#5": ct_intensity_xform_infer}
                 )
             else:
                 transforms_train.update(
@@ -308,15 +331,15 @@ class SwinunetrAlgo(BundleAlgo):
 
         if best_trial["value"] < 0:
             fill_records["hyper_parameters.yaml"].update(
-                {"num_images_per_batch": best_trial["num_images_per_batch"]}
+                {"training#num_images_per_batch": best_trial["num_images_per_batch"]}
             )
             fill_records["hyper_parameters.yaml"].update(
-                {"num_sw_batch_size": best_trial["num_sw_batch_size"]}
+                {"training#num_sw_batch_size": best_trial["num_sw_batch_size"]}
             )
             if best_trial["validation_data_device"] == "cpu":
-                fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": True})
+                fill_records["hyper_parameters.yaml"].update({"training#sw_input_on_cpu": True})
             else:
-                fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": False})
+                fill_records["hyper_parameters.yaml"].update({"training#sw_input_on_cpu": False})
 
             for yaml_file, yaml_contents in fill_records.items():
                 if "hyper_parameters" in yaml_file:
