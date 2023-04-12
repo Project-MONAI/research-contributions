@@ -274,7 +274,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     device = torch.device(
         f"cuda:{os.environ['LOCAL_RANK']}") if world_size > 1 else torch.device("cuda:0")
-    torch.cuda.set_device(device)
 
     with io.StringIO() as buffer, contextlib.redirect_stdout(buffer):
         model = parser.get_parsed_content("network")
