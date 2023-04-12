@@ -23,19 +23,7 @@ transforms_train:
   - _target_: EnsureTyped
     keys: ["@image_key", "@label_key"]
     track_meta: false
-  # - _target_: CastToTyped
-  #   keys: "@image_key"
-  #   dtype: "$torch.float32"
   - PLACEHOLDER_INTENSITY_NORMALIZATION
-  # - _target_: CastToTyped
-  #   keys: ["@image_key", "@label_key"]
-  #   dtype: ["$torch.float16", "$torch.uint8"]
-  # - _target_: EnsureTyped
-  #   keys: ["@image_key", "@label_key"]
-  #   track_meta: false
-  # - _target_: CastToTyped
-  #   keys: "@image_key"
-  #   dtype: "$torch.float32"
   - _target_: SpatialPadd
     keys: ["@image_key", "@label_key"]
     spatial_size: "@training#patch_size"
