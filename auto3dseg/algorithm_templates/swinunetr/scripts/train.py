@@ -43,7 +43,70 @@ from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
 from monai.utils import set_determinism
-from monai.apps import download_url
+
+
+_libcudart = ctypes.CDLL("libcudart.so")
+# Set device limit on the current device
+# cudaLimitMaxL2FetchGranularity = 0x05
+p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
+_libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
+_libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
+assert p_value.contents.value == 128
+
+torch.backends.cudnn.benchmark = True
+
+
+CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"monai_default": {"format": DEFAULT_FMT}},
+    "loggers": {
+        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "NOTSET", "propagate": False}
+    },
+    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+    "handlers": {
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": "runner.log",
+            "mode": "a",  # append or overwrite
+            "level": "DEBUG",
+            "formatter": "monai_default",
+            "filters": ["rank_filter"],
+        },
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "INFO",
+            "formatter": "monai_default",
+            "filters": ["rank_filter"],
+        },
+    },
+}
+
+
+class EarlyStopping:
+    def __init__(self, patience=5, delta=0, verbose=False):
+        self.patience = patience
+        self.delta = delta
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_acc_max = -1
+
+    def __call__(self, val_acc):
+        if self.best_score is None:
+            self.best_score = val_acc
+        elif val_acc + self.delta < self.best_score:
+            self.counter += 1
+            if self.verbose:
+                logger.debug(
+                    f"EarlyStopping counter: {self.counter} out of {self.patience}"
+                )
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = val_acc
+            self.counter = 0
 
 _libcudart = ctypes.CDLL("libcudart.so")
 # Set device limit on the current device
@@ -277,7 +340,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     train_loader = DataLoader(
         train_ds,
-        num_workers=parser.get_parsed_content("num_workers"),
+        num_workers=parser.get_parsed_content("training#num_workers"),
         batch_size=num_images_per_batch,
         shuffle=True,
         persistent_workers=True,
@@ -324,7 +387,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         post_pred = transforms.Compose([transforms.EnsureType(), transforms.Activations(
             sigmoid=True), transforms.AsDiscrete(threshold=0.5)])
 
-    loss_function = parser.get_parsed_content("loss")
+    loss_function = parser.get_parsed_content("training#loss")
 
     optimizer_part = parser.get_parsed_content(
         "optimizer", instantiate=False)
@@ -375,7 +438,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if es:
         stop_train = torch.tensor(False).to(device)
 
-    if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
+    if rank == 0:
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
 
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
@@ -606,7 +669,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     dist.all_reduce(metric, op=torch.distributed.ReduceOp.SUM)
 
                 metric = metric.tolist()
-                if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
+                if rank == 0:
                     for _c in range(metric_dim):
                         logger.debug(
                             f"evaluation metric - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
@@ -684,6 +747,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() > 1:
         dist.destroy_process_group()
+        
+    if rank == 0:
+        if es:
+            logger.warning("SwinUNETR model training finished with early stop")
+        else:
+            logger.warning("SwinUNETR model training finished")
 
     return
 

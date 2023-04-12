@@ -22,7 +22,6 @@ from monai.bundle import ConfigParser
 from monai.apps.utils import get_logger
 logger = get_logger(module_name=__name__)
 
-
 def get_mem_from_visible_gpus():
     available_mem_visible_gpus = []
     for d in range(torch.cuda.device_count()):
@@ -115,7 +114,6 @@ class SwinunetrAlgo(BundleAlgo):
                     "stats_summary#image_foreground_stats#intensity#percentile_00_5"
                 ]
             )
-
             ct_intensity_xform_train_valid = {
                 "_target_": "Compose",
                 "transforms": [
@@ -346,15 +344,15 @@ class SwinunetrAlgo(BundleAlgo):
 
         if best_trial["value"] < 0:
             fill_records["hyper_parameters.yaml"].update(
-                {"num_images_per_batch": best_trial["num_images_per_batch"]}
+                {"training#num_images_per_batch": best_trial["num_images_per_batch"]}
             )
             fill_records["hyper_parameters.yaml"].update(
-                {"num_sw_batch_size": best_trial["num_sw_batch_size"]}
+                {"training#num_sw_batch_size": best_trial["num_sw_batch_size"]}
             )
             if best_trial["validation_data_device"] == "cpu":
-                fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": True})
+                fill_records["hyper_parameters.yaml"].update({"training#sw_input_on_cpu": True})
             else:
-                fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": False})
+                fill_records["hyper_parameters.yaml"].update({"training#sw_input_on_cpu": False})
 
             for yaml_file, yaml_contents in fill_records.items():
                 if "hyper_parameters" in yaml_file:
