@@ -62,7 +62,7 @@ CONFIG = {
     "disable_existing_loggers": False,
     "formatters": {"monai_default": {"format": DEFAULT_FMT}},
     "loggers": {
-        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "NOTSET", "propagate": False}
+        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
     "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
     "handlers": {
@@ -127,10 +127,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     amp = parser.get_parsed_content("training#amp")
     ckpt_path = parser.get_parsed_content("ckpt_path")
-    es = parser.get_parsed_content("training#early_stop")
-    es_delta = parser.get_parsed_content("training#early_stop_delta")
-    es_patience = parser.get_parsed_content(
-        "training#early_stop_patience")
     data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
     determ = parser.get_parsed_content("training#determ")
@@ -153,6 +149,25 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     train_transforms = parser.get_parsed_content("transforms_train")
     val_transforms = parser.get_parsed_content("transforms_validate")
+
+    ad = parser.get_parsed_content("training#adapt_valid_mode")
+    if ad:
+        ad_progress_percentages = parser.get_parsed_content(
+            "training#adapt_valid_progress_percentages")
+        ad_num_epochs_per_validation = parser.get_parsed_content(
+            "training#adapt_valid_num_epochs_per_validation")
+
+        sorted_indices = np.argsort(ad_progress_percentages)
+        ad_progress_percentages = [
+            ad_progress_percentages[_i] for _i in sorted_indices]
+        ad_num_epochs_per_validation = [
+            ad_num_epochs_per_validation[_i] for _i in sorted_indices]
+
+    es = parser.get_parsed_content("training#early_stop_mode")
+    if es:
+        es_delta = parser.get_parsed_content("training#early_stop_delta")
+        es_patience = parser.get_parsed_content(
+            "training#early_stop_patience")
 
     if not os.path.exists(ckpt_path):
         os.makedirs(ckpt_path, exist_ok=True)
@@ -237,7 +252,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         parser.get_parsed_content("validate_cache_rate"))
 
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
+        warnings.simplefilter(action="ignore", category=FutureWarning)
+        warnings.simplefilter(action="ignore", category=Warning)
 
         train_ds = monai.data.CacheDataset(
             data=train_files * num_epochs_per_validation,
@@ -271,7 +287,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     device = torch.device(
         f"cuda:{os.environ['LOCAL_RANK']}") if world_size > 1 else torch.device("cuda:0")
-    torch.cuda.set_device(device)
 
     with io.StringIO() as buffer, contextlib.redirect_stdout(buffer):
         model = parser.get_parsed_content("training_network#network")
@@ -294,8 +309,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     optimizer = optimizer_part.instantiate(params=model.parameters())
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        logger.debug("num_epochs", num_epochs)
-        logger.debug("num_epochs_per_validation", num_epochs_per_validation)
+        logger.debug(f"num_epochs: {num_epochs}")
+        logger.debug(f"num_epochs_per_validation: {num_epochs_per_validation}")
 
     lr_scheduler_part = parser.get_parsed_content(
         "training#lr_scheduler", instantiate=False)
@@ -344,11 +359,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
 
-        # instantiate the early stopping object
-        early_stopping = EarlyStopping(
-            patience=es_patience,
-            delta=es_delta,
-            verbose=True)
+        if es:
+            # instantiate the early stopping object
+            early_stopping = EarlyStopping(
+                patience=es_patience,
+                delta=es_delta,
+                verbose=True)
 
     start_time = time.time()
 
@@ -358,12 +374,17 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             float(num_epochs_per_validation)))
 
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
+        warnings.simplefilter(action="ignore", category=FutureWarning)
+        warnings.simplefilter(action="ignore", category=Warning)
 
-        for _round in tqdm(
+        if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
+            progress_bar = tqdm(
                 range(num_rounds),
                 desc=f"DiNTS - model training - fold {fold} ...",
-                unit="round"):
+                unit="round")
+
+        for _round in range(num_rounds) if torch.cuda.device_count(
+        ) > 1 and dist.get_rank() != 0 else progress_bar:
             epoch = (_round + 1) * num_epochs_per_validation
             lr = lr_scheduler.get_last_lr()[0]
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
@@ -459,6 +480,25 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             del inputs, labels, outputs
             torch.cuda.empty_cache()
 
+            if ad:
+                _percentage = float(_round) / float(num_rounds) * 100.0
+
+                target_num_epochs_per_validation = -1
+                for _j in range(len(ad_progress_percentages)):
+                    if _percentage <= ad_progress_percentages[-1 - _j]:
+                        target_num_epochs_per_validation = ad_num_epochs_per_validation[-1 - _j]
+                        break
+
+                print(
+                    _round,
+                    target_num_epochs_per_validation,
+                    num_epochs_per_validation)
+                print((_round + 1) % (target_num_epochs_per_validation // num_epochs_per_validation))
+                if target_num_epochs_per_validation > 0:
+                    if (_round + 1) % (target_num_epochs_per_validation //
+                                        num_epochs_per_validation) != 0:
+                        continue
+
             model.eval()
             with torch.no_grad():
                 metric = torch.zeros(
@@ -484,7 +524,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         val_images = val_images.to(val_devices[val_filename])
                         val_labels = val_labels.to(val_devices[val_filename])
 
-                        # with torch.cuda.amp.autocast(enabled=amp):
                         with autocast(enabled=amp):
                             val_outputs = sliding_window_inference(
                                 val_images,
@@ -497,7 +536,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     except BaseException:
                         val_devices[val_filename] = "cpu"
 
-                        # with torch.cuda.amp.autocast(enabled=amp):
                         with autocast(enabled=amp):
                             val_outputs = sliding_window_inference(
                                 val_images,
@@ -620,13 +658,15 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         writer.flush()
         writer.close()
 
+    if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
+        if es:
+            logger.warning(
+                f"DiNTS - model training - fold {fold}: finished with early stop")
+        else:
+            logger.warning(f"DiNTS - model training - fold {fold}: finished")
+
     if torch.cuda.device_count() > 1:
         dist.destroy_process_group()
-
-    if es:
-        logger.warning("DiNTS - model training - fold {fold}: finished with early stop")
-    else:
-        logger.warning("DiNTS - model training - fold {fold}: finished")
 
     return
 

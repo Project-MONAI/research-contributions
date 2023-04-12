@@ -16,16 +16,13 @@ show_cache_progress: false
 training:
   # hyper-parameters
   amp: true
-  early_stop: true
-  early_stop_delta: 0
-  early_stop_patience: 20
   determ: false
   input_channels: null
   learning_rate: 0.2
   log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/training.log'"
   num_images_per_batch: 2
   num_epochs: 200
-  num_epochs_per_validation: 10
+  num_epochs_per_validation: 2
   num_patches_per_image: 4
   num_patches_per_iter: 2
   num_sw_batch_size: 8
@@ -38,6 +35,14 @@ training:
   resample_to_spacing: null
   sw_input_on_cpu: false
   softmax: true
+
+  adapt_valid_mode: true
+  adapt_valid_progress_percentages: [40, 10, 70]
+  adapt_valid_num_epochs_per_validation: [4, 2, 2]
+
+  early_stop_mode: false
+  early_stop_delta: 0
+  early_stop_patience: 20
 
   loss:
     _target_: DiceFocalLoss

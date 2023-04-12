@@ -85,7 +85,6 @@ class InferClass:
                 infer_ds, num_workers=8, batch_size=1, shuffle=False)
 
         self.device = torch.device("cuda:0")
-        torch.cuda.set_device(self.device)
 
         self.model = parser.get_parsed_content("training_network#network")
         self.model = self.model.to(self.device)

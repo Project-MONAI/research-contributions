@@ -216,7 +216,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if world_size > 1
         else torch.device("cuda:0")
     )
-    torch.cuda.set_device(device)
 
     dints_space = parser.get_parsed_content("searching_network#dints_space")
     model = parser.get_parsed_content("searching_network#network")

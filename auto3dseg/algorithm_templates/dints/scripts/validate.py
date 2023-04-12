@@ -93,7 +93,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         shuffle=False)
 
     device = torch.device("cuda:0")
-    torch.cuda.set_device(device)
 
     model = parser.get_parsed_content("training_network#network")
     model = model.to(device)
