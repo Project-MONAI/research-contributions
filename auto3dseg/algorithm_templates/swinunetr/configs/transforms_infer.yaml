@@ -3,21 +3,22 @@ transforms_infer:
   _target_: Compose
   transforms:
   - _target_: LoadImaged
-    keys: '@image_key'
+    keys: "@image_key"
+    image_only: false
   - _target_: EnsureChannelFirstd
-    keys: '@image_key'
+    keys: "@image_key"
   - _target_: Orientationd
+    keys: "@image_key"
     axcodes: RAS
-    keys: '@image_key'
   - _target_: Spacingd
-    align_corners: true
-    keys: '@image_key'
+    keys: "@image_key"
+    pixdim: "$@transforms#resample_to_spacing"
     mode: bilinear
-    pixdim: "$@resample_to_spacing"
+    align_corners: true
   - _target_: CastToTyped
     keys: "@image_key"
     dtype: "$torch.float32"
   - PLACEHOLDER_INTENSITY_NORMALIZATION
   - _target_: CastToTyped
-    dtype: $torch.float32
-    keys: '@image_key'
+    keys: "@image_key"
+    dtype: "$torch.float32"

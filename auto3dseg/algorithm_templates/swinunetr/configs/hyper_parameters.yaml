@@ -1,66 +1,78 @@
-amp: true
 bundle_root: null
+ckpt_path: "$@bundle_root + '/model_fold' + str(@fold)"
+data_file_base_dir: null
+data_list_file_path: null
+fold: 0
+
+transforms:
+  resample_to_spacing: "$@training#resample_to_spacing"
 
 cache_rate: 1
 train_cache_rate: "$@cache_rate"
 validate_cache_rate: "$@cache_rate"
+show_cache_progress: false
 
-ckpt_path: $@bundle_root + '/model_fold' + str(@fold)
-use_pretrain: true
-pretrained_path: $@bundle_root + '/pretrained_model' + '/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt'
-data_file_base_dir: null
-data_list_file_path: null
-determ: false
+training:
+  # hyper-parameters
+  amp: true
+  early_stop: true
+  early_stop_delta: 0
+  early_stop_patience: 20
+  determ: false
+  input_channels: null
+  learning_rate:  0.0001
+  log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/training.log'"
+  num_images_per_batch: 1
+  num_epochs: 1 #1600
+  num_epochs_per_validation: 1 #20
+  num_patches_per_image: 1 #4
+  num_patches_per_iter: 1 #2
+  num_sw_batch_size: 2 #8
+  num_workers: 2 #8
+  num_cache_workers: 2 #8
+  output_classes: null
+  overlap_ratio: 0.625
+  patch_size: null
+  patch_size_valid: null
+  resample_to_spacing: null
+  sw_input_on_cpu: false
+  softmax: true
+  use_pretrain: false
+  pretrained_path: $@bundle_root + '/pretrained_model' + '/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt'
+  loss:
+    _target_: DiceFocalLoss
+    include_background: true
+    to_onehot_y: "$@training#softmax"
+    softmax: "$@training#softmax"
+    sigmoid: "$not @training#softmax"
+    squared_pred: true
+    batch: true
+    smooth_nr: 1.0e-05
+    smooth_dr: 1.0e-05
+  optimizer:
+    _target_: torch.optim.AdamW
+    lr: "@training#learning_rate"
+    weight_decay: 1.0e-05
+  lr_scheduler:
+    _target_: monai.optimizers.WarmupCosineSchedule
+    optimizer: "$@training#optimizer"
+    warmup_steps: $@training#num_epochs//20
+    t_total: $@training#num_epochs
+
+# fine-tuning
 finetune:
   activate: false
-  pretrained_ckpt_name: $@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'
-fold: 0
-infer:
-  ckpt_name: $@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'
-  data_list_key: testing
-  fast: false
-  output_path: $@bundle_root + '/prediction_' + @infer#data_list_key
-input_channels: 1
-learning_rate: 0.0001
-loss:
-  _target_: DiceCELoss
-  batch: true
-  include_background: true
-  sigmoid: $not @softmax
-  smooth_dr: 1.0e-06
-  smooth_nr: 0
-  softmax: $@softmax
-  squared_pred: true
-  to_onehot_y: $@softmax
-lr_scheduler:
-  _target_: torch.optim.lr_scheduler.StepLR
-  gamma: 0.5
-  optimizer: $@optimizer
-  step_size: $max(@num_epochs // 5, 1)
-num_images_per_batch: 2
-num_epochs: 2000
-num_epochs_per_validation: 20
-num_patches_per_image: 1
-num_sw_batch_size: 1
-num_workers: 2
-num_cache_workers: 8
-optimizer:
-  _target_: torch.optim.AdamW
-  lr: '@learning_rate'
-  weight_decay: 1.0e-05
-output_classes: 2
-overlap_ratio: 0.25
-patch_size:
-- 96
-- 96
-- 96
-patch_size_valid:
-- 96
-- 96
-- 96
-resample_to_spacing: null
-softmax: true
+  pretrained_ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
+
+# validation
 validate:
-  ckpt_name: $@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'
-  output_path: $@bundle_root + '/prediction_fold' + str(@fold)
+  ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
   save_mask: true
+  output_path: "$@bundle_root + '/prediction_fold' + str(@fold)"
+
+# inference
+infer:
+  ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
+  fast: false
+  data_list_key: testing
+  output_path: "$@bundle_root + '/prediction_' + @infer#data_list_key"

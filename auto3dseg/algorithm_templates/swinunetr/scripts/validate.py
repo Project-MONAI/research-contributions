@@ -21,11 +21,12 @@ import yaml
 
 import monai
 from monai import transforms
+from monai.apps.auto3dseg.auto_runner import logger
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch
 from monai.inferers import sliding_window_inference
-from monai.metrics import compute_meandice
+from monai.metrics import compute_dice
 
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
@@ -41,11 +42,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
     fold = parser.get_parsed_content("fold")
-    num_sw_batch_size = parser.get_parsed_content("num_sw_batch_size")
-    output_classes = parser.get_parsed_content("output_classes")
-    overlap_ratio = parser.get_parsed_content("overlap_ratio")
-    patch_size_valid = parser.get_parsed_content("patch_size_valid")
-    softmax = parser.get_parsed_content("softmax")
+    num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
+    output_classes = parser.get_parsed_content("training#output_classes")
+    overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
+    patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
+    softmax = parser.get_parsed_content("training#softmax")
 
     ckpt_name = parser.get_parsed_content("validate")["ckpt_name"]
     output_path = parser.get_parsed_content("validate")["output_path"]
@@ -85,22 +86,25 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     val_files = files
 
     val_ds = monai.data.Dataset(data=val_files, transform=validate_transforms)
-    val_loader = ThreadDataLoader(val_ds, num_workers=2, batch_size=1, shuffle=False)
+    val_loader = ThreadDataLoader(
+        val_ds,
+        num_workers=2,
+        batch_size=1,
+        shuffle=False)
 
     device = torch.device("cuda:0")
     torch.cuda.set_device(device)
 
     model = parser.get_parsed_content("network")
     model = model.to(device)
-    if torch.cuda.device_count() > 1:
-        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     pretrained_ckpt = torch.load(ckpt_name, map_location=device)
     model.load_state_dict(pretrained_ckpt)
-    print(f"[info] checkpoint {ckpt_name:s} loaded")
+    logger.debug(f"[info] checkpoint {ckpt_name:s} loaded")
 
     if softmax:
-        post_pred = transforms.Compose([transforms.EnsureType(), transforms.AsDiscrete(to_onehot=output_classes)])
+        post_pred = transforms.Compose(
+            [transforms.EnsureType(), transforms.AsDiscrete(to_onehot=output_classes)])
     else:
         post_pred = transforms.Compose([transforms.EnsureType()])
 
@@ -125,9 +129,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if save_mask:
         post_transforms += [
             transforms.SaveImaged(
-                keys="pred", meta_keys="pred_meta_dict", output_dir=output_path, output_postfix="seg", resample=False
-            )
-        ]
+                keys="pred",
+                meta_keys="pred_meta_dict",
+                output_dir=output_path,
+                output_postfix="seg",
+                resample=False)]
 
     post_transforms = transforms.Compose(post_transforms)
 
@@ -157,8 +163,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
             with torch.cuda.amp.autocast():
                 d["pred"] = sliding_window_inference(
-                    val_images, patch_size_valid, num_sw_batch_size, model, mode="gaussian", overlap=overlap_ratio
-                )
+                    val_images,
+                    patch_size_valid,
+                    num_sw_batch_size,
+                    model,
+                    mode="gaussian",
+                    overlap=overlap_ratio)
 
             d = [post_transforms(i) for i in decollate_batch(d)]
 
@@ -169,7 +179,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 val_labels = post_pred(val_labels[0, ...])
                 val_labels = val_labels[None, ...]
 
-            value = compute_meandice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
+            value = compute_dice(
+                y_pred=val_outputs,
+                y=val_labels,
+                include_background=not softmax)
 
             metric_count += len(value)
             metric_sum += value.sum().item()
@@ -190,7 +203,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 else:
                     print_message += f"{metric_vals.squeeze()[_k]:.5f}"
                 print_message += ", "
-            print(print_message)
+            logger.debug(print_message)
 
             row = [d[0]["pred"].meta["filename_or_obj"]]
             for _i in range(metric_dim):
@@ -210,17 +223,19 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         metric = metric.tolist()
         for _c in range(metric_dim):
-            print(f"evaluation metric - class {_c + 1:d}:", metric[2 * _c] / metric[2 * _c + 1])
+            logger.debug(
+                f"evaluation metric - class {_c + 1:d}:", metric[2 * _c] / metric[2 * _c + 1])
         avg_metric = 0
         for _c in range(metric_dim):
             avg_metric += metric[2 * _c] / metric[2 * _c + 1]
         avg_metric = avg_metric / float(metric_dim)
-        print("avg_metric", avg_metric)
+        logger.debug("avg_metric", avg_metric)
 
         dict_file = {}
         dict_file["acc"] = float(avg_metric)
         for _c in range(metric_dim):
-            dict_file["acc_class" + str(_c + 1)] = metric[2 * _c] / metric[2 * _c + 1]
+            dict_file["acc_class" +
+                      str(_c + 1)] = metric[2 * _c] / metric[2 * _c + 1]
 
         with open(os.path.join(output_path, "summary.yaml"), "w") as out_file:
             yaml.dump(dict_file, stream=out_file)
