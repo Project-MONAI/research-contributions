@@ -178,7 +178,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     CONFIG["handlers"]["file"]["filename"] = log_output_file
     logging.config.dictConfig(CONFIG)
 
-    logger.debug("[info] number of GPUs:", torch.cuda.device_count())
+    logger.debug(f"[info] number of GPUs: {torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
         logging.getLogger("torch.distributed.distributed_c10d").setLevel(
             logging.WARNING)
@@ -186,7 +186,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         world_size = dist.get_world_size()
     else:
         world_size = 1
-    logger.debug("[info] world_size:", world_size)
+    logger.debug(f"[info] world_size: {world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
 
@@ -220,7 +220,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=True)[
             dist.get_rank()]
-    logger.debug("train_files:", len(train_files))
+    logger.debug(f"train_files: {len(train_files)}")
 
     files = []
     for _i in range(len(list_valid)):
@@ -245,7 +245,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=False)[
             dist.get_rank()]
-    logger.debug("val_files:", len(val_files))
+    logger.debug(f"val_files: {len(val_files)}")
 
     train_cache_rate = float(parser.get_parsed_content("train_cache_rate"))
     validate_cache_rate = float(
@@ -388,7 +388,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             epoch = (_round + 1) * num_epochs_per_validation
             lr = lr_scheduler.get_last_lr()[0]
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-                logger.debug("-" * 10)
+                logger.debug("----------")
                 logger.debug(
                     f"epoch {_round * num_epochs_per_validation + 1}/{num_epochs}")
                 logger.debug(f"learning rate is set to {lr}")
@@ -489,11 +489,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         target_num_epochs_per_validation = ad_num_epochs_per_validation[-1 - _j]
                         break
 
-                print(
-                    _round,
-                    target_num_epochs_per_validation,
-                    num_epochs_per_validation)
-                print((_round + 1) % (target_num_epochs_per_validation // num_epochs_per_validation))
                 if target_num_epochs_per_validation > 0:
                     if (_round + 1) % (target_num_epochs_per_validation //
                                         num_epochs_per_validation) != 0:
@@ -599,7 +594,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     for _c in range(metric_dim):
                         avg_metric += metric[2 * _c] / metric[2 * _c + 1]
                     avg_metric = avg_metric / float(metric_dim)
-                    logger.debug("avg_metric", avg_metric)
+                    logger.debug(f"avg_metric: {avg_metric}")
 
                     writer.add_scalar("val/acc", avg_metric, epoch)
 
