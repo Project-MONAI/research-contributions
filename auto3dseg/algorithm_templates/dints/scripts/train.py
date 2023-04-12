@@ -558,7 +558,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             y=val_labels,
                             include_background=not softmax)
 
-                    logger.debug(_index + 1, "/", len(val_loader), value)
+                    logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
                     del val_images, val_labels, val_outputs
                     torch.cuda.empty_cache()
@@ -587,7 +587,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     for _c in range(metric_dim):
                         logger.debug(
-                            f"evaluation metric - class {_c + 1:d}:", metric[2 * _c] / metric[2 * _c + 1])
+                            f"evaluation metric - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
                         writer.add_scalar(
                             f"val/acc/class{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
                     avg_metric = 0
