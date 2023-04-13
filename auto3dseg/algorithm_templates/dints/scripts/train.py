@@ -526,10 +526,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         with autocast(enabled=amp):
                             val_outputs = sliding_window_inference(
-                                val_images,
-                                patch_size_valid,
-                                num_sw_batch_size,
-                                model,
+                                inputs=val_images,
+                                roi_size=patch_size_valid,
+                                sw_batch_size=num_sw_batch_size,
+                                predictor=model,
                                 mode="gaussian",
                                 overlap=overlap_ratio,
                                 sw_device=device)
@@ -540,8 +540,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             val_outputs = sliding_window_inference(
                                 val_images,
                                 patch_size_valid,
-                                num_sw_batch_size,
-                                model,
+                                sw_batch_size=num_sw_batch_size,
+                                predictor=model,
                                 mode="gaussian",
                                 overlap=overlap_ratio,
                                 sw_device=device)
