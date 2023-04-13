@@ -141,10 +141,6 @@ class DintsAlgo(BundleAlgo):
                         "clip": True,
                     },
                     {
-                        "_target_": "Identityd",
-                        "keys": "@image_key",
-                    },
-                    {
                         "_target_": "CropForegroundd",
                         "keys": ["@image_key", "@label_key"],
                         "source_key": "@image_key",
