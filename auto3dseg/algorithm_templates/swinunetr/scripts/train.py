@@ -61,7 +61,7 @@ CONFIG = {
     "disable_existing_loggers": False,
     "formatters": {"monai_default": {"format": DEFAULT_FMT}},
     "loggers": {
-        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "NOTSET", "propagate": False}
+        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
     "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
     "handlers": {
@@ -162,7 +162,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     CONFIG["handlers"]["file"]["filename"] = log_output_file
     logging.config.dictConfig(CONFIG)
 
-    logger.debug("[info] number of GPUs:", torch.cuda.device_count())
+    logger.debug(f"[info] number of GPUs:{torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
         # logging.getLogger("torch.distributed.distributed_c10d").setLevel(
         #     logging.WARNING)
@@ -174,7 +174,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         rank = dist.get_rank()
     else:
         rank = 0
-    logger.debug("[info] world_size:", world_size)
+    logger.debug(f"[info] world_size:{world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
 
@@ -208,7 +208,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=True)[
             rank]
-    logger.debug("train_files:", len(train_files))
+    logger.debug(f"train_files: {len(train_files)}")
 
     files = []
     for _i in range(len(list_valid)):
@@ -233,7 +233,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=False)[
             rank]
-    logger.debug("val_files:", len(val_files))
+    logger.debug(f"val_files: {len(val_files)}")
 
     train_cache_rate = float(parser.get_parsed_content("train_cache_rate"))
     validate_cache_rate = float(
@@ -313,8 +313,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     optimizer = optimizer_part.instantiate(params=model.parameters())
 
     if rank == 0:
-        logger.debug("num_epochs", num_epochs)
-        logger.debug("num_epochs_per_validation", num_epochs_per_validation)
+        logger.debug(f"num_epochs:{num_epochs}" )
+        logger.debug(f"num_epochs_per_validation:{num_epochs_per_validation}" )
 
     lr_scheduler_part = parser.get_parsed_content(
         "training#lr_scheduler", instantiate=False)
@@ -546,7 +546,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             include_background=not softmax
                         )
 
-                    logger.debug(_index + 1, "/", len(val_loader), value)
+                    logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
                     del val_images, val_labels, val_outputs
                     torch.cuda.empty_cache()
@@ -575,14 +575,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 if rank == 0:
                     for _c in range(metric_dim):
                         logger.debug(
-                            f"evaluation metric - class {_c + 1:d}:", metric[2 * _c] / metric[2 * _c + 1])
+                            f"evaluation metric - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
                         writer.add_scalar(
                             f"val/acc/class{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
                     avg_metric = 0
                     for _c in range(metric_dim):
                         avg_metric += metric[2 * _c] / metric[2 * _c + 1]
                     avg_metric = avg_metric / float(metric_dim)
-                    logger.debug("avg_metric", avg_metric)
+                    logger.debug(f"avg_metric: {avg_metric}")
 
                     writer.add_scalar("val/acc", avg_metric, epoch)
 
