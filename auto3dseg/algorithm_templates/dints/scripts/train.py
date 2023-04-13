@@ -411,8 +411,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 labels_l = batch_data["label"].as_tensor() if isinstance(
                     batch_data["label"], monai.data.MetaTensor) else batch_data["label"]
 
-                inputs_l = inputs_l.to(device)
-                labels_l = labels_l.to(device)
+                # inputs_l = inputs_l.to(device)
+                # labels_l = labels_l.to(device)
 
                 _idx = torch.randperm(inputs_l.shape[0])
                 inputs_l = inputs_l[_idx]
@@ -428,8 +428,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                                             1) *
                                       num_patches_per_iter, ...]
 
-                    inputs, labels = batch_data["image"].to(
-                        device), batch_data["label"].to(device)
+                    inputs = inputs.to(device)
+                    labels = labels.to(device)
 
                     for param in model.parameters():
                         param.grad = None
