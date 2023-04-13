@@ -56,7 +56,6 @@ num_epochs_per_validation = 1
 num_warmup_epochs = 1
 
 train_param = {
-    "CUDA_VISIBLE_DEVICES": [x for x in range(num_gpus)],
     "num_epochs_per_validation": num_epochs_per_validation,
     "num_images_per_batch": num_images_per_batch,
     "num_epochs": num_epochs,
@@ -67,10 +66,12 @@ train_param = {
 
 pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
 
+gpu_customization_specs = {
+    "universal": {"num_trials": 1, "range_num_images_per_batch": [1, 2], "range_num_sw_batch_size": [1, 2]}
+}
+
 SIM_TEST_CASES = [
-    [{"sim_dim": (24, 24, 24), "modality": "MRI"}],
     [{"sim_dim": (320, 320, 15), "modality": "MRI"}],
-    [{"sim_dim": (32, 32, 32), "modality": "CT"}],
 ]
 
 def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
@@ -119,9 +120,15 @@ def auto_run(work_dir, data_src_cfg, algos):
     analyser.get_all_case_stats()
 
     bundle_generator = BundleGen(
-        algos=algos, data_stats_filename=datastats_file, data_src_cfg_name=data_src_cfg_file
+        algo_path=work_dir,
+        templates_path_or_url=algo_templates,
+        algos=algos,
+        data_stats_filename=datastats_file,
+        data_src_cfg_name=data_src_cfg_file
     )
-    bundle_generator.generate(work_dir, num_fold=1)
+    bundle_generator.generate(
+        work_dir, num_fold=1, gpu_customization=True, gpu_customization_specs=gpu_customization_specs
+    )
     history = bundle_generator.get_history()
 
     for algo_dict in history:
@@ -133,19 +140,7 @@ def auto_run(work_dir, data_src_cfg, algos):
     preds = builder.get_ensemble()(pred_param)
     return preds
 
-class TestAlgoTemplates(unittest.TestCase):
-    def setUp(self) -> None:
-        self.algos = {}
-        for name in os.listdir("auto3dseg/algorithm_templates"):
-            self.algos.update(
-                {
-                    name: dict(
-                        _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
-                        template_path=os.path.join(algo_templates, name),
-                    )
-                }
-            )
-
+class TestGpuCustomization(unittest.TestCase):
     @parameterized.expand(SIM_TEST_CASES)
     def test_sim(self, input_params) -> None:
         work_dir = os.path.join('./tmp_sim_work_dir')
@@ -162,7 +157,7 @@ class TestAlgoTemplates(unittest.TestCase):
         )
 
         data_src_cfg = {"modality": input_params["modality"], "datalist": datalist_file, "dataroot": dataroot_dir}
-        preds = auto_run(work_dir, data_src_cfg, self.algos)
+        preds = auto_run(work_dir, data_src_cfg, ["dints", "segresnet", "segresnet2d", "swinunetr"])
         self.assertTupleEqual(preds[0].shape, (2, sim_dim[0], sim_dim[1], sim_dim[2]))
 
         shutil.rmtree(work_dir)

@@ -4,7 +4,7 @@ A 3D neural network based algorithm for volumetric segmentation of 3D medical im
 
 # Model Overview
 
-This model is trained using the state-of-the-art algorithm [1] of the "Brain Tumor Segmentation (BraTS) Challenge 2018".
+This is a template for training the state-of-the-art algorithm [1] of the "Brain Tumor Segmentation (BraTS) Challenge 2018".
 
 ## Training configuration
 
@@ -35,10 +35,6 @@ Execute inference:
 ```
 python scripts/infer.py run --config_file=configs/hyper_parameters.yaml
 ```
-
-# Disclaimer
-
-This is an example, not to be used for diagnostic purposes.
 
 # References
 

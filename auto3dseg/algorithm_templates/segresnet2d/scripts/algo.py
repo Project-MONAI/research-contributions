@@ -12,6 +12,7 @@
 import numpy as np
 import os
 import subprocess
+import torch
 import yaml
 
 from copy import deepcopy
@@ -19,16 +20,34 @@ from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
 
 
-def get_gpu_available_memory():
-    command = "nvidia-smi --query-gpu=memory.free --format=csv"
-    memory_free_info = (
-        subprocess.check_output(command.split()).decode("ascii").split("\n")[:-1][1:]
-    )
-    memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
-    return memory_free_values
+def get_mem_from_visible_gpus():
+    available_mem_visible_gpus = []
+    for d in range(torch.cuda.device_count()):
+        available_mem_visible_gpus.append(torch.cuda.mem_get_info(device=d)[0])
+    return available_mem_visible_gpus
 
 
 class Segresnet2dAlgo(BundleAlgo):
+    def pre_check_skip_algo(self, skip_bundlegen: bool=False, skip_info: str=''):
+        """
+        Precheck if the algorithm needs to be skipped.
+        If the median spacing of the dataset is not highly anisotropic (res_z < 3*(res_x + rex_y)/2),
+        the 2D segresnet will be skipped by setting self.skip_bundlegen=True.
+        """
+        if self.data_stats_files is None:
+            return
+        data_stats = ConfigParser(globals=False)
+        if os.path.exists(str(self.data_stats_files)):
+            data_stats.read_config(str(self.data_stats_files))
+        else:
+            data_stats.update(self.data_stats_files)
+        spacing = data_stats["stats_summary#image_stats#spacing#median"]
+        if len(spacing) > 2:
+            if spacing[-1] < 3 * (spacing[0] + spacing[1]) / 2:
+                skip_bundlegen = True
+                skip_info = f'2D network is skipped due to median spacing of {spacing}.'
+        return skip_bundlegen, skip_info
+
     def fill_template_config(self, data_stats_file, output_path, **kwargs):
         """
         Fill the freshly copied config templates
@@ -85,7 +104,7 @@ class Segresnet2dAlgo(BundleAlgo):
             hyper_parameters.update({"output_classes": output_classes})
 
             modality = data_src_cfg.get("modality", "ct").lower()
-            spacing = data_stats["stats_summary#image_stats#spacing#median"]
+            spacing = deepcopy(data_stats["stats_summary#image_stats#spacing#median"])
             spacing[-1] = -1.0
             hyper_parameters.update({"resample_to_spacing": spacing})
 
@@ -246,9 +265,9 @@ class Segresnet2dAlgo(BundleAlgo):
             if "range_num_sw_batch_size" in specs:
                 range_num_sw_batch_size = specs["range_num_sw_batch_size"]
 
-        mem = get_gpu_available_memory()
-        device_id = np.argmin(mem) if type(mem) is list else 0
-        print(f"[info] gpu device {device_id} with minimum memory")
+        mem = get_mem_from_visible_gpus()
+        device_id = np.argmin(mem)
+        print(f"[info] device {device_id} in visible GPU list has the minimum memory.")
 
         mem = min(mem) if type(mem) is list else mem
         mem = round(float(mem) / 1024.0)
@@ -268,6 +287,7 @@ class Segresnet2dAlgo(BundleAlgo):
                 "validation_data_device", ["cpu", "gpu"]
             )
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
+            ps_environ = os.environ.copy()  # ensure the CUDA_VISIBLE_DEVICES is copied when used.
 
             try:
                 cmd = "python {0:s}dummy_runner.py ".format(
@@ -280,14 +300,16 @@ class Segresnet2dAlgo(BundleAlgo):
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
                 cmd += f"--validation_data_device {validation_data_device}"
-                _ = subprocess.run(cmd.split(), check=True)
-            except:
-                print("[error] OOM")
-                return (
-                    float(num_images_per_batch)
-                    * float(num_sw_batch_size)
-                    * device_factor
-                )
+                _ = subprocess.run(cmd.split(), env=ps_environ, check=True)
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    return (
+                        float(num_images_per_batch)
+                        * float(num_sw_batch_size)
+                        * device_factor
+                    )
+                else:
+                    raise(e)
 
             value = (
                 -1.0

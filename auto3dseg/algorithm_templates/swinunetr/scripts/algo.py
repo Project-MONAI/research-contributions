@@ -13,6 +13,7 @@ import numpy as np
 import os
 import subprocess
 import sys
+import torch
 import yaml
 
 from copy import deepcopy
@@ -20,13 +21,11 @@ from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
 
 
-def get_gpu_available_memory():
-    command = "nvidia-smi --query-gpu=memory.free --format=csv"
-    memory_free_info = (
-        subprocess.check_output(command.split()).decode("ascii").split("\n")[:-1][1:]
-    )
-    memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
-    return memory_free_values
+def get_mem_from_visible_gpus():
+    available_mem_visible_gpus = []
+    for d in range(torch.cuda.device_count()):
+        available_mem_visible_gpus.append(torch.cuda.mem_get_info(device=d)[0])
+    return available_mem_visible_gpus
 
 
 class SwinunetrAlgo(BundleAlgo):
@@ -221,9 +220,9 @@ class SwinunetrAlgo(BundleAlgo):
             if "range_num_sw_batch_size" in specs:
                 range_num_sw_batch_size = specs["range_num_sw_batch_size"]
 
-        mem = get_gpu_available_memory()
-        device_id = np.argmin(mem) if type(mem) is list else 0
-        print(f"[info] gpu device {device_id} with minimum memory")
+        mem = get_mem_from_visible_gpus()
+        device_id = np.argmin(mem)
+        print(f"[info] device {device_id} in visible GPU list has the minimum memory.")
 
         mem = min(mem) if type(mem) is list else mem
         mem = round(float(mem) / 1024.0)
@@ -243,6 +242,7 @@ class SwinunetrAlgo(BundleAlgo):
                 "validation_data_device", ["cpu", "gpu"]
             )
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
+            ps_environ = os.environ.copy()  # ensure the CUDA_VISIBLE_DEVICES is copied when used.
 
             try:
                 cmd = "python {0:s}dummy_runner.py ".format(
@@ -255,14 +255,16 @@ class SwinunetrAlgo(BundleAlgo):
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
                 cmd += f"--validation_data_device {validation_data_device}"
-                _ = subprocess.run(cmd.split(), check=True)
-            except:
-                print("[error] OOM")
-                return (
-                    float(num_images_per_batch)
-                    * float(num_sw_batch_size)
-                    * device_factor
-                )
+                _ = subprocess.run(cmd.split(), env=ps_environ, check=True)
+            except RuntimeError as e:
+                if "out of memory" in str(e):
+                    return (
+                        float(num_images_per_batch)
+                        * float(num_sw_batch_size)
+                        * device_factor
+                    )
+                else:
+                    raise(e)
 
             value = (
                 -1.0
