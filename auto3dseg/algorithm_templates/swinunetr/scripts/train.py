@@ -747,7 +747,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() > 1:
         dist.destroy_process_group()
-        
+
     if rank == 0:
         if es:
             logger.warning(
