@@ -129,7 +129,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     ckpt_path = parser.get_parsed_content("ckpt_path")
     data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
-    determ = parser.get_parsed_content("training#determ")
     finetune = parser.get_parsed_content("finetune")
     fold = parser.get_parsed_content("fold")
     log_output_file = parser.get_parsed_content("training#log_output_file")
@@ -144,6 +143,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
     patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
+    random_seed = parser.get_parsed_content("training#random_seed")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     softmax = parser.get_parsed_content("training#softmax")
 
@@ -172,8 +172,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if not os.path.exists(ckpt_path):
         os.makedirs(ckpt_path, exist_ok=True)
 
-    if determ:
-        set_determinism(seed=0)
+    if random_seed is not None and (
+        isinstance(
+            random_seed,
+            int) or isinstance(
+            random_seed,
+            float)):
+        set_determinism(seed=random_seed)
 
     CONFIG["handlers"]["file"]["filename"] = log_output_file
     logging.config.dictConfig(CONFIG)
@@ -491,7 +496,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 if target_num_epochs_per_validation > 0:
                     if (_round + 1) % (target_num_epochs_per_validation //
-                                        num_epochs_per_validation) != 0:
+                                       num_epochs_per_validation) != 0:
                         continue
 
             model.eval()
