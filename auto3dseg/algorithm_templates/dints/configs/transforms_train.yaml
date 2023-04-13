@@ -15,6 +15,7 @@ transforms_train:
     image_only: true
   - _target_: EnsureChannelFirstd
     keys: ["@image_key", "@label_key"]
+  - PLACEHOLDER_INTENSITY_NORMALIZATION
   - _target_: Orientationd
     keys: ["@image_key", "@label_key"]
     axcodes: RAS
@@ -29,7 +30,6 @@ transforms_train:
   - _target_: EnsureTyped
     keys: ["@image_key", "@label_key"]
     track_meta: false
-  - PLACEHOLDER_INTENSITY_NORMALIZATION
   - _target_: SpatialPadd
     keys: ["@image_key", "@label_key"]
     spatial_size: "@training#patch_size"
