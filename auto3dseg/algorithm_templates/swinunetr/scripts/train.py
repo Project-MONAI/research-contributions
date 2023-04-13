@@ -283,21 +283,21 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         model = parser.get_parsed_content("network")
     model = model.to(device)
 
-    if use_pretrain:	
-        download_url(	
-            url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",	
-            filepath=pretrained_path,	
-            progress=False,	
-        )	
-        if torch.cuda.device_count() > 1:	
-            dist.barrier()	
-        store_dict = model.state_dict()	
-        model_dict = torch.load(pretrained_path)["state_dict"]	
-        for key in model_dict.keys():	
-            if "out" not in key:	
-                store_dict[key].copy_(model_dict[key])	
-        model.load_state_dict(store_dict)	
-        logger.debug("Use pretrained weights")	
+    if use_pretrain:
+        download_url(
+            url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
+            filepath=pretrained_path,
+            progress=False,
+        )
+        if torch.cuda.device_count() > 1:
+            dist.barrier()
+        store_dict = model.state_dict()
+        model_dict = torch.load(pretrained_path)["state_dict"]
+        for key in model_dict.keys():
+            if "out" not in key:
+                store_dict[key].copy_(model_dict[key])
+        model.load_state_dict(store_dict)
+        logger.debug("Use pretrained weights")
 
 
     if torch.cuda.device_count() > 1:
@@ -647,7 +647,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() > 1:
         dist.destroy_process_group()
-        
+
     if rank == 0:
         if es:
             logger.warning("SwinUNETR model training finished with early stop")
