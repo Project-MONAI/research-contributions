@@ -3,6 +3,12 @@ image_key: image
 label_key: label
 transforms_train:
   _target_: Compose
+  lazy_evaluation: true
+  override_keys: ["@image_key", "@label_key"]
+  overrides:
+    mode: [bilinear, nearest]
+    padding_mode: [border, border]
+    dtype: "$torch.float32"
   transforms:
   - _target_: LoadImaged
     keys: ["@image_key", "@label_key"]
@@ -29,6 +35,9 @@ transforms_train:
     spatial_size: "@training#patch_size"
     mode: [constant, constant]
 
+  - _target_: IdentityD  # make the label uptodate (the next transform requires label_key input)
+    keys: ["@label_key"]
+
   # data augmentation
   - _target_: RandCropByLabelClassesd
     keys: ["@image_key", "@label_key"]
@@ -36,7 +45,6 @@ transforms_train:
     num_classes: "@training#output_classes"
     spatial_size: "@training#patch_size"
     num_samples: "@training#num_patches_per_image"
-    warn: false
   - _target_: RandRotated
     keys: ["@image_key", "@label_key"]
     range_x: 0.3
@@ -50,6 +58,10 @@ transforms_train:
     max_zoom: 1.2
     mode: [trilinear, nearest]
     prob: 0.16
+
+  - _target_: IdentityD   # make image up-to-date, before this line the cropping hasn't been applied
+    keys: ["@image_key"]
+
   - _target_: RandGaussianSmoothd
     keys: "@image_key"
     sigma_x: [0.5, 1.15]
@@ -83,3 +95,4 @@ transforms_train:
   - _target_: CastToTyped
     keys: ["@image_key", "@label_key"]
     dtype: ["$torch.float32", "$torch.uint8"]
+  
