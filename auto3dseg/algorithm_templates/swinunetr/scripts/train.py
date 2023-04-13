@@ -61,7 +61,7 @@ CONFIG = {
     "disable_existing_loggers": False,
     "formatters": {"monai_default": {"format": DEFAULT_FMT}},
     "loggers": {
-        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "NOTSET", "propagate": False}
+        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
     "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
     "handlers": {
