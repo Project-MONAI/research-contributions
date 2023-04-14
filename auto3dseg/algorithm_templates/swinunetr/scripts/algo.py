@@ -13,6 +13,7 @@ import numpy as np
 import os
 import subprocess
 import sys
+import torch
 import yaml
 
 from copy import deepcopy
@@ -21,14 +22,12 @@ from monai.bundle import ConfigParser
 from monai.apps.utils import get_logger
 logger = get_logger(module_name=__name__)
 
-def get_gpu_available_memory():
-    command = "nvidia-smi --query-gpu=memory.free --format=csv"
-    memory_free_info = (
-        subprocess.check_output(command.split()).decode("ascii").split("\n")[:-1][1:]
-    )
-    memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
-    return memory_free_values
 
+def get_mem_from_visible_gpus():
+    available_mem_visible_gpus = []
+    for d in range(torch.cuda.device_count()):
+        available_mem_visible_gpus.append(torch.cuda.mem_get_info(device=d)[0])
+    return available_mem_visible_gpus
 
 class SwinunetrAlgo(BundleAlgo):
     def fill_template_config(self, data_stats_file, output_path, **kwargs):
@@ -93,6 +92,17 @@ class SwinunetrAlgo(BundleAlgo):
 
             hyper_parameters.update({"training#resample_to_spacing": spacing})
 
+            mem = get_mem_from_visible_gpus()
+            mem = min(mem) if isinstance(mem, list) else mem
+            mem = float(mem) / (1024.0**3)
+            mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
+            mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
+            batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+            batch_size = int(batch_size)
+            batch_size = max(batch_size, 1)
+            hyper_parameters.update({"training#num_patches_per_iter": batch_size})
+            hyper_parameters.update({"training#num_patches_per_image": batch_size * 2})
+
             intensity_upper_bound = float(
                 data_stats[
                     "stats_summary#image_foreground_stats#intensity#percentile_99_5"
@@ -120,6 +130,8 @@ class SwinunetrAlgo(BundleAlgo):
                         "_target_": "CropForegroundd",
                         "keys": ["@image_key", "@label_key"],
                         "source_key": "@image_key",
+                        "start_coord_key": None,	
+                        "end_coord_key": None,
                     },
                 ],
             }
@@ -151,23 +163,23 @@ class SwinunetrAlgo(BundleAlgo):
 
             if modality.startswith("ct"):
                 transforms_train.update(
-                    {"transforms_train#transforms#5": ct_intensity_xform_train_valid}
+                    {"transforms_train#transforms#2": ct_intensity_xform_train_valid}
                 )
                 transforms_validate.update(
-                    {"transforms_validate#transforms#5": ct_intensity_xform_train_valid}
+                    {"transforms_validate#transforms#2": ct_intensity_xform_train_valid}
                 )
                 transforms_infer.update(
-                    {"transforms_infer#transforms#5": ct_intensity_xform_infer}
+                    {"transforms_infer#transforms#2": ct_intensity_xform_infer}
                 )
             else:
                 transforms_train.update(
-                    {"transforms_train#transforms#5": mr_intensity_transform}
+                    {"transforms_train#transforms#2": mr_intensity_transform}
                 )
                 transforms_validate.update(
-                    {"transforms_validate#transforms#5": mr_intensity_transform}
+                    {"transforms_validate#transforms#2": mr_intensity_transform}
                 )
                 transforms_infer.update(
-                    {"transforms_infer#transforms#5": mr_intensity_transform}
+                    {"transforms_infer#transforms#2": mr_intensity_transform}
                 )
 
             fill_records = {
@@ -244,11 +256,11 @@ class SwinunetrAlgo(BundleAlgo):
             if "range_num_sw_batch_size" in specs:
                 range_num_sw_batch_size = specs["range_num_sw_batch_size"]
 
-        mem = get_gpu_available_memory()
-        device_id = np.argmin(mem) if type(mem) is list else 0
-        print(f"[info] gpu device {device_id} with minimum memory")
+        mem = get_mem_from_visible_gpus()
+        device_id = np.argmin(mem)
+        print(f"[info] device {device_id} in visible GPU list has the minimum memory.")
 
-        mem = min(mem) if type(mem) is list else mem
+        mem = min(mem) if isinstance(mem, list) else mem
         mem = round(float(mem) / 1024.0)
 
         def objective(trial):
@@ -279,15 +291,13 @@ class SwinunetrAlgo(BundleAlgo):
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
                 cmd += f"--validation_data_device {validation_data_device}"
                 _ = subprocess.run(cmd.split(), check=True)
-            except RuntimeError as e:
-                if "out of memory" in str(e):
-                    return (
-                        float(num_images_per_batch)
-                        * float(num_sw_batch_size)
-                        * device_factor
-                    )
-                else:
-                    raise(e)
+            except BaseException:	
+                print("[error] OOM")	
+                return (	
+                    float(num_images_per_batch)	
+                    * float(num_sw_batch_size)	
+                    * device_factor	
+                )
 
             value = (
                 -1.0

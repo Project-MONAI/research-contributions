@@ -8,6 +8,7 @@ transforms_validate:
     image_only: false
   - _target_: EnsureChannelFirstd
     keys: ["@image_key", "@label_key"]
+  - PLACEHOLDER_INTENSITY_NORMALIZATION
   - _target_: Orientationd
     keys: ["@image_key", "@label_key"]
     axcodes: RAS
@@ -16,10 +17,6 @@ transforms_validate:
     pixdim: "$@transforms#resample_to_spacing"
     mode: [bilinear, nearest]
     align_corners: [true, true]
-  - _target_: CastToTyped
-    keys: "@image_key"
-    dtype: "$torch.float32"
-  - PLACEHOLDER_INTENSITY_NORMALIZATION
   - _target_: CastToTyped
     keys: ["@image_key", "@label_key"]
     dtype: ["$torch.float32", "$torch.uint8"]
