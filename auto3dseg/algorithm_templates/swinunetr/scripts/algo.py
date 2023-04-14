@@ -77,7 +77,7 @@ class SwinunetrAlgo(BundleAlgo):
             hyper_parameters.update(
                 {"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])}
             )
-            
+
             hyper_parameters.update({"training#patch_size": patch_size})
             hyper_parameters.update({"training#patch_size_valid": patch_size})
             hyper_parameters.update({"training#input_channels": input_channels})
@@ -115,7 +115,7 @@ class SwinunetrAlgo(BundleAlgo):
                     "stats_summary#image_foreground_stats#intensity#percentile_00_5"
                 ]
             )
-            
+
             ct_intensity_xform_train_valid = {
                 "_target_": "Compose",
                 "transforms": [
