@@ -89,13 +89,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if determ:
         set_determinism(seed=0)
 
-    logger.debug("[info] number of GPUs:", torch.cuda.device_count())
+    logger.debug(f"[info] number of GPUs:, {torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
         dist.init_process_group(backend="nccl", init_method="env://")
         world_size = dist.get_world_size()
     else:
         world_size = 1
-    logger.debug("[info] world_size:", world_size)
+    logger.debug(f"[info] world_size:, {world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
 
@@ -130,7 +130,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=True,
         )[dist.get_rank()]
-    logger.debug("train_files_w:", len(train_files_w))
+    logger.debug(f"train_files_w:, {len(train_files_w)}")
 
     train_files_a = train_files[len(train_files) // 2:]
     if torch.cuda.device_count() > 1:
@@ -140,7 +140,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=True,
         )[dist.get_rank()]
-    logger.debug("train_files_a:", len(train_files_a))
+    logger.debug(f"train_files_a:, {len(train_files_a)}")
 
     files = []
     for _i in range(len(list_valid)):
@@ -165,7 +165,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=False,
         )[dist.get_rank()]
-    logger.debug("val_files:", len(val_files))
+    logger.debug(f"val_files:, {len(val_files)}")
 
     train_cache_rate = float(parser.get_parsed_content("train_cache_rate"))
     validate_cache_rate = float(
@@ -264,9 +264,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     )
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        logger.debug("num_epochs", num_epochs)
-        logger.debug("num_epochs_warmup", num_epochs_warmup)
-        logger.debug("num_epochs_per_validation", num_epochs_per_validation)
+        logger.debug(f"num_epochs, {num_epochs}")
+        logger.debug(f"num_epochs_warmup, {num_epochs_warmup}")
+        logger.debug(f"num_epochs_per_validation, {num_epochs_per_validation}")
 
     lr_scheduler_part = parser.get_parsed_content(
         "searching#lr_scheduler", instantiate=False
@@ -531,7 +531,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         y=val_labels,
                         include_background=not softmax)
 
-                    logger.debug(_index + 1, "/", len(val_loader), value)
+                    logger.debug(f"{_index + 1}, /, {len(val_loader)}, {value}")
 
                     metric_count += len(value)
                     metric_sum += value.sum().item()
@@ -558,14 +558,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     for _c in range(metric_dim):
                         logger.debug(
-                            f"evaluation metric - class {_c + 1:d}:",
-                            metric[2 * _c] / metric[2 * _c + 1],
+                            f"evaluation metric - class {_c + 1:d}:, {metric[2 * _c] / metric[2 * _c + 1]}"
                         )
                     avg_metric = 0
                     for _c in range(metric_dim):
                         avg_metric += metric[2 * _c] / metric[2 * _c + 1]
                     avg_metric = avg_metric / float(metric_dim)
-                    logger.debug("avg_metric", avg_metric)
+                    logger.debug(f"avg_metric, {avg_metric}")
 
                     if avg_metric > best_metric:
                         best_metric = avg_metric
