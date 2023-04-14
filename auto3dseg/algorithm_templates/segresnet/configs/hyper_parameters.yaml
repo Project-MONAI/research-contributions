@@ -9,8 +9,19 @@ class_names: null
 class_index: null
 
 quick: false
+channels_last: true
+validate_final_original_res: false
+calc_val_loss: false
 
-roi_size: [128, 128, 128]
+# auto_gpu_adapt: true
+
+auto_scale_batch: True
+auto_scale_roi: false
+auto_scale_filters: false
+
+
+
+roi_size: [224, 224, 144]
 crop_mode: ratio
 normalize_mode: meanstd
 
@@ -19,6 +30,8 @@ bundle_root: null
 ckpt_path: "$@bundle_root + '/model'"
 ckpt_save: true
 cache_rate: null
+cache_class_indices: null
+early_stopping_fraction: 0.001
 
 determ: false
 fold: 0
@@ -32,9 +45,11 @@ resample: false
 resample_resolution: [1, 1, 1]
 intensity_bounds: null
 
-num_epochs_per_validation: 1
+num_epochs_per_validation: null
 num_epochs_per_saving: 1
 num_workers: 4
+num_steps_per_image: null
+
 
 loss:
   _target_: DiceCELoss
@@ -55,7 +70,7 @@ network:
   _target_: SegResNetDS
   init_filters: 32
   blocks_down: [1, 2, 2, 4, 4]
-  norm: BATCH
+  norm: INSTANCE_NVFUSER
   in_channels: "@input_channels"
   out_channels: "@output_classes"
   dsdepth: 4
