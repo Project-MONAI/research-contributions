@@ -16,16 +16,16 @@ def get_gpu_mem_size():
     return gpu_mem
 
 def auto_adjust_network_settings(
-        
+
                 auto_scale_roi=False,
-                auto_scale_batch=False, 
+                auto_scale_batch=False,
                 auto_scale_filters=False,
                 image_size_mm = None,
                 spacing = None,
                 levels=None,
-                anisotropic_scales = False, 
+                anisotropic_scales = False,
                 levels_limit=5):
-    
+
 
     batch_size_default = 1
     roi_size_default = [224, 224, 144]
@@ -37,7 +37,7 @@ def auto_adjust_network_settings(
     gpu_factor = 1
 
 
- 
+
     # adapting to GPU
     if auto_scale_batch or auto_scale_roi or auto_scale_filters:
         gpu_mem = get_gpu_mem_size()
@@ -49,7 +49,7 @@ def auto_adjust_network_settings(
     else:
         gpu_mem = 16
         gpu_factor = gpu_factor_init = 1
-        
+
 
     if image_size_mm is not None and spacing is not None:
         image_size = np.floor(np.array(image_size_mm) / np.array(spacing)) #TODO
@@ -101,7 +101,7 @@ def auto_adjust_network_settings(
 
 
     # optionally adjust initial filters (above 32)
-    if auto_scale_filters and roi_size.prod() < base_numel*gpu_factor: 
+    if auto_scale_filters and roi_size.prod() < base_numel*gpu_factor:
         init_filters = int(max(32, np.floor(4 * (base_numel / roi_size.prod())) * 8))
         print('checking to increase init_filters', init_filters)
         gpu_factor_init *= init_filters / 32
@@ -111,8 +111,8 @@ def auto_adjust_network_settings(
 
         init_filters = init_filters_default
 
-    # finally scale batch 
-    if auto_scale_batch and roi_size.prod() < base_numel*gpu_factor_init: 
+    # finally scale batch
+    if auto_scale_batch and roi_size.prod() < base_numel*gpu_factor_init:
         batch_size =int(1.1*gpu_factor_init)
         print(f'inscreased batch_size {batch_size} base_numel {base_numel},  gpu_factor {gpu_factor},  gpu_factor_init {gpu_factor_init}')
 

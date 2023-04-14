@@ -226,7 +226,7 @@ class DataTransformBuilder:
         keys = [self.image_key, self.label_key] + list(self.extra_modalities)
         ts.append(LoadImaged(keys=keys, ensure_channel_first=True, dtype=None, allow_missing_keys=True, image_only=True))
         ts.append(EnsureTyped(keys=keys, data_type="tensor", dtype=torch.float, allow_missing_keys=True))
-        ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True)) 
+        ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True))
 
         ts.extend(self.get_custom("after_load_transforms"))
 
@@ -251,7 +251,7 @@ class DataTransformBuilder:
                 raise ValueError("resample_resolution is not provided")
 
             pixdim = self.resample_resolution
-            ts.append( 
+            ts.append(
                 Spacingd(
                     keys=keys,
                     pixdim=pixdim,
@@ -344,13 +344,13 @@ class DataTransformBuilder:
                 max_samples_per_class = None
             indices_key  = None
 
-            if cache_class_indices and not self.lazy_evaluation: 
+            if cache_class_indices and not self.lazy_evaluation:
                 ts.append(ClassesToIndicesd(keys=self.label_key,
-                                            num_classes=output_classes, 
+                                            num_classes=output_classes,
                                             indices_postfix="_cls_indices",
                                             max_samples_per_class=max_samples_per_class
-                        )) 
-        
+                        ))
+
                 indices_key = self.label_key+"_cls_indices"
 
             num_steps_per_image = self.crop_params.get("num_steps_per_image", 1)
@@ -403,7 +403,7 @@ class DataTransformBuilder:
         ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=2))
         if self.lazy_evaluation:
             ts.append(Identityd(keys=[self.image_key, self.label_key]))
-            
+
         ts.append(
             RandGaussianSmoothd(
                 keys=self.image_key, prob=0.2, sigma_x=[0.5, 1.0], sigma_y=[0.5, 1.0], sigma_z=[0.5, 1.0]
@@ -428,7 +428,7 @@ class DataTransformBuilder:
         ts = []
         if invert and transform is not None:
             if resample:
-                ts.append(ToDeviced(keys="pred", device=torch.device("cpu"))) 
+                ts.append(ToDeviced(keys="pred", device=torch.device("cpu")))
             ts.append(Invertd(keys="pred", orig_keys="image", transform=transform, nearest_interp=False))
 
         if save_mask and output_path is not None:
@@ -464,14 +464,14 @@ class DataTransformBuilder:
 
         if self.lazy_evaluation:
             ts.append(Identityd(keys=[self.image_key, self.label_key])) #?
-            compose_ts = Compose(ts, 
+            compose_ts = Compose(ts,
                                 lazy_evaluation=True,
                                 verbose=self.lazy_verbose,
                                 override_keys=[self.image_key, self.label_key],
                                 overrides = dict(mode=["bilinear", "nearest"],
                                                 padding_mode=["border","border"],
                                                 # dtype = torch.float32
-                                                ), 
+                                                ),
                                 )
         else:
             compose_ts = Compose(ts)
@@ -543,7 +543,7 @@ class Segmenter:
                                 anisotropic_scales=config["anisotropic_scales"],
                                 levels=len(config["network"]["blocks_down"]),
                             )
-            
+
             if config["auto_scale_roi"]:
                 config["roi_size"] = roi_size
             if config["auto_scale_batch"]:
@@ -566,7 +566,7 @@ class Segmenter:
         else:
 
             try:
-                
+
                 from monai.inferers import SlidingWindowInfererAdapt
                 self.sliding_inferrer = SlidingWindowInfererAdapt(
                     roi_size=config["roi_size"],
@@ -625,7 +625,7 @@ class Segmenter:
             custom_transforms["final_transforms"].append(LabelEmbedClassIndex(keys="label", class_index=config["class_index"], allow_missing_keys=True))
 
         return custom_transforms
-    
+
 
     def get_data_transform_builder(self):
 
@@ -648,7 +648,7 @@ class Segmenter:
                             "num_steps_per_image": config["num_steps_per_image"],
                             "max_samples_per_class": config["max_samples_per_class"]
                             },
-            
+
                 extra_modalities=config["extra_modalities"],
                 custom_transforms=custom_transforms,
                 lazy_evaluation = config.get("lazy_evaluation" , False),
@@ -657,8 +657,8 @@ class Segmenter:
             )
 
         return self._data_transform_builder
-    
-    
+
+
     def setup_model(self, pretrained_ckpt_name=None):
 
         config = self.config
@@ -666,7 +666,7 @@ class Segmenter:
         norm_name, norm_args = split_args(config["network"].get("norm", ""))
         norm_name = norm_name.upper()
         sync_batch_norm = True
-            
+
         if norm_name == "INSTANCE_NVFUSER":
             _, has_nvfuser = optional_import("apex.normalization", name="InstanceNorm3dNVFuser")
             if has_nvfuser and spatial_dims == 3:
@@ -677,8 +677,8 @@ class Segmenter:
             else:
                 norm_name = "INSTANCE"
 
-        elif norm_name == "INSTANCE_BATCH": 
-            norm_name = "BATCH", 
+        elif norm_name == "INSTANCE_BATCH":
+            norm_name = "BATCH",
             norm_args = norm_args.update({"track_running_stats": False})
             sync_batch_norm = False
 
@@ -735,7 +735,7 @@ class Segmenter:
                     config = checkpoint.get("config", {})
                     if self.global_rank==0:
                         print(f"Initializing config from the checkpoint {ckpt}: ", yaml.dump(config))
-        
+
             if len(config)==0 and config_file is None:
                 warnings.warn("No input config_file provided, and no valid checkpoints found")
 
@@ -850,7 +850,7 @@ class Segmenter:
                 config[k] = copy.deepcopy(v)
             else:
                 config[k] = parser.get_parsed_content(k)
-                
+
         return config
 
     def checkpoint_save(self, ckpt : str, model : torch.nn.Module, **kwargs):
@@ -873,7 +873,7 @@ class Segmenter:
 
         if not os.path.isfile(ckpt):
             if self.global_rank == 0:
-                warnings.warn("Invalid checkpoint file: " + str(ckpt)) 
+                warnings.warn("Invalid checkpoint file: " + str(ckpt))
         else:
             checkpoint = torch.load(ckpt, map_location="cpu")
             model.load_state_dict(checkpoint["state_dict"], strict=True)
@@ -1027,7 +1027,7 @@ class Segmenter:
 
         cache_rate_train, cache_rate_val, cache_class_indices = self.get_cache_rate(train_cases=len(train_files),validation_cases=len(validation_files))
 
-        if config["max_samples_per_class"] is None: 
+        if config["max_samples_per_class"] is None:
             config["max_samples_per_class"] = 10 * config["num_epochs"]
 
         if config["cache_class_indices"] is None:
@@ -1047,7 +1047,7 @@ class Segmenter:
                     config["num_steps_per_image"], "to disable this behaviour set manually, e.g. num_steps_per_image=1")
         else:
             config["num_steps_per_image"] = 1
-                
+
 
         num_steps_per_image = int(config["num_steps_per_image"])
 
@@ -1064,21 +1064,21 @@ class Segmenter:
 
 
         train_loader = self.get_train_loader(data=train_files,
-                                            cache_rate=cache_rate_train, 
+                                            cache_rate=cache_rate_train,
                                             persistent_workers=True)
-        
-        val_loader = self.get_val_loader(data=validation_files, 
-                                         cache_rate=cache_rate_val, 
-                                         resample_label=True, 
+
+        val_loader = self.get_val_loader(data=validation_files,
+                                         cache_rate=cache_rate_val,
+                                         resample_label=True,
                                          persistent_workers=True)
-        
+
 
         optim_name = config.get("optim_name", None) #experimental
         if optim_name is not None:
             print("Using optimizer!!!", optim_name)
             if optim_name=='novograd_monai':
                 from monai.optimizers import Novograd
-                optimizer = Novograd(params=self.model.parameters(), lr = config["learning_rate"], weight_decay=1.e-5)  
+                optimizer = Novograd(params=self.model.parameters(), lr = config["learning_rate"], weight_decay=1.e-5)
             elif optim_name=='fusednovograd':
                 import apex
                 optimizer = apex.optimizers.FusedNovoGrad(params=self.model.parameters(), lr = config["learning_rate"], weight_decay=1.e-5)
@@ -1210,7 +1210,7 @@ class Segmenter:
 
                 val_acc_mean = float(np.mean(val_acc))
                 val_acc_history.append((report_epoch, val_acc_mean))
-                
+
                 if self.global_rank == 0:
                     print(
                         "Final validation  {}/{}".format(report_epoch, report_num_epochs - 1),
@@ -1221,7 +1221,7 @@ class Segmenter:
                     )
 
                     if tb_writer is not None:
-                        
+
                         tb_writer.add_scalar("val/acc", val_acc_mean, report_epoch)
                         for i in range(min(len(config["class_names"]), len(val_acc))):  # accuracy per class
                             tb_writer.add_scalar("val_class/" + config["class_names"][i], val_acc[i], report_epoch)
@@ -1261,9 +1261,9 @@ class Segmenter:
                             time="{:.2f}s".format(time.time() - pre_loop_time),
                             **timing_dict,
                         )
-                
+
                             # sanity check
-                
+
                 #sanity check
                 if epoch > max(20, num_epochs/4) and 0 <= val_acc_mean < 0.01:
                     raise ValueError(f"Accuracy seems very low at epoch {report_epoch}, acc {val_acc_mean}."
@@ -1293,18 +1293,18 @@ class Segmenter:
 
             if distributed:
                 dist.barrier()
-            
+
 
             ## early stopping
             if config["early_stopping_fraction"] > 0 and epoch > num_epochs/2 and len(val_acc_history)>10:
-                
+
                 check_interval = int(0.1 * num_epochs * num_steps_per_image)
                 check_stats = [va[1] for va in val_acc_history if report_epoch-va[0] < check_interval] #at least 10% epochs
                 if len(check_stats)<10:
                     check_stats = [va[1] for va in val_acc_history[-10:]] #at least 10 sample points
                 mac, mic = max(check_stats), min(check_stats)
 
-                early_stopping_fraction = (mac-mic)/(abs(mac) + 1e-8) 
+                early_stopping_fraction = (mac-mic)/(abs(mac) + 1e-8)
                 if mac > 0 and mic > 0 and early_stopping_fraction < config["early_stopping_fraction"]:
                     if self.global_rank==0:
                         print(f"Early stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} ", check_stats[-50:])
@@ -1312,7 +1312,7 @@ class Segmenter:
                 else:
                    if self.global_rank==0:
                         print(f"No stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} ", check_stats[-50:])
- 
+
 
 
 
@@ -1320,7 +1320,7 @@ class Segmenter:
 
         train_loader = None
         val_loader = None
-                    
+
         #optionally validate best checkpoint at the original image resolution
         if config["validate_final_original_res"] and config["resample"]==True:
 
@@ -1781,7 +1781,7 @@ class Segmenter:
             if image_size is not None:
 
                 avail_memory = self.get_avail_cpu_memory()
-                cache_rate = min(avail_memory / float(approx_data_cache_required + approx_os_cache_required ), 1.0) 
+                cache_rate = min(avail_memory / float(approx_data_cache_required + approx_os_cache_required ), 1.0)
                 if cache_rate < 0.1:
                     cache_rate = 0.0  # don't cache small
 

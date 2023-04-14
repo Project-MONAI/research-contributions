@@ -197,7 +197,7 @@ class SegresnetAlgo(BundleAlgo):
             config["image_size_mm_median"] = image_size_mm_median
             config["image_size_mm_90"] = image_size_mm_90
 
-            image_size = input_config.pop("image_size", image_size_90)          
+            image_size = input_config.pop("image_size", image_size_90)
             config["image_size"] = image_size
 
             max_epochs = int(np.clip(np.ceil(80000.0 / n_cases), a_min=300, a_max=1250))
@@ -223,7 +223,7 @@ class SegresnetAlgo(BundleAlgo):
                                             spacing=config["resample_resolution"],
                                             anisotropic_scales=config["anisotropic_scales"]
                                         )
-    
+
             if input_config.get("roi_size", None):
                 roi_size = input_config.get("roi_size", None)
             if input_config.get("batch_size", None):
@@ -231,7 +231,7 @@ class SegresnetAlgo(BundleAlgo):
 
             config["roi_size"] = roi_size
             config["batch_size"] = batch_size
-            
+
 
             print('Updating roi_size (divisible) final ', roi_size, 'levels', levels)
 
