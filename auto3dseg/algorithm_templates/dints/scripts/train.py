@@ -126,6 +126,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     parser.update(pairs=_args)
 
     amp = parser.get_parsed_content("training#amp")
+    bundle_root = parser.get_parsed_content("bundle_root")
     ckpt_path = parser.get_parsed_content("ckpt_path")
     data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
@@ -385,7 +386,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
             progress_bar = tqdm(
                 range(num_rounds),
-                desc=f"DiNTS - model training - fold {fold} ...",
+                desc=f"{os.path.basename(bundle_root)} - training ...",
                 unit="round")
 
         for _round in range(num_rounds) if torch.cuda.device_count(
@@ -661,9 +662,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         if es:
             logger.warning(
-                f"DiNTS - model training - fold {fold}: finished with early stop")
+                f"{os.path.basename(bundle_root)} - training: finished with early stop")
         else:
-            logger.warning(f"DiNTS - model training - fold {fold}: finished")
+            logger.warning(f"{os.path.basename(bundle_root)} - training: finished")
 
     if torch.cuda.device_count() > 1:
         dist.destroy_process_group()

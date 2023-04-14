@@ -13,6 +13,7 @@ import numpy as np
 import os
 import subprocess
 import sys
+import torch
 import yaml
 
 from copy import deepcopy
@@ -24,13 +25,11 @@ from monai.apps.utils import get_logger
 logger = get_logger(module_name=__name__)
 
 
-def get_gpu_available_memory():
-    command = "nvidia-smi --query-gpu=memory.free --format=csv"
-    memory_free_info = (subprocess.check_output(
-        command.split()).decode("ascii").split("\n")[:-1][1:])
-    memory_free_values = [int(x.split()[0])
-                          for i, x in enumerate(memory_free_info)]
-    return memory_free_values
+def get_mem_from_visible_gpus():
+    available_mem_visible_gpus = []
+    for d in range(torch.cuda.device_count()):
+        available_mem_visible_gpus.append(torch.cuda.mem_get_info(device=d)[0])
+    return available_mem_visible_gpus
 
 
 class DintsAlgo(BundleAlgo):
@@ -116,6 +115,17 @@ class DintsAlgo(BundleAlgo):
             hyper_parameters.update({"training#resample_to_spacing": spacing})
             hyper_parameters_search.update(
                 {"searching#resample_to_spacing": spacing})
+
+            mem = get_mem_from_visible_gpus()
+            mem = min(mem) if isinstance(mem, list) else mem
+            mem = float(mem) / (1024.0**3)
+            mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
+            mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
+            batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+            batch_size = int(batch_size)
+            batch_size = max(batch_size, 1)
+            hyper_parameters.update({"training#num_patches_per_iter": batch_size})
+            hyper_parameters.update({"training#num_patches_per_image": batch_size * 2})
 
             intensity_upper_bound = float(
                 data_stats[
@@ -274,9 +284,9 @@ class DintsAlgo(BundleAlgo):
             if "range_num_sw_batch_size" in specs:
                 range_num_sw_batch_size = specs["range_num_sw_batch_size"]
 
-        mem = get_gpu_available_memory()
-        device_id = np.argmin(mem) if isinstance(mem, list) else 0
-        print(f"[info] gpu device {device_id} with minimum memory")
+        mem = get_mem_from_visible_gpus()
+        device_id = np.argmin(mem)
+        print(f"[info] device {device_id} in visible GPU list has the minimum memory.")
 
         mem = min(mem) if isinstance(mem, list) else mem
         mem = round(float(mem) / 1024.0)
