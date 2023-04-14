@@ -403,7 +403,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() > 1:
         model = DistributedDataParallel(
-            model, device_ids=[device], find_unused_parameters=False)
+            model, device_ids=[device], find_unused_parameters=True)
 
     if finetune["activate"] and os.path.isfile(
             finetune["pretrained_ckpt_name"]):
@@ -438,7 +438,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if es:
         stop_train = torch.tensor(False).to(device)
 
-    if rank == 0:
+    if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
 
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
@@ -669,7 +669,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     dist.all_reduce(metric, op=torch.distributed.ReduceOp.SUM)
 
                 metric = metric.tolist()
-                if rank == 0:
+                if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     for _c in range(metric_dim):
                         logger.debug(
                             f"evaluation metric - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
@@ -750,9 +750,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         
     if rank == 0:
         if es:
-            logger.warning("SwinUNETR model training finished with early stop")
+            logger.warning(
+                f"{os.path.basename(bundle_root)} - training: finished with early stop")
         else:
-            logger.warning("SwinUNETR model training finished")
+            logger.warning(f"{os.path.basename(bundle_root)} - training: finished")
+
+    if torch.cuda.device_count() > 1:
+        dist.destroy_process_group()
 
     return
 
