@@ -108,7 +108,9 @@ class SwinunetrAlgo(BundleAlgo):
             mem = min(mem) if isinstance(mem, list) else mem
             mem = float(mem) / (1024.0**3)
             mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
+            mem_bs2 = 25/6 * mem_bs2
             mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
+            mem_bs9 = 25/6 * mem_bs9
             batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
             batch_size = int(batch_size)
             batch_size = max(batch_size, 1)
