@@ -102,8 +102,7 @@ class InferClass:
                 orig_meta_keys="image_meta_dict",
                 meta_key_postfix="meta_dict",
                 nearest_interp=False,
-                to_tensor=True,
-            ),
+                to_tensor=True),
             transforms.Activationsd(
                 keys="pred",
                 softmax=softmax,
@@ -111,8 +110,7 @@ class InferClass:
             transforms.CopyItemsd(
                 keys="pred",
                 times=1,
-                names="pred_final"),
-        ]
+                names="pred_final")]
 
         if softmax:
             post_transforms += [
@@ -132,8 +130,7 @@ class InferClass:
                 output_dir=output_path,
                 output_postfix="seg",
                 resample=False,
-            )
-        ]
+                print_log=False)]
         self.post_transforms = transforms.Compose(post_transforms)
 
         return
@@ -153,8 +150,7 @@ class InferClass:
                 self.num_sw_batch_size,
                 self.model,
                 mode="gaussian",
-                overlap=self.overlap_ratio,
-            )
+                overlap=self.overlap_ratio)
 
         batch_data = [self.post_transforms(i)
                       for i in decollate_batch(batch_data)]
@@ -184,8 +180,7 @@ class InferClass:
                         self.num_sw_batch_size,
                         self.model,
                         mode="gaussian",
-                        overlap=self.overlap_ratio,
-                    )
+                        overlap=self.overlap_ratio)
 
                 d = [self.post_transforms(i) for i in decollate_batch(d)]
 
