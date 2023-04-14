@@ -18,6 +18,7 @@ import torch
 
 import monai
 from monai import transforms
+from monai.apps.auto3dseg.auto_runner import logger
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch, list_data_collate
@@ -25,7 +26,10 @@ from monai.inferers import sliding_window_inference
 
 
 class InferClass:
-    def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, **override):
+    def __init__(self,
+                 config_file: Optional[Union[str,
+                                             Sequence[str]]] = None,
+                 **override):
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
         _args = _update_args(config_file=config_file, **override)
@@ -38,9 +42,12 @@ class InferClass:
         data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
         data_list_file_path = parser.get_parsed_content("data_list_file_path")
         self.fast = parser.get_parsed_content("infer")["fast"]
-        self.num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
-        self.overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
-        self.patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
+        self.num_sw_batch_size = parser.get_parsed_content(
+            "training#num_sw_batch_size")
+        self.overlap_ratio = parser.get_parsed_content(
+            "training#overlap_ratio")
+        self.patch_size_valid = parser.get_parsed_content(
+            "training#patch_size_valid")
         softmax = parser.get_parsed_content("training#softmax")
 
         ckpt_name = parser.get_parsed_content("infer")["ckpt_name"]
@@ -71,18 +78,20 @@ class InferClass:
 
         self.infer_loader = None
         if self.fast:
-            infer_ds = monai.data.Dataset(data=self.infer_files, transform=self.infer_transforms)
-            self.infer_loader = ThreadDataLoader(infer_ds, num_workers=8, batch_size=1, shuffle=False)
+            infer_ds = monai.data.Dataset(
+                data=self.infer_files,
+                transform=self.infer_transforms)
+            self.infer_loader = ThreadDataLoader(
+                infer_ds, num_workers=8, batch_size=1, shuffle=False)
 
         self.device = torch.device("cuda:0")
-        torch.cuda.set_device(self.device)
 
         self.model = parser.get_parsed_content("training_network#network")
         self.model = self.model.to(self.device)
 
         pretrained_ckpt = torch.load(ckpt_name, map_location=self.device)
         self.model.load_state_dict(pretrained_ckpt)
-        print(f"[info] checkpoint {ckpt_name:s} loaded")
+        logger.debug(f"[info] checkpoint {ckpt_name:s} loaded")
 
         post_transforms = [
             transforms.Invertd(
@@ -93,16 +102,26 @@ class InferClass:
                 orig_meta_keys="image_meta_dict",
                 meta_key_postfix="meta_dict",
                 nearest_interp=False,
-                to_tensor=True,
-            ),
-            transforms.Activationsd(keys="pred", softmax=softmax, sigmoid=not softmax),
-            transforms.CopyItemsd(keys="pred", times=1, names="pred_final"),
-        ]
+                to_tensor=True),
+            transforms.Activationsd(
+                keys="pred",
+                softmax=softmax,
+                sigmoid=not softmax),
+            transforms.CopyItemsd(
+                keys="pred",
+                times=1,
+                names="pred_final")]
 
         if softmax:
-            post_transforms += [transforms.AsDiscreted(keys="pred_final", argmax=True)]
+            post_transforms += [
+                transforms.AsDiscreted(
+                    keys="pred_final",
+                    argmax=True)]
         else:
-            post_transforms += [transforms.AsDiscreted(keys="pred_final", threshold=0.5)]
+            post_transforms += [
+                transforms.AsDiscreted(
+                    keys="pred_final",
+                    threshold=0.5)]
 
         post_transforms += [
             transforms.SaveImaged(
@@ -111,8 +130,7 @@ class InferClass:
                 output_dir=output_path,
                 output_postfix="seg",
                 resample=False,
-            )
-        ]
+                print_log=False)]
         self.post_transforms = transforms.Compose(post_transforms)
 
         return
@@ -123,19 +141,31 @@ class InferClass:
 
         batch_data = self.infer_transforms(image_file)
         batch_data = list_data_collate([batch_data])
-        infer_image = batch_data["image"].to(self.device)
+        infer_image = batch_data["image"]
 
-        with torch.cuda.amp.autocast():
-            batch_data["pred"] = sliding_window_inference(
-                infer_image,
-                self.patch_size_valid,
-                self.num_sw_batch_size,
-                self.model,
-                mode="gaussian",
-                overlap=self.overlap_ratio,
-            )
+        try:
+            with torch.cuda.amp.autocast():
+                batch_data["pred"] = sliding_window_inference(
+                    inputs=infer_image.to(self.device),
+                    roi_size=self.patch_size_valid,
+                    sw_batch_size=self.num_sw_batch_size,
+                    predictor=self.model,
+                    mode="gaussian",
+                    overlap=self.overlap_ratio,
+                    sw_device=self.device)
+        except BaseException:
+            with torch.cuda.amp.autocast():
+                batch_data["pred"] = sliding_window_inference(
+                    inputs=infer_image,
+                    roi_size=self.patch_size_valid,
+                    sw_batch_size=self.num_sw_batch_size,
+                    predictor=self.model,
+                    mode="gaussian",
+                    overlap=self.overlap_ratio,
+                    sw_device=self.device)
 
-        batch_data = [self.post_transforms(i) for i in decollate_batch(batch_data)]
+        batch_data = [self.post_transforms(i)
+                      for i in decollate_batch(batch_data)]
 
         return batch_data[0]["pred"]
 
@@ -153,17 +183,28 @@ class InferClass:
             for d in self.infer_loader:
                 torch.cuda.empty_cache()
 
-                infer_images = d["image"].to(self.device)
+                infer_image = d["image"]
 
-                with torch.cuda.amp.autocast():
-                    d["pred"] = sliding_window_inference(
-                        infer_images,
-                        self.patch_size_valid,
-                        self.num_sw_batch_size,
-                        self.model,
-                        mode="gaussian",
-                        overlap=self.overlap_ratio,
-                    )
+                try:
+                    with torch.cuda.amp.autocast():
+                        d["pred"] = sliding_window_inference(
+                            inputs=infer_image.to(self.device),
+                            roi_size=self.patch_size_valid,
+                            sw_batch_size=self.num_sw_batch_size,
+                            predictor=self.model,
+                            mode="gaussian",
+                            overlap=self.overlap_ratio,
+                            sw_device=self.device)
+                except BaseException:
+                    with torch.cuda.amp.autocast():
+                        d["pred"] = sliding_window_inference(
+                            inputs=infer_image,
+                            roi_size=self.patch_size_valid,
+                            sw_batch_size=self.num_sw_batch_size,
+                            predictor=self.model,
+                            mode="gaussian",
+                            overlap=self.overlap_ratio,
+                            sw_device=self.device)
 
                 d = [self.post_transforms(i) for i in decollate_batch(d)]
 
@@ -173,10 +214,10 @@ class InferClass:
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     infer_instance = InferClass(config_file, **override)
     if infer_instance.fast:
-        print("[info] fast mode")
+        logger.debug("[info] fast mode")
         infer_instance.batch_infer()
     else:
-        print("[info] slow mode")
+        logger.debug("[info] slow mode")
         infer_instance.infer_all()
 
     return

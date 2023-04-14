@@ -7,31 +7,44 @@ fold: 0
 
 transforms:
   resample_to_spacing: "$@training#resample_to_spacing"
+  lazy_resampling: true
 
-cache_rate: 1
+cache_rate: 0
 train_cache_rate: "$@cache_rate"
 validate_cache_rate: "$@cache_rate"
+show_cache_progress: false
 
 training:
   # hyper-parameters
   amp: true
-  determ: false
   input_channels: null
   learning_rate: 0.2
+  log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/training.log'"
   num_images_per_batch: 2
-  num_epochs: 2000
-  num_epochs_per_validation: 20
-  num_patches_per_image: 1
-  num_sw_batch_size: 2
+  num_epochs: 200
+  num_epochs_per_validation: 2
+  num_patches_per_image: 4
+  num_patches_per_iter: 2
+  num_sw_batch_size: "$@training#num_patches_per_iter"
   num_workers: 8
+  num_workers_validation: 4
   num_cache_workers: 8
   output_classes: null
   overlap_ratio: 0.625
   patch_size: null
   patch_size_valid: null
+  random_seed: 0
   resample_to_spacing: null
   sw_input_on_cpu: false
   softmax: true
+
+  adapt_valid_mode: true
+  adapt_valid_progress_percentages: [10, 40, 70]
+  adapt_valid_num_epochs_per_validation: [2, 4, 2]
+
+  early_stop_mode: true
+  early_stop_delta: 0
+  early_stop_patience: 20
 
   loss:
     _target_: DiceFocalLoss
