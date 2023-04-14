@@ -30,7 +30,7 @@ transforms_train:
     dtype: ["$torch.float32", "$torch.float32"]
   - _target_: EnsureTyped
     keys: ["@image_key", "@label_key"]
-    track_meta: false
+    track_meta: true
   - _target_: SpatialPadd
     keys: ["@image_key", "@label_key"]
     spatial_size: "@training#patch_size"
