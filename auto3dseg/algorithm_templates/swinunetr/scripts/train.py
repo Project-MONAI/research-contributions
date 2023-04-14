@@ -43,7 +43,7 @@ from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
 from monai.utils import set_determinism
-
+from monai.apps import download_url
 
 _libcudart = ctypes.CDLL("libcudart.so")
 # Set device limit on the current device
