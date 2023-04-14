@@ -27,6 +27,7 @@ training:
   num_patches_per_iter: 2
   num_sw_batch_size: "$@training#num_patches_per_iter"
   num_workers: 8
+  num_workers_validation: 4
   num_cache_workers: 8
   output_classes: null
   overlap_ratio: 0.625

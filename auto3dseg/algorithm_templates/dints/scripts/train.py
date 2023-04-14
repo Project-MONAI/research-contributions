@@ -285,7 +285,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         pin_memory=True)
     val_loader = DataLoader(
         val_ds,
-        num_workers=4,
+        num_workers=parser.get_parsed_content("training#num_workers_validation"),
         batch_size=1,
         shuffle=False,
         persistent_workers=True,
