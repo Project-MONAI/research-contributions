@@ -43,7 +43,7 @@ from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
 from monai.utils import set_determinism
-
+from monai.apps import download_url
 
 _libcudart = ctypes.CDLL("libcudart.so")
 # Set device limit on the current device
@@ -283,7 +283,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         pin_memory=True)
     val_loader = DataLoader(
         val_ds,
-        num_workers=4,
+        num_workers=parser.get_parsed_content("training#num_workers_validation"),
         batch_size=1,
         shuffle=False,
         persistent_workers=True,
@@ -575,6 +575,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             y_pred=val_outputs,
                             y=val_labels,
                             include_background=not softmax)
+                        value = value.to(device)	
 
                     logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
@@ -672,7 +673,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         writer.close()
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        if es:
+        if es and (_round + 1) < num_rounds:
             logger.warning(
                 f"{os.path.basename(bundle_root)} - training: finished with early stop")
         else:
