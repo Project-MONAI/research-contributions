@@ -157,17 +157,27 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         for d in val_loader:
             torch.cuda.empty_cache()
 
-            val_images = d["image"].to(device)
+            val_images = d["image"]
             val_labels = d["label"]
 
-            with torch.cuda.amp.autocast():
-                d["pred"] = sliding_window_inference(
-                    val_images,
-                    patch_size_valid,
-                    num_sw_batch_size,
-                    model,
-                    mode="gaussian",
-                    overlap=overlap_ratio)
+            try:
+                with torch.cuda.amp.autocast():
+                    d["pred"] = sliding_window_inference(
+                        val_images.to(device),
+                        patch_size_valid,
+                        num_sw_batch_size,
+                        model,
+                        mode="gaussian",
+                        overlap=overlap_ratio)
+            except BaseException:
+                with torch.cuda.amp.autocast():
+                    d["pred"] = sliding_window_inference(
+                        val_images,
+                        patch_size_valid,
+                        num_sw_batch_size,
+                        model,
+                        mode="gaussian",
+                        overlap=overlap_ratio)
 
             d = [post_transforms(i) for i in decollate_batch(d)]
 

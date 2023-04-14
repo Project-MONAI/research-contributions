@@ -290,6 +290,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     best_metric_epoch = -1
     idx_iter = 0
     metric_dim = output_classes - 1 if softmax else output_classes
+    val_devices = {}
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(arch_path, "Events"))
@@ -497,27 +498,40 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in val_loader:
-                    val_images = (
-                        val_data["image"].to(device)
-                        if sw_input_on_cpu is False
-                        else val_data["image"]
-                    )
-                    val_labels = (
-                        val_data["label"].to(device)
-                        if sw_input_on_cpu is False
-                        else val_data["label"]
-                    )
+                    val_images = val_data["image"]
+                    val_labels = val_data["label"]
 
-                    with torch.cuda.amp.autocast(enabled=amp):
-                        val_outputs = sliding_window_inference(
-                            val_images,
-                            patch_size_valid,
-                            num_sw_batch_size,
-                            model,
-                            mode="gaussian",
-                            overlap=overlap_ratio,
-                            sw_device=device,
-                        )
+                    val_filename = val_data["image_meta_dict"]["filename_or_obj"][0]
+                    if sw_input_on_cpu:
+                        val_devices[val_filename] = "cpu"
+                    elif val_filename not in val_devices:
+                        val_devices[val_filename] = device
+
+                    try:
+                        val_images = val_images.to(val_devices[val_filename])
+                        val_labels = val_labels.to(val_devices[val_filename])
+
+                        with torch.cuda.amp.autocast(enabled=amp):
+                            val_outputs = sliding_window_inference(
+                                inputs=val_images,
+                                roi_size=patch_size_valid,
+                                sw_batch_size=num_sw_batch_size,
+                                predictor=model,
+                                mode="gaussian",
+                                overlap=overlap_ratio,
+                                sw_device=device)
+                    except BaseException:
+                        val_devices[val_filename] = "cpu"
+
+                        with torch.cuda.amp.autocast(enabled=amp):
+                            val_outputs = sliding_window_inference(
+                                val_images,
+                                patch_size_valid,
+                                sw_batch_size=num_sw_batch_size,
+                                predictor=model,
+                                mode="gaussian",
+                                overlap=overlap_ratio,
+                                sw_device=device)
 
                     val_outputs = post_pred(val_outputs[0, ...])
                     val_outputs = val_outputs[None, ...]
