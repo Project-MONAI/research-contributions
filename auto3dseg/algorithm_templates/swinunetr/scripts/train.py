@@ -321,7 +321,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() > 1:
         model = DistributedDataParallel(
-            model, device_ids=[device], find_unused_parameters=True)
+            model, device_ids=[device], find_unused_parameters=False)
 
     if finetune["activate"] and os.path.isfile(
             finetune["pretrained_ckpt_name"]):
@@ -489,7 +489,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         target_num_epochs_per_validation = ad_num_epochs_per_validation[-1 - _j]
                         break
 
-                if target_num_epochs_per_validation > 0:
+                if target_num_epochs_per_validation > 0 and (_round + 1) < num_rounds:
                     if (_round + 1) % (target_num_epochs_per_validation //
                                        num_epochs_per_validation) != 0:
                         continue

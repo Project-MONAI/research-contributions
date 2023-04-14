@@ -102,8 +102,7 @@ class InferClass:
                 orig_meta_keys="image_meta_dict",
                 meta_key_postfix="meta_dict",
                 nearest_interp=False,
-                to_tensor=True,
-            ),
+                to_tensor=True),
             transforms.Activationsd(
                 keys="pred",
                 softmax=softmax,
@@ -111,8 +110,7 @@ class InferClass:
             transforms.CopyItemsd(
                 keys="pred",
                 times=1,
-                names="pred_final"),
-        ]
+                names="pred_final")]
 
         if softmax:
             post_transforms += [
@@ -132,9 +130,7 @@ class InferClass:
                 output_dir=output_path,
                 output_postfix="seg",
                 resample=False,
-                print_log=False
-            )
-        ]
+                print_log=False)]
         self.post_transforms = transforms.Compose(post_transforms)
 
         return
@@ -145,17 +141,28 @@ class InferClass:
 
         batch_data = self.infer_transforms(image_file)
         batch_data = list_data_collate([batch_data])
-        infer_image = batch_data["image"].to(self.device)
+        infer_image = batch_data["image"]
 
-        with torch.cuda.amp.autocast():
-            batch_data["pred"] = sliding_window_inference(
-                infer_image,
-                self.patch_size_valid,
-                self.num_sw_batch_size,
-                self.model,
-                mode="gaussian",
-                overlap=self.overlap_ratio,
-            )
+        try:
+            with torch.cuda.amp.autocast():
+                batch_data["pred"] = sliding_window_inference(
+                    inputs=infer_image.to(self.device),
+                    roi_size=self.patch_size_valid,
+                    sw_batch_size=self.num_sw_batch_size,
+                    predictor=self.model,
+                    mode="gaussian",
+                    overlap=self.overlap_ratio,
+                    sw_device=self.device)
+        except BaseException:
+            with torch.cuda.amp.autocast():
+                batch_data["pred"] = sliding_window_inference(
+                    inputs=infer_image,
+                    roi_size=self.patch_size_valid,
+                    sw_batch_size=self.num_sw_batch_size,
+                    predictor=self.model,
+                    mode="gaussian",
+                    overlap=self.overlap_ratio,
+                    sw_device=self.device)
 
         batch_data = [self.post_transforms(i)
                       for i in decollate_batch(batch_data)]
@@ -176,17 +183,28 @@ class InferClass:
             for d in self.infer_loader:
                 torch.cuda.empty_cache()
 
-                infer_images = d["image"].to(self.device)
+                infer_image = d["image"]
 
-                with torch.cuda.amp.autocast():
-                    d["pred"] = sliding_window_inference(
-                        infer_images,
-                        self.patch_size_valid,
-                        self.num_sw_batch_size,
-                        self.model,
-                        mode="gaussian",
-                        overlap=self.overlap_ratio,
-                    )
+                try:
+                    with torch.cuda.amp.autocast():
+                        d["pred"] = sliding_window_inference(
+                            inputs=infer_image.to(self.device),
+                            roi_size=self.patch_size_valid,
+                            sw_batch_size=self.num_sw_batch_size,
+                            predictor=self.model,
+                            mode="gaussian",
+                            overlap=self.overlap_ratio,
+                            sw_device=self.device)
+                except BaseException:
+                    with torch.cuda.amp.autocast():
+                        d["pred"] = sliding_window_inference(
+                            inputs=infer_image,
+                            roi_size=self.patch_size_valid,
+                            sw_batch_size=self.num_sw_batch_size,
+                            predictor=self.model,
+                            mode="gaussian",
+                            overlap=self.overlap_ratio,
+                            sw_device=self.device)
 
                 d = [self.post_transforms(i) for i in decollate_batch(d)]
 
