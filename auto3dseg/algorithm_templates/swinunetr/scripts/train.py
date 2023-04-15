@@ -310,7 +310,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             if "out" not in key:
                 store_dict[key].copy_(model_dict[key])
         model.load_state_dict(store_dict)
-        logger.debug("Use pretrained weights")
+        logger.debug("[info] use pretrained weights")
 
 
     if torch.cuda.device_count() > 1:
