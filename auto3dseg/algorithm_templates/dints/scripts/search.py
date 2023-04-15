@@ -28,6 +28,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 import monai
 from monai import transforms
+from monai.apps.auto3dseg.auto_runner import logger
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, partition_dataset
@@ -46,6 +47,9 @@ def try_except(func, default=None, expected_exc=(Exception,)):
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
+    if isinstance(config_file, str) and ',' in config_file:
+        config_file = config_file.split(',')
+
     _args = _update_args(config_file=config_file, **override)
     config_file_ = _pop_args(_args, "config_file")[0]
 
@@ -59,13 +63,16 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
     determ = parser.get_parsed_content("searching#determ")
     fold = parser.get_parsed_content("fold")
-    num_images_per_batch = parser.get_parsed_content("searching#num_images_per_batch")
+    num_images_per_batch = parser.get_parsed_content(
+        "searching#num_images_per_batch")
     num_epochs = parser.get_parsed_content("searching#num_epochs")
     num_epochs_per_validation = parser.get_parsed_content(
         "searching#num_epochs_per_validation"
     )
-    num_epochs_warmup = parser.get_parsed_content("searching#num_warmup_epochs")
-    num_sw_batch_size = parser.get_parsed_content("searching#num_sw_batch_size")
+    num_epochs_warmup = parser.get_parsed_content(
+        "searching#num_warmup_epochs")
+    num_sw_batch_size = parser.get_parsed_content(
+        "searching#num_sw_batch_size")
     output_classes = parser.get_parsed_content("searching#output_classes")
     overlap_ratio = parser.get_parsed_content("searching#overlap_ratio")
     patch_size_valid = parser.get_parsed_content("searching#patch_size_valid")
@@ -82,13 +89,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if determ:
         set_determinism(seed=0)
 
-    print("[info] number of GPUs:", torch.cuda.device_count())
+    logger.debug(f"[info] number of GPUs:, {torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
         dist.init_process_group(backend="nccl", init_method="env://")
         world_size = dist.get_world_size()
     else:
         world_size = 1
-    print("[info] world_size:", world_size)
+    logger.debug(f"[info] world_size:, {world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
 
@@ -123,9 +130,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=True,
         )[dist.get_rank()]
-    print("train_files_w:", len(train_files_w))
+    logger.debug(f"train_files_w:, {len(train_files_w)}")
 
-    train_files_a = train_files[len(train_files) // 2 :]
+    train_files_a = train_files[len(train_files) // 2:]
     if torch.cuda.device_count() > 1:
         train_files_a = partition_dataset(
             data=train_files_a,
@@ -133,7 +140,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=True,
         )[dist.get_rank()]
-    print("train_files_a:", len(train_files_a))
+    logger.debug(f"train_files_a:, {len(train_files_a)}")
 
     files = []
     for _i in range(len(list_valid)):
@@ -149,7 +156,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() > 1:
         if len(val_files) < world_size:
-            val_files = val_files * math.ceil(float(world_size) / float(len(val_files)))
+            val_files = val_files * \
+                math.ceil(float(world_size) / float(len(val_files)))
 
         val_files = partition_dataset(
             data=val_files,
@@ -157,10 +165,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=False,
         )[dist.get_rank()]
-    print("val_files:", len(val_files))
+    logger.debug(f"val_files:, {len(val_files)}")
 
     train_cache_rate = float(parser.get_parsed_content("train_cache_rate"))
-    validate_cache_rate = float(parser.get_parsed_content("validate_cache_rate"))
+    validate_cache_rate = float(
+        parser.get_parsed_content("validate_cache_rate"))
 
     train_ds_a = monai.data.CacheDataset(
         data=train_files_a,
@@ -196,14 +205,17 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         batch_size=num_images_per_batch,
         shuffle=True,
     )
-    val_loader = ThreadDataLoader(val_ds, num_workers=0, batch_size=1, shuffle=False)
+    val_loader = ThreadDataLoader(
+        val_ds,
+        num_workers=0,
+        batch_size=1,
+        shuffle=False)
 
     device = (
         torch.device(f"cuda:{os.environ['LOCAL_RANK']}")
         if world_size > 1
         else torch.device("cuda:0")
     )
-    torch.cuda.set_device(device)
 
     dints_space = parser.get_parsed_content("searching_network#dints_space")
     model = parser.get_parsed_content("searching_network#network")
@@ -233,7 +245,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     loss_function = parser.get_parsed_content("searching#loss")
 
-    optimizer_part = parser.get_parsed_content("searching#optimizer", instantiate=False)
+    optimizer_part = parser.get_parsed_content(
+        "searching#optimizer", instantiate=False)
     optimizer = optimizer_part.instantiate(params=model.parameters())
 
     arch_optimizer_a_part = parser.get_parsed_content(
@@ -251,9 +264,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     )
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        print("num_epochs", num_epochs)
-        print("num_epochs_warmup", num_epochs_warmup)
-        print("num_epochs_per_validation", num_epochs_per_validation)
+        logger.debug(f"num_epochs, {num_epochs}")
+        logger.debug(f"num_epochs_warmup, {num_epochs_warmup}")
+        logger.debug(f"num_epochs_per_validation, {num_epochs_per_validation}")
 
     lr_scheduler_part = parser.get_parsed_content(
         "searching#lr_scheduler", instantiate=False
@@ -270,13 +283,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         scaler = GradScaler()
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-            print("[info] amp enabled")
+            logger.debug("[info] amp enabled")
 
     val_interval = num_epochs_per_validation
     best_metric = -1
     best_metric_epoch = -1
     idx_iter = 0
     metric_dim = output_classes - 1 if softmax else output_classes
+    val_devices = {}
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(arch_path, "Events"))
@@ -290,9 +304,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     for epoch in range(num_epochs):
         lr = lr_scheduler.get_last_lr()[0]
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-            print("-" * 10)
-            print(f"epoch {epoch + 1}/{num_epochs}")
-            print(f"learning rate is set to {lr}")
+            logger.debug("-" * 10)
+            logger.debug(f"epoch {epoch + 1}/{num_epochs}")
+            logger.debug(f"learning rate is set to {lr}")
 
         model.train()
         epoch_loss = 0
@@ -303,9 +317,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         for batch_data in train_loader_w:
             step += 1
-            inputs, labels = batch_data["image"].to(device), batch_data["label"].to(
-                device
-            )
+            inputs, labels = batch_data["image"].to(
+                device), batch_data["label"].to(device)
 
             if world_size == 1:
                 for _ in model.weight_parameters():
@@ -344,11 +357,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             idx_iter += 1
 
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-                print(
+                logger.debug(
                     f"[{str(datetime.now())[:19]}] "
                     + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}"
                 )
-                writer.add_scalar("Loss/train", loss.item(), epoch_len * epoch + step)
+                writer.add_scalar(
+                    "Loss/train",
+                    loss.item(),
+                    epoch_len * epoch + step)
 
             if epoch < num_epochs_warmup:
                 continue
@@ -388,9 +404,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             ).mean()
             topology_loss = dints_space.get_topology_entropy(probs_a)
 
-            ram_cost_full = dints_space.get_ram_cost_usage(inputs.shape, full=True)
+            ram_cost_full = dints_space.get_ram_cost_usage(
+                inputs.shape, full=True)
             ram_cost_usage = dints_space.get_ram_cost_usage(inputs.shape)
-            ram_cost_loss = torch.abs(ram_cost_factor - ram_cost_usage / ram_cost_full)
+            ram_cost_loss = torch.abs(
+                ram_cost_factor - ram_cost_usage / ram_cost_full)
 
             arch_optimizer_a.zero_grad()
             arch_optimizer_c.zero_grad()
@@ -437,7 +455,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             loss_torch_arch[1] += 1.0
 
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-                print(
+                logger.debug(
                     f"[{str(datetime.now())[:19]}] "
                     + f"{step}/{epoch_len}, train_loss_arch: {loss.item():.4f}"
                 )
@@ -455,23 +473,22 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         loss_torch_arch = loss_torch_arch.tolist()
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
             loss_torch_epoch = loss_torch[0] / loss_torch[1]
-            print(
+            logger.debug(
                 f"epoch {epoch + 1} average loss: {loss_torch_epoch:.4f}, "
-                f"best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}"
-            )
+                f"best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}")
 
             if epoch >= num_epochs_warmup:
                 loss_torch_arch_epoch = loss_torch_arch[0] / loss_torch_arch[1]
-                print(
+                logger.debug(
                     f"epoch {epoch + 1} average arch loss: {loss_torch_arch_epoch:.4f}, "
-                    f"best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}"
-                )
+                    f"best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}")
 
         if (epoch + 1) % val_interval == 0 or (epoch + 1) == num_epochs:
             torch.cuda.empty_cache()
             model.eval()
             with torch.no_grad():
-                metric = torch.zeros(metric_dim * 2, dtype=torch.float, device=device)
+                metric = torch.zeros(
+                    metric_dim * 2, dtype=torch.float, device=device)
                 metric_sum = 0.0
                 metric_count = 0
                 metric_mat = []
@@ -481,27 +498,40 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in val_loader:
-                    val_images = (
-                        val_data["image"].to(device)
-                        if sw_input_on_cpu is False
-                        else val_data["image"]
-                    )
-                    val_labels = (
-                        val_data["label"].to(device)
-                        if sw_input_on_cpu is False
-                        else val_data["label"]
-                    )
+                    val_images = val_data["image"]
+                    val_labels = val_data["label"]
 
-                    with torch.cuda.amp.autocast(enabled=amp):
-                        val_outputs = sliding_window_inference(
-                            val_images,
-                            patch_size_valid,
-                            num_sw_batch_size,
-                            model,
-                            mode="gaussian",
-                            overlap=overlap_ratio,
-                            sw_device=device,
-                        )
+                    val_filename = val_data["image_meta_dict"]["filename_or_obj"][0]
+                    if sw_input_on_cpu:
+                        val_devices[val_filename] = "cpu"
+                    elif val_filename not in val_devices:
+                        val_devices[val_filename] = device
+
+                    try:
+                        val_images = val_images.to(val_devices[val_filename])
+                        val_labels = val_labels.to(val_devices[val_filename])
+
+                        with torch.cuda.amp.autocast(enabled=amp):
+                            val_outputs = sliding_window_inference(
+                                inputs=val_images,
+                                roi_size=patch_size_valid,
+                                sw_batch_size=num_sw_batch_size,
+                                predictor=model,
+                                mode="gaussian",
+                                overlap=overlap_ratio,
+                                sw_device=device)
+                    except BaseException:
+                        val_devices[val_filename] = "cpu"
+
+                        with torch.cuda.amp.autocast(enabled=amp):
+                            val_outputs = sliding_window_inference(
+                                val_images,
+                                patch_size_valid,
+                                sw_batch_size=num_sw_batch_size,
+                                predictor=model,
+                                mode="gaussian",
+                                overlap=overlap_ratio,
+                                sw_device=device)
 
                     val_outputs = post_pred(val_outputs[0, ...])
                     val_outputs = val_outputs[None, ...]
@@ -511,10 +541,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         val_labels = val_labels[None, ...]
 
                     value = compute_dice(
-                        y_pred=val_outputs, y=val_labels, include_background=not softmax
-                    )
+                        y_pred=val_outputs,
+                        y=val_labels,
+                        include_background=not softmax)
 
-                    print(_index + 1, "/", len(val_loader), value)
+                    logger.debug(f"{_index + 1}, /, {len(val_loader)}, {value}")
 
                     metric_count += len(value)
                     metric_sum += value.sum().item()
@@ -522,7 +553,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     if len(metric_mat) == 0:
                         metric_mat = metric_vals
                     else:
-                        metric_mat = np.concatenate((metric_mat, metric_vals), axis=0)
+                        metric_mat = np.concatenate(
+                            (metric_mat, metric_vals), axis=0)
 
                     for _c in range(metric_dim):
                         val0 = torch.nan_to_num(value[0, _c], nan=0.0)
@@ -539,15 +571,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 metric = metric.tolist()
                 if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     for _c in range(metric_dim):
-                        print(
-                            f"evaluation metric - class {_c + 1:d}:",
-                            metric[2 * _c] / metric[2 * _c + 1],
+                        logger.debug(
+                            f"evaluation metric - class {_c + 1:d}:, {metric[2 * _c] / metric[2 * _c + 1]}"
                         )
                     avg_metric = 0
                     for _c in range(metric_dim):
                         avg_metric += metric[2 * _c] / metric[2 * _c + 1]
                     avg_metric = avg_metric / float(metric_dim)
-                    print("avg_metric", avg_metric)
+                    logger.debug(f"avg_metric, {avg_metric}")
 
                     if avg_metric > best_metric:
                         best_metric = avg_metric
@@ -561,20 +592,19 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         arch_code_a_max_d,
                     ) = dints_space.decode()
 
-                    torch.save(
-                        {
-                            "code_a": arch_code_a_d,
-                            "code_a_max": arch_code_a_max_d,
-                            "code_c": arch_code_c_d,
-                            "best_dsc": best_metric,
-                            "best_path": best_metric_iterations,
-                            "dsc": avg_metric,
-                            "epochs": epoch + 1,
-                            "iter_num": idx_iter,
-                            "node_a": node_a_d,
-                        },
-                        os.path.join(arch_path, "search_code_" + str(idx_iter) + ".pt"),
-                    )
+                    torch.save({"code_a": arch_code_a_d,
+                                "code_a_max": arch_code_a_max_d,
+                                "code_c": arch_code_c_d,
+                                "best_dsc": best_metric,
+                                "best_path": best_metric_iterations,
+                                "dsc": avg_metric,
+                                "epochs": epoch + 1,
+                                "iter_num": idx_iter,
+                                "node_a": node_a_d,
+                                },
+                               os.path.join(arch_path,
+                                            "search_code_" + str(idx_iter) + ".pt"),
+                               )
 
                     torch.save(
                         {
@@ -590,22 +620,21 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         },
                         os.path.join(arch_path, "search_code_latest.pt"),
                     )
-                    print("saved new best metric model")
+                    logger.debug("saved new best metric model")
 
                     dict_file = {}
                     dict_file["best_avg_dice_score"] = float(best_metric)
-                    dict_file["best_avg_dice_score_epoch"] = int(best_metric_epoch)
+                    dict_file["best_avg_dice_score_epoch"] = int(
+                        best_metric_epoch)
                     dict_file["best_avg_dice_score_iteration"] = int(idx_iter)
                     with open(
                         os.path.join(arch_path, "progress.yaml"), "a"
                     ) as out_file:
                         _ = yaml.dump([dict_file], stream=out_file)
 
-                    print(
+                    logger.debug(
                         "current epoch: {} current mean dice: {:.4f} best mean dice: {:.4f} at epoch {}".format(
-                            epoch + 1, avg_metric, best_metric, best_metric_epoch
-                        )
-                    )
+                            epoch + 1, avg_metric, best_metric, best_metric_epoch))
 
                     current_time = time.time()
                     elapsed_time = (current_time - start_time) / 60.0
@@ -628,7 +657,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
             torch.cuda.empty_cache()
 
-    print(
+    logger.debug(
         f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}"
     )
 

@@ -280,6 +280,7 @@ class SwinunetrAlgo(BundleAlgo):
                 "validation_data_device", ["cpu", "gpu"]
             )
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
+            ps_environ = os.environ.copy()  # ensure the CUDA_VISIBLE_DEVICES is copied when used.
 
             try:
                 cmd = "python {0:s}dummy_runner.py ".format(

@@ -4,7 +4,7 @@ A neural architecture search algorithm for volumetric segmentation of 3D medical
 
 # Model Overview
 
-This is a template for training the state-of-the-art algorithm [1] of the "Medical Segmentation Decathlon Challenge 2018".
+This model is trained using the state-of-the-art algorithm [1] of the "Medical Segmentation Decathlon Challenge 2018".
 
 ## Training configuration
 
@@ -47,6 +47,10 @@ Execute inference:
 ```
 python -m scripts.infer run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml','configs/transforms_infer.yaml']"
 ```
+
+# Disclaimer
+
+This is an example, not to be used for diagnostic purposes.
 
 # References
 
