@@ -575,7 +575,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             y_pred=val_outputs,
                             y=val_labels,
                             include_background=not softmax)
-                        value = value.to(device)	
+                        value = value.to(device)
 
                     logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 

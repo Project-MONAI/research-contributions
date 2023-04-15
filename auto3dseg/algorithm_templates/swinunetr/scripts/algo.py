@@ -132,7 +132,7 @@ class SwinunetrAlgo(BundleAlgo):
                         "_target_": "CropForegroundd",
                         "keys": ["@image_key", "@label_key"],
                         "source_key": "@image_key",
-                        "start_coord_key": None,	
+                        "start_coord_key": None,
                         "end_coord_key": None,
                     },
                 ],
@@ -294,12 +294,12 @@ class SwinunetrAlgo(BundleAlgo):
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
                 cmd += f"--validation_data_device {validation_data_device}"
                 _ = subprocess.run(cmd.split(), check=True)
-            except BaseException:	
-                print("[error] OOM")	
-                return (	
-                    float(num_images_per_batch)	
-                    * float(num_sw_batch_size)	
-                    * device_factor	
+            except BaseException:
+                print("[error] OOM")
+                return (
+                    float(num_images_per_batch)
+                    * float(num_sw_batch_size)
+                    * device_factor
                 )
 
             value = (
