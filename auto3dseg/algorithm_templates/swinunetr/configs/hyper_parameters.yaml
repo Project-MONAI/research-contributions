@@ -36,7 +36,7 @@ random_seed: 0
 resample_to_spacing: null
 sw_input_on_cpu: false
 softmax: true
-use_pretrain: false
+use_pretrain: true
 pretrained_path: $@bundle_root + '/pretrained_model' + '/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt'
 adapt_valid_mode: true
 adapt_valid_progress_percentages: [10, 40, 70]
