@@ -43,12 +43,12 @@ class InferClass:
         data_list_file_path = parser.get_parsed_content("data_list_file_path")
         self.fast = parser.get_parsed_content("infer")["fast"]
         self.num_sw_batch_size = parser.get_parsed_content(
-            "training#num_sw_batch_size")
+            "num_sw_batch_size")
         self.overlap_ratio = parser.get_parsed_content(
-            "training#overlap_ratio")
+            "overlap_ratio")
         self.patch_size_valid = parser.get_parsed_content(
-            "training#patch_size_valid")
-        softmax = parser.get_parsed_content("training#softmax")
+            "patch_size_valid")
+        softmax = parser.get_parsed_content("softmax")
 
         ckpt_name = parser.get_parsed_content("infer")["ckpt_name"]
         data_list_key = parser.get_parsed_content("infer")["data_list_key"]

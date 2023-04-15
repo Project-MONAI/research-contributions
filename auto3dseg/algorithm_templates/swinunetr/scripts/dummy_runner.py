@@ -39,13 +39,13 @@ class DummyRunnerSwinUNETR(object):
 
         self.device = torch.device("cuda:{0:d}".format(device_id))
 
-        self.input_channels = parser.get_parsed_content("training#input_channels")
-        self.patch_size = parser.get_parsed_content("training#patch_size")
-        self.patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
-        self.overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
+        self.input_channels = parser.get_parsed_content("input_channels")
+        self.patch_size = parser.get_parsed_content("patch_size")
+        self.patch_size_valid = parser.get_parsed_content("patch_size_valid")
+        self.overlap_ratio = parser.get_parsed_content("overlap_ratio")
 
-        self.output_classes = parser.get_parsed_content("training#output_classes")
-        self.softmax = parser.get_parsed_content("training#softmax")
+        self.output_classes = parser.get_parsed_content("output_classes")
+        self.softmax = parser.get_parsed_content("softmax")
         self.label_channels = 1 if self.softmax else self.output_classes
 
         print("patch_size", self.patch_size)
@@ -55,9 +55,9 @@ class DummyRunnerSwinUNETR(object):
         self.model = parser.get_parsed_content("network")
         self.model = self.model.to(self.device)
 
-        self.loss_function = parser.get_parsed_content("training#loss")
+        self.loss_function = parser.get_parsed_content("loss")
 
-        optimizer_part = parser.get_parsed_content("training#optimizer", instantiate=False)
+        optimizer_part = parser.get_parsed_content("optimizer", instantiate=False)
         self.optimizer = optimizer_part.instantiate(params=self.model.parameters())
 
         train_transforms = parser.get_parsed_content("transforms_train")

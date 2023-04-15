@@ -2,8 +2,8 @@ network:
   _target_: SwinUNETR
   feature_size: 48
   img_size: 96
-  in_channels: $@training#input_channels
-  out_channels: '@training#output_classes'
+  in_channels: "@input_channels"
+  out_channels: "@output_classes"
   spatial_dims: 3
   use_checkpoint: false
   use_v2: false

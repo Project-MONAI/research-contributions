@@ -78,10 +78,10 @@ class SwinunetrAlgo(BundleAlgo):
                 {"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])}
             )
 
-            hyper_parameters.update({"training#patch_size": patch_size})
-            hyper_parameters.update({"training#patch_size_valid": patch_size})
-            hyper_parameters.update({"training#input_channels": input_channels})
-            hyper_parameters.update({"training#output_classes": output_classes})
+            hyper_parameters.update({"patch_size": patch_size})
+            hyper_parameters.update({"patch_size_valid": patch_size})
+            hyper_parameters.update({"input_channels": input_channels})
+            hyper_parameters.update({"output_classes": output_classes})
 
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
@@ -90,7 +90,7 @@ class SwinunetrAlgo(BundleAlgo):
             if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
                 spacing = [1.0, 1.0, 1.0]
 
-            hyper_parameters.update({"training#resample_to_spacing": spacing})
+            hyper_parameters.update({"resample_to_spacing": spacing})
 
             mem = get_mem_from_visible_gpus()
             mem = min(mem) if isinstance(mem, list) else mem
@@ -102,8 +102,8 @@ class SwinunetrAlgo(BundleAlgo):
             batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
             batch_size = int(batch_size)
             batch_size = max(batch_size, 1)
-            hyper_parameters.update({"training#num_patches_per_iter": batch_size})
-            hyper_parameters.update({"training#num_patches_per_image": batch_size * 2})
+            hyper_parameters.update({"num_patches_per_iter": batch_size})
+            hyper_parameters.update({"num_patches_per_image": batch_size * 2})
 
             intensity_upper_bound = float(
                 data_stats[
@@ -343,15 +343,15 @@ class SwinunetrAlgo(BundleAlgo):
 
         if best_trial["value"] < 0:
             fill_records["hyper_parameters.yaml"].update(
-                {"training#num_images_per_batch": best_trial["num_images_per_batch"]}
+                {"num_images_per_batch": best_trial["num_images_per_batch"]}
             )
             fill_records["hyper_parameters.yaml"].update(
-                {"training#num_sw_batch_size": best_trial["num_sw_batch_size"]}
+                {"num_sw_batch_size": best_trial["num_sw_batch_size"]}
             )
             if best_trial["validation_data_device"] == "cpu":
-                fill_records["hyper_parameters.yaml"].update({"training#sw_input_on_cpu": True})
+                fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": True})
             else:
-                fill_records["hyper_parameters.yaml"].update({"training#sw_input_on_cpu": False})
+                fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": False})
 
             for yaml_file, yaml_contents in fill_records.items():
                 if "hyper_parameters" in yaml_file:
