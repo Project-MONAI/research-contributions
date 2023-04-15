@@ -305,7 +305,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if torch.cuda.device_count() > 1:
             dist.barrier()
         store_dict = model.state_dict()
-        model_dict = torch.load(pretrained_path)["state_dict"]
+        model_dict = torch.load(pretrained_path, map_location=device)["state_dict"]
         for key in model_dict.keys():
             if "out" not in key:
                 store_dict[key].copy_(model_dict[key])
