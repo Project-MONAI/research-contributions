@@ -33,7 +33,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
 
 import monai
-from apex.contrib.clip_grad import clip_grad_norm_
+from torch.nn.utils import clip_grad_norm_
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
 from monai.apps.utils import DEFAULT_FMT
