@@ -321,6 +321,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         logger.debug(f"num_epochs: {num_epochs}")
         logger.debug(f"num_epochs_per_validation: {num_epochs_per_validation}")
 
+    # patch fix to support PolynomialLR use in PyTorch <= 1.12
+    if  "PolynomialLR" in parser.get("training#lr_scheduler#_target_") and not pytorch_after(1,13):
+        dints_dir = os.path.dirname(os.path.dirname(__file__))
+        sys.path.insert(0, dints_dir)
+        parser["training#lr_scheduler#_target_"] = "scripts.utils.PolynomialLR"
+
     lr_scheduler_part = parser.get_parsed_content(
         "training#lr_scheduler", instantiate=False)
     lr_scheduler = lr_scheduler_part.instantiate(optimizer=optimizer)
