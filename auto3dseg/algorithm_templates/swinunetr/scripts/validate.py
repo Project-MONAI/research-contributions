@@ -168,7 +168,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         model,
                         mode="gaussian",
                         overlap=overlap_ratio)
-            except BaseException:
+            except RuntimeError as e:
+                if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                    raise e
                 with torch.cuda.amp.autocast():
                     d["pred"] = sliding_window_inference(
                         val_images,

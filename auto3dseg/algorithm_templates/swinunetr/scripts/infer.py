@@ -153,7 +153,9 @@ class InferClass:
                     mode="gaussian",
                     overlap=self.overlap_ratio,
                     sw_device=self.device)
-        except BaseException:
+        except RuntimeError as e:
+            if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                raise e
             with torch.cuda.amp.autocast():
                 batch_data["pred"] = sliding_window_inference(
                     inputs=infer_image,
@@ -195,7 +197,9 @@ class InferClass:
                             mode="gaussian",
                             overlap=self.overlap_ratio,
                             sw_device=self.device)
-                except BaseException:
+                except RuntimeError as e:
+                    if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                        raise e
                     with torch.cuda.amp.autocast():
                         d["pred"] = sliding_window_inference(
                             inputs=infer_image,
