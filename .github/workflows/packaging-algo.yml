@@ -28,5 +28,5 @@ jobs:
     - name: Upload
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ steps.name.outputs.sha_short }}.tar.gz
+        name: ${{ steps.name.outputs.sha_short }}
         path: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz
