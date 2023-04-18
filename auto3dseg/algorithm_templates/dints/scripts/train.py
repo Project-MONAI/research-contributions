@@ -41,6 +41,7 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
+from monai.networks.utils import pytorch_after
 from monai.utils import set_determinism
 try:
     from apex.contrib.clip_grad import clip_grad_norm_
@@ -57,7 +58,8 @@ _libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
 assert p_value.contents.value == 128
 
 torch.backends.cudnn.benchmark = True
-torch.set_float32_matmul_precision("high")
+if hasattr(torch, "set_float32_matmul_precision"):
+    torch.set_float32_matmul_precision("high")
 
 
 CONFIG = {
@@ -320,6 +322,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         logger.debug(f"num_epochs: {num_epochs}")
         logger.debug(f"num_epochs_per_validation: {num_epochs_per_validation}")
+
+    # patch fix to support PolynomialLR use in PyTorch <= 1.12
+    if "PolynomialLR" in parser.get("training#lr_scheduler#_target_") and not pytorch_after(1, 13):
+        dints_dir = os.path.dirname(os.path.dirname(__file__))
+        sys.path.insert(0, dints_dir)
+        parser["training#lr_scheduler#_target_"] = "scripts.utils.PolynomialLR"
 
     lr_scheduler_part = parser.get_parsed_content(
         "training#lr_scheduler", instantiate=False)
