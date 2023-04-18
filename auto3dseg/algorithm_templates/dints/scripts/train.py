@@ -515,7 +515,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     val_images = val_data["image"]
                     val_labels = val_data["label"]
 
-                    val_filename = val_data["image_meta_dict"]["filename_or_obj"][0]
+                    if "image_meta_dict" in val_data:
+                        val_filename = val_data["image_meta_dict"]["filename_or_obj"][0]
+                    else:
+                        val_filename = val_images.meta["filename_or_obj"][0]
                     if sw_input_on_cpu:
                         val_devices[val_filename] = "cpu"
                     elif val_filename not in val_devices:
