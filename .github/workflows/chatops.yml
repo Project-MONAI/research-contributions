@@ -11,7 +11,7 @@ jobs:
       - name: dispatch
         uses: peter-evans/slash-command-dispatch@v3.0.0
         with:
-          token: ${{ secrets.PR_MAINTAIN_WYLI }}
+          token: ${{ secrets.MONAI_BOT_READ }}
           # reaction-token: ${{ secrets.GITHUB_TOKEN }}
           reactions: false
           config: >
@@ -22,5 +22,11 @@ jobs:
                 "issue_type": "pull-request",
                 "allow_edits": true,
                 "repository": "project-monai/monai-code-formatter"
+              },
+              {
+                "command": "integration-test",
+                "permission": "none",
+                "issue_type": "pull-request",
+                "allow_edits": true
               }
             ]
