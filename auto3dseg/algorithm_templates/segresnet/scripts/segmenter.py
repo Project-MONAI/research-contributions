@@ -1573,7 +1573,7 @@ class Segmenter:
             data_list = data.chunk(num_steps_per_image) if num_steps_per_image>1 else [data]
             target_list = target.chunk(num_steps_per_image)  if num_steps_per_image>1 else [target]
 
-            for ich in range(num_steps_per_image):
+            for ich in range(min(num_steps_per_image, len(data_list))):
 
                 data = data_list[ich]
                 target = target_list[ich]
