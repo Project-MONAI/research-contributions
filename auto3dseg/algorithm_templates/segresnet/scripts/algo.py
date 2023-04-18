@@ -13,6 +13,7 @@ import copy
 import os
 import warnings
 from typing import Optional
+import yaml
 
 import fire
 import numpy as np
@@ -21,36 +22,10 @@ import shutil
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
 
-
-def roi_ensure_divisible(roi_size, levels):
-    """
-    Calculate the cropping size (roi_size) that is evenly divisible by 2 for the given number of hierarchical levels
-    e.g. for for the network of 5 levels (4 downsamplings), roi should be divisible by 2^(5-1)=16
-    """
-
-    multiplier = pow(2, levels - 1)
-    roi_size2 = []
-    for r in roi_size:
-        if r % multiplier != 0:
-            p = multiplier * max(
-                2, int(r / float(multiplier))
-            )  # divisible by levels, but not smaller then 2 at final level
-            roi_size2.append(p)
-        else:
-            roi_size2.append(r)
-
-    return roi_size2
-
-
-def roi_ensure_levels(levels, roi_size, image_size):
-    """
-    In case the image (at least one axis) is smaller then roi, reduce the roi and number of levels
-    """
-
-    while all([r > 1.5 * i for r, i in zip(roi_size, image_size)]) and levels > 1:
-        levels = levels - 1
-        roi_size = [r // 2 for r in roi_size]
-    return levels, roi_size
+if __package__ in (None, ""):
+    from utils import auto_adjust_network_settings
+else:
+    from .utils import auto_adjust_network_settings
 
 
 class SegresnetAlgo(BundleAlgo):
@@ -77,7 +52,12 @@ class SegresnetAlgo(BundleAlgo):
                 raise ValueError("data_stats_file unable to read: " + str(data_stats_file))
 
             data_stats = ConfigParser(globals=False)
-            data_stats.read_config(str(data_stats_file))
+            data_stats.read_config(data_stats_file)
+
+            # with open(str(data_stats_file), 'r') as f:
+            #     data_stats_content=yaml.load(f, Loader=yaml.CLoader)
+            #     # data_stats_content=yaml.load(f, Loader=yaml.CBaseLoader)
+            #     data_stats.set(config=data_stats_content)
 
             if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
                 input_config = ConfigParser.load_config_file(self.data_list_file)
@@ -99,34 +79,12 @@ class SegresnetAlgo(BundleAlgo):
                 raise ValueError("Modality must be either CT or MRI, but got" + str(modality))
             config["modality"] = modality
 
-            input_channels = data_stats["stats_summary#image_stats#channels#max"] + len(
-                input_config.get("extra_modalities", {})
-            )
+            input_channels = int(data_stats["stats_summary#image_stats#channels#max"]) + len(input_config.get("extra_modalities", {}))
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
 
             config["input_channels"] = input_channels
             config["output_classes"] = output_classes
 
-            # update config config
-            roi_size = [224, 224, 144]  # default roi
-            levels = 5  # default number of hierarchical levels
-            image_size = [int(i) for i in data_stats["stats_summary#image_stats#shape#percentile_99_5"]]
-            config["image_size"] = image_size
-
-            ###########################################
-            # adjust to image size
-            # min for each of spatial dims
-            roi_size = [min(r, i) for r, i in zip(roi_size, image_size)]
-            roi_size = roi_ensure_divisible(roi_size, levels=levels)
-            # reduce number of levels to smaller then 5 (default) if image is too small
-            levels, roi_size = roi_ensure_levels(levels, roi_size, image_size)
-            config["roi_size"] = roi_size
-
-            ###########################################
-            n_cases = len(data_stats["stats_by_cases"])
-            max_epochs = int(np.clip(np.ceil(80000.0 / n_cases), a_min=300, a_max=1250))
-            config["num_epochs"] = max_epochs
-            config["warmup_epochs"] = int(np.ceil(0.01 * max_epochs))
 
             ###########################################
             sigmoid = input_config.pop("sigmoid", False)
@@ -163,62 +121,145 @@ class SegresnetAlgo(BundleAlgo):
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
             config["intensity_bounds"] = [intensity_lower_bound, intensity_upper_bound]
 
-            spacing = data_stats["stats_summary#image_stats#spacing#median"]
+            spacing_median = copy.deepcopy(data_stats["stats_summary#image_stats#spacing#median"])
+            spacing_10 = copy.deepcopy(data_stats["stats_summary#image_stats#spacing#percentile_10_0"])
 
             if "ct" in modality:
                 config["normalize_mode"] = "range"
-                if not config.get("anisotropic_scales", False):
-                    spacing = [1.0, 1.0, 1.0]
-
             elif "mr" in modality:
                 config["normalize_mode"] = "meanstd"
 
+
+            spacing = input_config.pop("resample_resolution", None)
+            resample_mode = input_config.pop("resample_mode", None)
+            if resample_mode is None:
+                resample_mode = 'auto'
+
+            if spacing is not None:
+                #if working resolution is provided manually
+                pass
+            elif resample_mode=='median':
+                spacing = spacing_median
+            elif resample_mode=='median10':
+                spacing = [spacing_median[0], spacing_median[1], spacing_10[2]]
+            elif resample_mode=='ones':
+                spacing=[1., 1., 1.]
+            elif resample_mode=='auto' or resample_mode is None:
+                spacing = [spacing_median[0], spacing_median[1], max(0.5*(spacing_median[0]+spacing_median[1]), float(spacing_10[2])) ]
+            else:
+                raise ValueError('Unsupported resample_mode'+str(resample_mode))
+
             config["resample_resolution"] = spacing
+
+            config["anisotropic_scales"]  = input_config.pop("anisotropic_scales", None)
+            if config["anisotropic_scales"]  is None:
+                config["anisotropic_scales"] =  not (0.75 <= (0.5*(spacing[0]+spacing[1]) / spacing[2]) <= 1.25)
 
             ###########################################
             spacing_lower_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_00_5"])
             spacing_upper_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_99_5"])
+            config["spacing_median"] = list(data_stats["stats_summary#image_stats#spacing#median"])
             config["spacing_lower"] = spacing_lower_bound.tolist()
             config["spacing_upper"] = spacing_upper_bound.tolist()
 
 
             ###########################################
-            if np.any(spacing_lower_bound / np.array(spacing) < 0.5) or np.any(
-                spacing_upper_bound / np.array(spacing) > 1.5
-            ):
-                config["resample"] = True
-            else:
-                config["resample"] = False
+            resample = input_config.pop("resample", None)
+            if resample is None:
+                if np.any(spacing_lower_bound / np.array(spacing) < 0.5) or np.any(
+                    spacing_upper_bound / np.array(spacing) > 1.5
+                ):
+                    resample = True
+                else:
+                    resample = False
+            config["resample"] = resample
+
+            print("Resampling all images to a working resolution" if  config["resample"] else "Not resampling images",
+                "resolution", config["resample_resolution"],
+                "resample_mode", resample_mode,
+                "anisotropic_scales", config["anisotropic_scales"],
+                "res bounds", config["spacing_lower"], config["spacing_upper"],
+                 "modality", modality )
 
             ###########################################
-            # cropping mode
-            should_crop_based_on_foreground = any(
-                [r < 0.5 * i for r, i in zip(roi_size, image_size)]
-            )  # if any roi_size less tehn 0.5*image size
-            if should_crop_based_on_foreground:
-                config["crop_mode"] = "ratio"
-            else:
-                config["crop_mode"] = "rand"
+
+            n_cases = data_stats["stats_summary#n_cases"]
+
+            image_size_mm_90 = data_stats["stats_summary#image_stats#sizemm#percentile_90_0"]
+            image_size_mm_median = data_stats["stats_summary#image_stats#sizemm#median"]
+            # image_size_median = (np.array(image_size_mm_median) / np.array(spacing)).astype(np.int32).tolist()
+            image_size_90 = (np.array(image_size_mm_90) / np.array(spacing)).astype(np.int32).tolist()
+            # image_size = data_stats["stats_summary#image_stats#shape#percentile_90_0"]
+
+            print('Found sizemm in new datastats median', image_size_mm_median, 'per90', image_size_mm_90,  'n_cases', n_cases)
+
+            print('Using avg image size 90', image_size_90, 'for resample res', spacing,  'n_cases', n_cases)
+            config["image_size_mm_median"] = image_size_mm_median
+            config["image_size_mm_90"] = image_size_mm_90
+
+            image_size = input_config.pop("image_size", image_size_90)
+            config["image_size"] = image_size
+
+            max_epochs = int(np.clip(np.ceil(80000.0 / n_cases), a_min=300, a_max=1250))
+            config["num_epochs"] = max_epochs
+            config["warmup_epochs"] = int(np.ceil(0.01 * max_epochs))
+
+            ###########################################
+
+            config["auto_scale_batch"] = input_config.pop("auto_scale_batch", True)
+            config["auto_scale_roi"] = input_config.pop("auto_scale_roi", False)
+            config["auto_scale_filters"] = input_config.pop("auto_scale_filters", False)
+
+            if input_config.get("roi_size", None):
+                config["auto_scale_roi"] = False
+            if input_config.get("batch_size", None):
+                config["auto_scale_batch"] = False
+
+            roi_size, levels, init_filters, batch_size = auto_adjust_network_settings(
+                                            auto_scale_batch = config["auto_scale_batch"],
+                                            auto_scale_roi = config["auto_scale_roi"],
+                                            auto_scale_filters = config["auto_scale_filters"],
+                                            image_size_mm=config["image_size_mm_median"],
+                                            spacing=config["resample_resolution"],
+                                            anisotropic_scales=config["anisotropic_scales"]
+                                        )
+
+            if input_config.get("roi_size", None):
+                roi_size = input_config.get("roi_size", None)
+            if input_config.get("batch_size", None):
+                batch_size = input_config.get("batch_size", None)
+
+            config["roi_size"] = roi_size
+            config["batch_size"] = batch_size
+
+
+            print('Updating roi_size (divisible) final ', roi_size, 'levels', levels)
 
             ###########################################
             # update network config
-            blocks_down = None
+            blocks_down = [1, 2, 2, 4, 4]
             if levels >= 5:  # default
                 blocks_down = [1, 2, 2, 4, 4]
             elif levels == 4:
                 blocks_down = [1, 2, 2, 4]
             elif levels == 3:
-                blocks_down = [1, 3, 4]
+                blocks_down = [1, 2, 4]
             elif levels == 2:
-                blocks_down = [2, 6]
+                blocks_down = [1, 3]
             elif levels == 1:
-                blocks_down = [8]
+                blocks_down = [2]
 
-            if blocks_down is not None:
-                config["network#blocks_down"] = blocks_down
+            config["network#blocks_down"] = blocks_down
+            config["network#init_filters"] = init_filters
+
+            ###########################################
+            # cropping mode, if any roi_size less than 0.7*image size
+            if any([r < 0.8 * i for r, i in zip(roi_size, image_size)]):
+                config["crop_mode"] = "ratio"
+            else:
+                config["crop_mode"] = "rand"
 
             config.update(input_config)  # override if any additional inputs provided
-
             fill_records = {"hyper_parameters.yaml": config}
         else:
             fill_records = self.fill_records

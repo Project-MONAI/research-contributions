@@ -9,7 +9,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import csv
 import logging
 import os
@@ -19,6 +18,7 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+import copy
 
 import numpy as np
 import psutil
@@ -32,20 +32,22 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
 
-from monai.apps.auto3dseg.transforms import EnsureSameShaped
 from monai.auto3dseg.utils import datafold_read
 from monai.bundle.config_parser import ConfigParser
-from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch, list_data_collate
-from monai.inferers import SlidingWindowInferer
+from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch, list_data_collate, DistributedSampler
 from monai.losses import DeepSupervisionLoss
-from monai.metrics import CumulativeAverage, compute_dice, do_metric_reduction
-from monai.networks.utils import one_hot
+from monai.metrics import CumulativeAverage
+from monai.inferers import SlidingWindowInferer
+from monai.utils import ImageMetaKey
+from monai.networks.layers.factories import split_args
+
 from monai.optimizers.lr_scheduler import WarmupCosineSchedule
 from monai.transforms import (
     AsDiscreted,
     Compose,
     ConcatItemsd,
     CopyItemsd,
+    ClassesToIndicesd,
     CropForegroundd,
     DataStatsd,
     DeleteItemsd,
@@ -67,12 +69,33 @@ from monai.transforms import (
     ScaleIntensityRanged,
     Spacingd,
     SpatialPadd,
+    CastToTyped,
+    ToDeviced,
+    Identityd
 )
-from monai.utils import MetricReduction, convert_to_dst_type, optional_import, set_determinism
+from monai.utils import convert_to_dst_type, optional_import, set_determinism
 
 from monai.transforms.transform import MapTransform
 from monai.config import KeysCollection
 from typing import Dict, Hashable, Mapping, List, Optional
+
+import warnings
+import torch
+import multiprocessing as mp
+import time
+import numpy as np
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+
+from monai.apps.auto3dseg.transforms import EnsureSameShaped
+from monai.metrics import DiceHelper
+
+
+if __package__ in (None, ""):
+    from utils import auto_adjust_network_settings
+else:
+    from .utils import auto_adjust_network_settings
+
+
 
 class LabelEmbedClassIndex(MapTransform):
     """
@@ -105,60 +128,42 @@ class LabelEmbedClassIndex(MapTransform):
                 d[key] = self.label_mapping(d[key])
         return d
 
-
-class DiceHelper:
-    def __init__(
-        self,
-        sigmoid: bool = False,
-        include_background: Optional[bool] = None,
-        to_onehot_y: Optional[bool] = None,
-        softmax: Optional[bool] = None,
-        reduction: Union[MetricReduction, str] = MetricReduction.MEAN_BATCH,
-        get_not_nans: bool = True,
-        ignore_empty: bool = True,
-        activate: bool = False,
-    ) -> None:
-        super().__init__()
-
-        self.sigmoid = sigmoid
-
-        self.reduction = reduction
-        self.get_not_nans = get_not_nans
-        self.ignore_empty = ignore_empty
-
-        self.include_background = sigmoid if include_background is None else include_background
-        self.to_onehot_y = not sigmoid if to_onehot_y is None else to_onehot_y
-        self.softmax = not sigmoid if softmax is None else softmax
-        self.activate = activate
-
-    def __call__(self, y_pred: Union[torch.Tensor, list], y: torch.Tensor):
-
-        n_pred_ch = y_pred.shape[1]
-
-        if self.softmax:
-            if n_pred_ch > 1:
-                y_pred = torch.argmax(y_pred, dim=1, keepdim=True)
-                y_pred = one_hot(y_pred, num_classes=n_pred_ch, dim=1)
-        elif self.sigmoid:
-            if self.activate:
-                y_pred = torch.sigmoid(y_pred)
-            y_pred = (y_pred > 0.5).float()
-
-        if self.to_onehot_y and n_pred_ch > 1 and y.shape[1] == 1:
-            y = one_hot(y, num_classes=n_pred_ch, dim=1)
-
-        data = compute_dice(
-            y_pred=y_pred, y=y, include_background=self.include_background, ignore_empty=self.ignore_empty
-        )
-
-        f, not_nans = do_metric_reduction(data, self.reduction)
-        return (f, not_nans) if self.get_not_nans else f
-
-
-def logits2pred(logits, sigmoid=False, dim=1):
+def logits2pred(logits, sigmoid=False, dim=1, out=None):
     if isinstance(logits, (list, tuple)):
         logits = logits[0]
-    return torch.softmax(logits, dim=dim) if not sigmoid else torch.sigmoid(logits)
+
+    return torch.softmax(logits, dim=dim, out=out) if not sigmoid else torch.sigmoid(logits, out=out)
+
+def schedule_validation_epochs(num_epochs, num_epochs_per_validation=None, fraction=0.16) -> list:
+    '''
+    Schedule of epochs to validate (progressively more frequently)
+        num_epochs - total number of epochs
+        num_epochs_per_validation - if provided use a linear schedule with this step
+        init_step
+    '''
+
+    if num_epochs_per_validation==None:
+
+        x =  (np.sin(np.linspace(0,np.pi/2,max(10, int(fraction*num_epochs)))) * num_epochs).astype(int)
+        x = np.cumsum(np.sort(np.diff(np.unique(x)))[::-1])
+        x[-1]=num_epochs
+        x = x.tolist()
+    else:
+        num_epochs_per_validation = min(num_epochs_per_validation, num_epochs)
+        x = list(range(num_epochs_per_validation, num_epochs, num_epochs_per_validation))
+
+    return x
+
+def get_gpu_mem_size():
+
+    gpu_mem = 0
+    n_gpus = torch.cuda.device_count()
+    if n_gpus > 0:
+        gpu_mem = min([torch.cuda.mem_get_info(i)[1] for i in range(n_gpus)])
+
+    gpu_mem = gpu_mem/1024**3
+
+    return gpu_mem
 
 
 class DataTransformBuilder:
@@ -177,6 +182,8 @@ class DataTransformBuilder:
         custom_transforms=None,
         debug: bool = False,
         rank: int = 0,
+        lazy_evaluation: bool = False,
+        lazy_verbose: bool = False,
         **kwargs,
     ) -> None:
 
@@ -195,8 +202,20 @@ class DataTransformBuilder:
         self.debug = debug
         self.rank = rank
 
-    def get_custom(self, key):
-        return self.custom_transforms.get(key, [])
+        self.lazy_evaluation = lazy_evaluation
+        self.lazy_verbose = lazy_verbose
+
+
+    def get_custom(self, name, **kwargs):
+
+        tr = []
+        for t in self.custom_transforms.get(name, []):
+            if isinstance(t, dict):
+                t.update(kwargs)
+                t = ConfigParser(t).get_parsed_content(instantiate=True)
+            tr.append(t)
+
+        return tr
 
     def get_load_transforms(self):
 
@@ -205,7 +224,7 @@ class DataTransformBuilder:
             return ts
 
         keys = [self.image_key, self.label_key] + list(self.extra_modalities)
-        ts.append(LoadImaged(keys=keys, ensure_channel_first=True, dtype=None, allow_missing_keys=True))
+        ts.append(LoadImaged(keys=keys, ensure_channel_first=True, dtype=None, allow_missing_keys=True, image_only=True))
         ts.append(EnsureTyped(keys=keys, data_type="tensor", dtype=torch.float, allow_missing_keys=True))
         ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True))
 
@@ -213,9 +232,9 @@ class DataTransformBuilder:
 
         return ts
 
-    def get_resample_transforms(self, resample_label=True, crop_foreground=True):
+    def get_resample_transforms(self, resample_label=True):
 
-        ts = self.get_custom("resample_transforms")
+        ts = self.get_custom("resample_transforms", resample_label=resample_label)
         if len(ts) > 0:
             return ts
 
@@ -223,12 +242,14 @@ class DataTransformBuilder:
         mode = ["bilinear", "nearest"] if resample_label else ["bilinear"]
         extra_keys = list(self.extra_modalities)
 
-        if crop_foreground and len(extra_keys) == 0:
-            ts.append(CropForegroundd(keys=keys, source_key=self.image_key, allow_missing_keys=True))
+        if self.extra_options.get("crop_foreground", False) and len(extra_keys) == 0:
+            print("Transform cropping foreground!!!")
+            ts.append(CropForegroundd(keys=keys, source_key=self.image_key, allow_missing_keys=True, margin=10, allow_smaller=True))
 
         if self.resample:
             if self.resample_resolution is None:
                 raise ValueError("resample_resolution is not provided")
+
             pixdim = self.resample_resolution
             ts.append(
                 Spacingd(
@@ -242,10 +263,14 @@ class DataTransformBuilder:
                 )
             )
 
+            if resample_label:
+                ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True))
+
+
         for extra_key in extra_keys:
             ts.append(ResampleToMatchd(keys=extra_key, key_dst=self.image_key, dtype=np.float32))
 
-        ts.extend(self.get_custom("after_resample_transforms"))
+        ts.extend(self.get_custom("after_resample_transforms", resample_label=resample_label))
 
         return ts
 
@@ -260,18 +285,16 @@ class DataTransformBuilder:
 
         for key, normalize_mode in modalities.items():
 
-            if normalize_mode in ["range", "ct"]:
+            if  normalize_mode == 'none':
+                pass
+            elif normalize_mode in ["range", "ct"]:
 
                 intensity_bounds = self.normalize_params.get("intensity_bounds", None)
                 if intensity_bounds is None:
                     intensity_bounds = [-250, 250]
-                    warnings.warn("intensity_bounds is not specified, assuming", intensity_bounds)
+                    warnings.warn(f"intensity_bounds is not specified, assuming {intensity_bounds}")
 
-                ts.append(
-                    ScaleIntensityRanged(
-                        keys=key, a_min=intensity_bounds[0], a_max=intensity_bounds[1], b_min=-1, b_max=1, clip=False
-                    )
-                )
+                ts.append(ScaleIntensityRanged(keys=key, a_min=intensity_bounds[0], a_max=intensity_bounds[1], b_min=-1, b_max=1, clip=False))
                 ts.append(Lambdad(keys=key, func=lambda x: torch.sigmoid(x)))
             elif normalize_mode in ["meanstd", "mri"]:
                 ts.append(NormalizeIntensityd(keys=key, nonzero=True, channel_wise=True))
@@ -283,6 +306,11 @@ class DataTransformBuilder:
         if len(self.extra_modalities) > 0:
             ts.append(ConcatItemsd(keys=list(modalities), name=self.image_key))  # concat
             ts.append(DeleteItemsd(keys=list(self.extra_modalities)))  # release memory
+
+
+        label_dtype = self.normalize_params.get("label_dtype", None)
+        if label_dtype is not None:
+            ts.append(CastToTyped(keys=self.label_key, dtype=label_dtype, allow_missing_keys=True))
 
         ts.extend(self.get_custom("after_normalize_transforms"))
         return ts
@@ -299,6 +327,10 @@ class DataTransformBuilder:
         keys = [self.image_key, self.label_key]
         ts = []
         ts.append(SpatialPadd(keys=keys, spatial_size=self.roi_size))
+
+        if self.lazy_evaluation:
+            ts.append(Identityd(keys=[self.label_key]))
+
         if self.crop_mode == "ratio":
 
             output_classes = self.crop_params.get("output_classes", None)
@@ -306,7 +338,24 @@ class DataTransformBuilder:
                 raise ValueError("crop_params option output_classes must be specified")
 
             crop_ratios = self.crop_params.get("crop_ratios", None)
-            num_samples = self.crop_params.get("num_samples", 1)
+            cache_class_indices = self.crop_params.get("cache_class_indices", False)
+            max_samples_per_class = self.crop_params.get("max_samples_per_class", None)
+            if max_samples_per_class <= 0:
+                max_samples_per_class = None
+            indices_key  = None
+
+            if cache_class_indices and not self.lazy_evaluation:
+                ts.append(ClassesToIndicesd(keys=self.label_key,
+                                            num_classes=output_classes,
+                                            indices_postfix="_cls_indices",
+                                            max_samples_per_class=max_samples_per_class
+                        ))
+
+                indices_key = self.label_key+"_cls_indices"
+
+            num_steps_per_image = self.crop_params.get("num_steps_per_image", 1)
+            if num_steps_per_image > 1:
+                print('Cropping with num_steps_per_image', num_steps_per_image)
 
             ts.append(
                 RandCropByLabelClassesd(
@@ -314,8 +363,10 @@ class DataTransformBuilder:
                     label_key=self.label_key,
                     num_classes=output_classes,
                     spatial_size=self.roi_size,
-                    num_samples=num_samples,
+                    num_samples=num_steps_per_image,
                     ratios=crop_ratios,
+                    indices_key=indices_key,
+                    warn=False
                 )
             )
         elif self.crop_mode == "rand":
@@ -337,8 +388,7 @@ class DataTransformBuilder:
             raise ValueError("roi_size is not specified")
 
         ts = []
-        ts.append(
-            RandAffined(
+        ts.append(RandAffined(
                 keys=[self.image_key, self.label_key],
                 prob=0.2,
                 rotate_range=[0.26, 0.26, 0.26],
@@ -347,8 +397,13 @@ class DataTransformBuilder:
                 spatial_size=self.roi_size,
                 cache_grid=True,
                 padding_mode="border",
-            )
-        )
+            ))
+        ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=0))
+        ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=1))
+        ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=2))
+        if self.lazy_evaluation:
+            ts.append(Identityd(keys=[self.image_key, self.label_key]))
+
         ts.append(
             RandGaussianSmoothd(
                 keys=self.image_key, prob=0.2, sigma_x=[0.5, 1.0], sigma_y=[0.5, 1.0], sigma_z=[0.5, 1.0]
@@ -357,9 +412,6 @@ class DataTransformBuilder:
         ts.append(RandScaleIntensityd(keys=self.image_key, prob=0.5, factors=0.3))
         ts.append(RandShiftIntensityd(keys=self.image_key, prob=0.5, offsets=0.1))
         ts.append(RandGaussianNoised(keys=self.image_key, prob=0.2, mean=0.0, std=0.1))
-        ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=0))
-        ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=1))
-        ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=2))
 
         ts.extend(self.get_custom("after_augment_transforms"))
 
@@ -370,11 +422,13 @@ class DataTransformBuilder:
 
     @classmethod
     def get_postprocess_transform(
-        cls, save_mask=False, invert=False, transform=None, sigmoid=False, output_path=None
+        cls, save_mask=False, invert=False, transform=None, sigmoid=False, output_path=None, resample=False
     ) -> Compose:
 
         ts = []
         if invert and transform is not None:
+            if resample:
+                ts.append(ToDeviced(keys="pred", device=torch.device("cpu")))
             ts.append(Invertd(keys="pred", orig_keys="image", transform=transform, nearest_interp=False))
 
         if save_mask and output_path is not None:
@@ -389,6 +443,7 @@ class DataTransformBuilder:
                     separate_folder=False,
                     squeeze_end_dims=True,
                     resample=False,
+                    print_log = False,
                 )
             )
 
@@ -407,7 +462,21 @@ class DataTransformBuilder:
 
         ts.extend(self.get_final_transforms())
 
-        return Compose(ts)
+        if self.lazy_evaluation:
+            ts.append(Identityd(keys=[self.image_key, self.label_key])) #?
+            compose_ts = Compose(ts,
+                                lazy_evaluation=True,
+                                verbose=self.lazy_verbose,
+                                override_keys=[self.image_key, self.label_key],
+                                overrides = dict(mode=["bilinear", "nearest"],
+                                                padding_mode=["border","border"],
+                                                # dtype = torch.float32
+                                                ),
+                                )
+        else:
+            compose_ts = Compose(ts)
+
+        return compose_ts
 
     def __repr__(self) -> str:
 
@@ -423,26 +492,25 @@ class DataTransformBuilder:
 
 class Segmenter:
     def __init__(
-        self, config_file: Optional[Union[str, Sequence[str]]] = None, config_dict: Dict = {}, rank: int = 0
+        self, config_file: Optional[Union[str, Sequence[str]]] = None, config_dict: Dict = {}, rank: int = 0, global_rank: int = 0
     ) -> None:
 
         self.rank = rank
+        self.global_rank = global_rank
         self.distributed = dist.is_initialized()
 
-        if rank == 0:
-            print("Segmenter", rank, config_file, config_dict)
+        if self.global_rank == 0:
+            print("Segmenter started", config_file, config_dict)
 
         np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True)
-        warnings.filterwarnings(
-            action="ignore", module=r"monai\.transforms\.utils", lineno=564
-        )  # silence warning about missing class in groundtruth
 
-        if "fork" in mp.get_all_start_methods():
+        config = self.parse_input_config(config_file=config_file, override=config_dict)
+        self.config = config
+
+        if config["fork"] and "fork" in mp.get_all_start_methods():
             mp.set_start_method("fork", force=True)  # lambda functions fail to pickle without it
         else:
             warnings.warn("Multiprocessing method fork is not available, some non-picklable objects (e.g. lambda ) may fail")
-
-        parser, config = self.parse_input_config(config_file=config_file, override=config_dict, rank=rank)
 
         if config["cuda"] and torch.cuda.is_available():
             self.device = torch.device(self.rank)
@@ -451,10 +519,8 @@ class Segmenter:
         else:
             self.device = torch.device("cpu")
 
-        if rank == 0:
-            print(yaml.safe_dump(config))
-        self.config = config
-        self.parser = parser
+        if self.global_rank == 0:
+            print(yaml.dump(config))
 
         if config["ckpt_path"] is not None and not os.path.exists(config["ckpt_path"]):
             os.makedirs(config["ckpt_path"], exist_ok=True)
@@ -464,47 +530,76 @@ class Segmenter:
         elif torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
 
-        if config.get("anisotropic_scales", False) and 'SegResNetDS' in config["network"]["_target_"]:
-            parser.config["network"]["resolution"] = config["resample_resolution"]
-            parser.parse(reset=True)
-            print('Using anisotripic scales', parser['network'])
 
-        model = parser.get_parsed_content("network")
+        ##auto adjust network settings
 
-        if config["pretrained_ckpt_name"] is not None:
-            self.checkpoint_load(ckpt=config["pretrained_ckpt_name"], model=model)
+        if config["auto_scale_batch"] or config["auto_scale_roi"] or config["auto_scale_filters"]:
+            roi_size, _, init_filters, batch_size = auto_adjust_network_settings(
+                                auto_scale_batch = config["auto_scale_batch"],
+                                auto_scale_roi = config["auto_scale_roi"],
+                                auto_scale_filters = config["auto_scale_filters"],
+                                image_size_mm=config["image_size_mm_median"],
+                                spacing=config["resample_resolution"],
+                                anisotropic_scales=config["anisotropic_scales"],
+                                levels=len(config["network"]["blocks_down"]),
+                            )
 
-        model = model.to(self.device)
+            if config["auto_scale_roi"]:
+                config["roi_size"] = roi_size
+            if config["auto_scale_batch"]:
+                config["batch_size"] = batch_size
+            if config["auto_scale_filters"] and config["pretrained_ckpt_name"] is None:
+                config["network"]["init_filters"] = init_filters
 
-        if self.distributed:
-            model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-            model = DistributedDataParallel(
-                module=model, device_ids=[rank], output_device=rank, find_unused_parameters=False
-            )
 
-        if rank == 0:
-            pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-            print("Total parameters count", pytorch_total_params, "distributed", self.distributed)
+        self.model = self.setup_model(pretrained_ckpt_name=config["pretrained_ckpt_name"])
 
-        self.model = model
-        self.loss_function = parser.get_parsed_content("loss")
-        self.loss_function = DeepSupervisionLoss(self.loss_function)
+        loss_function = ConfigParser(config["loss"]).get_parsed_content(instantiate=True)
+        self.loss_function = DeepSupervisionLoss(loss_function)
+
 
         self.acc_function = DiceHelper(sigmoid=config["sigmoid"])
         self.grad_scaler = GradScaler(enabled=config["amp"])
 
-        if parser.get("sliding_inferrer") is not None:
-            self.sliding_inferrer = parser.get_parsed_content("sliding_inferrer")
+        if config.get("sliding_inferrer") is not None:
+            self.sliding_inferrer = ConfigParser(config["sliding_inferrer"]).get_parsed_content()
         else:
-            self.sliding_inferrer = SlidingWindowInferer(
-                roi_size=config["roi_size"],
-                sw_batch_size=1,
-                overlap=0.625,
-                mode="gaussian",
-                cache_roi_weight_map=True,
-                progress=False,
-                cpu_thresh=512**3 // config["output_classes"],
-            )
+
+            try:
+
+                from monai.inferers import SlidingWindowInfererAdapt
+                self.sliding_inferrer = SlidingWindowInfererAdapt(
+                    roi_size=config["roi_size"],
+                    sw_batch_size=1,
+                    overlap=0.625,
+                    mode="gaussian",
+                    cache_roi_weight_map=False,
+                    progress=False
+                )
+
+                if self.global_rank==0:
+                    print('Using SlidingWindowInfererAdapt!')
+
+            except:
+
+                self.sliding_inferrer = SlidingWindowInferer(
+                    roi_size=config["roi_size"],
+                    sw_batch_size=1,
+                    overlap=0.625,
+                    mode="gaussian",
+                    cache_roi_weight_map=True,
+                    progress=False,
+                    cpu_thresh=512**3 // config["output_classes"],
+                )
+
+
+        self._data_transform_builder : DataTransformBuilder = None
+        self.lr_scheduler = None
+        self.optimizer = None
+
+    def get_custom_transforms(self):
+
+        config = self.config
 
         # check for custom transforms
         custom_transforms = {}
@@ -518,9 +613,9 @@ class Segmenter:
                 sys.path.append(os.path.abspath(tr["path"]))
 
             custom_transforms.setdefault(tr["key"], [])
-            custom_transforms[tr["key"]].append(ConfigParser(tr["transform"]).get_parsed_content())
+            custom_transforms[tr["key"]].append(tr["transform"])
 
-        if len(custom_transforms) > 0 and rank == 0:
+        if len(custom_transforms) > 0 and self.global_rank == 0:
             print("Using custom transforms", custom_transforms)
 
 
@@ -529,34 +624,131 @@ class Segmenter:
             custom_transforms.setdefault("final_transforms", [])
             custom_transforms["final_transforms"].append(LabelEmbedClassIndex(keys="label", class_index=config["class_index"], allow_missing_keys=True))
 
-        self.data_tranform_builder = DataTransformBuilder(
-            roi_size=config["roi_size"],
-            resample=config["resample"],
-            resample_resolution=config["resample_resolution"],
-            normalize_mode=config["normalize_mode"],
-            normalize_params={"intensity_bounds": config["intensity_bounds"]},
-            crop_mode=config["crop_mode"],
-            crop_params={"output_classes": config["output_classes"], "crop_ratios": config["crop_ratios"]},
-            extra_modalities=config["extra_modalities"],
-            custom_transforms=custom_transforms,
-        )
+        return custom_transforms
 
-        self.lr_scheduler = None
-        self.optimizer = None
 
+    def get_data_transform_builder(self):
+
+        if self._data_transform_builder is None:
+            config = self.config
+            custom_transforms = self.get_custom_transforms()
+
+
+            self._data_transform_builder = DataTransformBuilder(
+                roi_size=config["roi_size"],
+                resample=config["resample"],
+                resample_resolution=config["resample_resolution"],
+                normalize_mode=config["normalize_mode"],
+                normalize_params={"intensity_bounds": config["intensity_bounds"],
+                                  "label_dtype": torch.uint8 if config["input_channels"] < 255 else torch.int16},
+                crop_mode=config["crop_mode"],
+                crop_params={"output_classes": config["output_classes"],
+                            "crop_ratios": config["crop_ratios"],
+                            "cache_class_indices": config["cache_class_indices"],
+                            "num_steps_per_image": config["num_steps_per_image"],
+                            "max_samples_per_class": config["max_samples_per_class"]
+                            },
+
+                extra_modalities=config["extra_modalities"],
+                custom_transforms=custom_transforms,
+                lazy_evaluation = config.get("lazy_evaluation" , False),
+                lazy_verbose = config.get("lazy_verbose" , False),
+                crop_foreground =  config.get("crop_foreground" , True),
+            )
+
+        return self._data_transform_builder
+
+
+    def setup_model(self, pretrained_ckpt_name=None):
+
+        config = self.config
+        spatial_dims = config["network"].get("spatial_dims", 3)
+        norm_name, norm_args = split_args(config["network"].get("norm", ""))
+        norm_name = norm_name.upper()
+        sync_batch_norm = True
+
+        if norm_name == "INSTANCE_NVFUSER":
+            _, has_nvfuser = optional_import("apex.normalization", name="InstanceNorm3dNVFuser")
+            if has_nvfuser and spatial_dims == 3:
+                # ensure not inplace activations for  INSTANCE_NVFUSER (if available from Apex)
+                act = config["network"].get("act", 'relu')
+                if isinstance(act, str):
+                    config["network"]["act"] = [act, {"inplace": False}]
+            else:
+                norm_name = "INSTANCE"
+
+        elif norm_name == "INSTANCE_BATCH":
+            norm_name = "BATCH",
+            norm_args = norm_args.update({"track_running_stats": False})
+            sync_batch_norm = False
+
+
+        if len(norm_name)>0:
+            config["network"]["norm"] = norm_name if len(norm_args)==0 else [norm_name, norm_args]
+
+
+        if spatial_dims == 3:
+            if config.get("anisotropic_scales", False) and 'SegResNetDS' in config["network"]["_target_"]:
+                config["network"]["resolution"] = copy.deepcopy(config["resample_resolution"])
+                if self.global_rank==0:
+                    print('Using anisotropic scales', config['network'])
+
+        model = ConfigParser(config["network"]).get_parsed_content()
+
+        if self.global_rank==0:
+            print(str(model))
+
+        if pretrained_ckpt_name is not None:
+            self.checkpoint_load(ckpt=pretrained_ckpt_name, model=model)
+
+        model = model.to(self.device)
+
+        if spatial_dims==3:
+            memory_format = torch.channels_last_3d if  config['channels_last'] else torch.preserve_format
+            model=model.to(memory_format=memory_format)
+
+        if self.distributed:
+            if sync_batch_norm:
+                model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+            model = DistributedDataParallel(
+                module=model, device_ids=[self.rank], output_device=self.rank, find_unused_parameters=False
+            )
+
+        if self.global_rank == 0:
+            pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+            print("Total parameters count", pytorch_total_params, "distributed", self.distributed)
+
+        return model
 
     def parse_input_config(
-        self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}, rank: int = 0
+        self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}
     ) -> Tuple[ConfigParser, Dict]:
 
-        config = ConfigParser.load_config_files(config_file)
 
-        config.setdefault("finetune", {"enabled": False, "ckpt_name": None})
-        config.setdefault("validate", {"enabled": False, "ckpt_name": None, "save_mask": False, "output_path": None})
-        config.setdefault("infer", {"enabled": False, "ckpt_name": None})
+        config = {}
+        if config_file is None or override.get("use_ckpt_config", False) == True:
+            #attempt to load config from model ckpt file
+            for ckpt_key in ["pretrained_ckpt_name", "validate#ckpt_name", "infer#ckpt_name", "finetune#ckpt_name"]:
+                ckpt = override.get(ckpt_key, None)
+                if ckpt and os.path.exists(ckpt):
+                    checkpoint = torch.load(ckpt, map_location="cpu")
+                    config = checkpoint.get("config", {})
+                    if self.global_rank==0:
+                        print(f"Initializing config from the checkpoint {ckpt}: ", yaml.dump(config))
+
+            if len(config)==0 and config_file is None:
+                warnings.warn("No input config_file provided, and no valid checkpoints found")
+
+        if config_file is not None and len(config)==0:
+            config = ConfigParser.load_config_files(config_file)
+            config.setdefault("finetune", {"enabled": False, "ckpt_name": None})
+            config.setdefault("validate", {"enabled": False, "ckpt_name": None, "save_mask": False, "output_path": None})
+            config.setdefault("infer", {"enabled": False, "ckpt_name": None})
+
 
         parser = ConfigParser(config=config)
         parser.update(pairs=override)
+        config = parser.config # just in case
 
         if config.get("data_file_base_dir", None) is None or config.get("data_list_file_path", None) is None:
             raise ValueError("CONFIG: data_file_base_dir and  data_list_file_path must be provided")
@@ -564,17 +756,14 @@ class Segmenter:
         if config.get("bundle_root", None) is None:
             config["bundle_root"] = str(Path(__file__).parent.parent)
 
-        if "sigmoid" not in config:
-            config["sigmoid"] = not config.get("softmax", True)
-
         if "modality" not in config:
-            if rank == 0:
+            if self.global_rank == 0:
                 warnings.warn("CONFIG: modality is not provided, assuming MRI")
             config["modality"] = "mri"
 
         if "normalize_mode" not in config:
             config["normalize_mode"] = "range" if config["modality"].lower() == "ct" else "meanstd"
-            if rank == 0:
+            if self.global_rank == 0:
                 print("CONFIG: normalize_mode is not provided, assuming: ", config["normalize_mode"])
 
         # assign defaults
@@ -584,13 +773,26 @@ class Segmenter:
         config.setdefault("cuda", True)
         config.setdefault("fold", 0)
         config.setdefault("batch_size", 1)
-        config.setdefault("num_epochs", 300)
-        config.setdefault("num_warmup_epochs", 3)
-        config.setdefault("num_epochs_per_validation", 1)
-        config.setdefault("num_epochs_per_saving", 10)
         config.setdefault("determ", False)
         config.setdefault("quick", False)
         config.setdefault("cache_rate", None)
+        config.setdefault("cache_class_indices", None)
+
+        config.setdefault("channels_last", True)
+        config.setdefault("fork", True)
+        config.setdefault("lazy_evaluation", False)
+        config.setdefault("lazy_verbose", False)
+
+        config.setdefault("num_epochs", 300)
+        config.setdefault("num_warmup_epochs", 3)
+        config.setdefault("num_epochs_per_validation", None)
+        config.setdefault("num_epochs_per_saving", 10)
+        config.setdefault("num_steps_per_image", None)
+        config.setdefault("max_samples_per_class", None)
+
+        config.setdefault("calc_val_loss", False)
+        config.setdefault("validate_final_original_res", False)
+        config.setdefault("early_stopping_fraction", 0)
 
         config.setdefault("ckpt_path", None)
         config.setdefault("ckpt_save", True)
@@ -609,28 +811,47 @@ class Segmenter:
         if not isinstance(config["class_names"], (list, tuple)):
             config["class_names"] = []
 
-        pretrained_ckpt_name = None
-        if config["validate"]["enabled"]:
-            pretrained_ckpt_name = config["validate"]["ckpt_name"]
-        elif config["infer"]["enabled"]:
-            pretrained_ckpt_name = config["infer"]["ckpt_name"]
-        elif config["finetune"]["enabled"]:
-            pretrained_ckpt_name = config["finetune"]["ckpt_name"]
+        pretrained_ckpt_name = config.get("pretrained_ckpt_name", None)
+        if pretrained_ckpt_name is None:
+            if config["validate"]["enabled"]:
+                pretrained_ckpt_name = config["validate"]["ckpt_name"]
+            elif config["infer"]["enabled"]:
+                pretrained_ckpt_name = config["infer"]["ckpt_name"]
+            elif config["finetune"]["enabled"]:
+                pretrained_ckpt_name = config["finetune"]["ckpt_name"]
         config["pretrained_ckpt_name"] = pretrained_ckpt_name
+
+
+        config.setdefault("auto_scale_batch", False)
+        config.setdefault("auto_scale_roi", False)
+        config.setdefault("auto_scale_filters", False)
+        # config.setdefault("auto_gpu_adapt", False)
+
+
+        if pretrained_ckpt_name is not None:
+            # config["auto_gpu_adapt"] = False
+            config["auto_scale_roi"] = False
+            config["auto_scale_filters"] = False
+
 
         if not torch.cuda.is_available() and config["cuda"]:
             print("No cuda is available.! Running on CPU!!!")
             config["cuda"] = False
 
         config["amp"] = config["amp"] and config["cuda"]
-        config["rank"] = rank if config["cuda"] else 0
+        config["rank"] = self.rank
+        config["global_rank"] = self.global_rank
 
         # resolve content
         for k, v in config.items():
-            if "_target_" not in str(v):
+            if isinstance(v, dict) and "_target_" in v:
+                config[k] = parser.get_parsed_content(k, instantiate=False).config
+            elif "_target_" in str(v):
+                config[k] = copy.deepcopy(v)
+            else:
                 config[k] = parser.get_parsed_content(k)
 
-        return parser, config
+        return config
 
     def checkpoint_save(self, ckpt : str, model : torch.nn.Module, **kwargs):
 
@@ -639,9 +860,11 @@ class Segmenter:
             state_dict = model.module.state_dict()
         else:
             state_dict = model.state_dict()
+
         torch.save({"state_dict": state_dict, **kwargs}, ckpt)
 
         save_time = time.time() - save_time
+        kwargs.pop("config")
         print("Saving checkpoint process:", ckpt, kwargs, "save_time {:.2f}s".format(save_time))
 
         return save_time
@@ -649,8 +872,8 @@ class Segmenter:
     def checkpoint_load(self, ckpt : str, model : torch.nn.Module, **kwargs):
 
         if not os.path.isfile(ckpt):
-            if self.rank == 0:
-                warnings.warn("Invalid checkpoint file" + str(ckpt))
+            if self.global_rank == 0:
+                warnings.warn("Invalid checkpoint file: " + str(ckpt))
         else:
             checkpoint = torch.load(ckpt, map_location="cpu")
             model.load_state_dict(checkpoint["state_dict"], strict=True)
@@ -669,7 +892,7 @@ class Segmenter:
             # to support multi-node training, we need check for a local process group
             is_multinode = False
 
-            if dist.is_torchelastic_launched():
+            if dist_launched():
                 local_world_size = int(os.getenv("LOCAL_WORLD_SIZE"))
                 world_size = int(os.getenv("WORLD_SIZE"))
                 group_rank = int(os.getenv("GROUP_RANK"))
@@ -711,7 +934,8 @@ class Segmenter:
         num_workers = self.config["num_workers"]
         batch_size = self.config["batch_size"]
 
-        train_transform = self.data_tranform_builder(augment=True, resample_label=True)
+        train_transform = self.get_data_transform_builder()(augment=True, resample_label=True)
+
         if cache_rate > 0:
             runtime_cache = self.get_shared_memory_list(length=len(data))
             train_ds = CacheDataset(
@@ -738,7 +962,7 @@ class Segmenter:
         distributed = self.distributed
         num_workers = self.config["num_workers"]
 
-        val_transform = self.data_tranform_builder(augment=False, resample_label=resample_label)
+        val_transform = self.get_data_transform_builder()(augment=False, resample_label=resample_label)
 
         if cache_rate > 0:
             runtime_cache = self.get_shared_memory_list(length=len(data))
@@ -763,7 +987,7 @@ class Segmenter:
 
     def train(self):
 
-        if self.rank == 0:
+        if self.global_rank == 0:
             print("Segmenter train called")
 
         if self.loss_function is None:
@@ -772,8 +996,6 @@ class Segmenter:
             raise ValueError("CONFIG accuracy function is not provided")
 
         config = self.config
-        model = self.model
-        rank = self.rank
         distributed = self.distributed
         sliding_inferrer = self.sliding_inferrer
 
@@ -781,11 +1003,12 @@ class Segmenter:
         acc_function = self.acc_function
         grad_scaler = self.grad_scaler
 
-        num_epochs = config["num_epochs"]
         use_amp = config["amp"]
         use_cuda = config["cuda"]
         ckpt_path = config["ckpt_path"]
         sigmoid = config["sigmoid"]
+        channels_last = config["channels_last"]
+        calc_val_loss = config["calc_val_loss"]
 
         if config.get("validation_key", None) is not None:
             train_files, _ = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=-1)
@@ -795,26 +1018,80 @@ class Segmenter:
 
         if config["quick"]:  # quick run on a smaller subset of files
             train_files, validation_files = train_files[:8], validation_files[:8]
-        if self.rank == 0:
+        if self.global_rank == 0:
             print("train_files files", len(train_files), "validation files", len(validation_files))
 
         if len(validation_files)==0:
             warnings.warn("No validation files found!")
 
-        cache_rate_train, cache_rate_val = self.get_cache_rate(
-            train_cases=len(train_files), validation_cases=len(validation_files)
-        )
 
-        train_loader = self.get_train_loader(data=train_files, cache_rate=cache_rate_train, persistent_workers=True)
-        val_loader = self.get_val_loader(
-            data=validation_files, cache_rate=cache_rate_val, resample_label=True, persistent_workers=True
-        )
+        cache_rate_train, cache_rate_val, cache_class_indices = self.get_cache_rate(train_cases=len(train_files),validation_cases=len(validation_files))
 
-        if self.optimizer is None:
-            optimizer_part = self.parser.get_parsed_content("optimizer", instantiate=False)
-            optimizer = optimizer_part.instantiate(params=model.parameters())
+        if config["max_samples_per_class"] is None:
+            config["max_samples_per_class"] = 10 * config["num_epochs"]
+
+        if config["cache_class_indices"] is None:
+            if cache_class_indices or (config["max_samples_per_class"] and cache_rate_train>0):
+                config["cache_class_indices"] = True
+            else:
+                config["cache_class_indices"] = False
+
+        if self.global_rank==0:
+            print(f"Auto setting max_samples_per_class :{config['max_samples_per_class']} cache_class_indices :{config['cache_class_indices']}")
+
+
+        if config["num_steps_per_image"] is None and cache_rate_train < 0.75 and config["cache_rate"] is None and not distributed:
+            config["num_steps_per_image"] = 4
+            if self.global_rank==0:
+                print("Given the low cache_rate", cache_rate_train, "num_steps_per_image was autoset to",
+                    config["num_steps_per_image"], "to disable this behaviour set manually, e.g. num_steps_per_image=1")
         else:
-            optimizer = self.optimizer
+            config["num_steps_per_image"] = 1
+
+
+        num_steps_per_image = int(config["num_steps_per_image"])
+
+        num_epochs = max(1, config["num_epochs"] // num_steps_per_image)
+        num_epochs_per_saving = max(1, config["num_epochs_per_saving"] // num_steps_per_image)
+        num_epochs_per_validation = config["num_epochs_per_validation"]
+        if num_epochs_per_validation is not None:
+            num_epochs_per_validation = max(1, num_epochs_per_validation // num_steps_per_image)
+
+        val_schedule_list = schedule_validation_epochs(num_epochs=num_epochs,
+                                                       num_epochs_per_validation=num_epochs_per_validation)
+        if self.global_rank==0:
+            print('Scheduling validation loops at epochs:', val_schedule_list)
+
+
+        train_loader = self.get_train_loader(data=train_files,
+                                            cache_rate=cache_rate_train,
+                                            persistent_workers=True)
+
+        val_loader = self.get_val_loader(data=validation_files,
+                                         cache_rate=cache_rate_val,
+                                         resample_label=True,
+                                         persistent_workers=True)
+
+
+        optim_name = config.get("optim_name", None) #experimental
+        if optim_name is not None:
+            print("Using optimizer!!!", optim_name)
+            if optim_name=='novograd_monai':
+                from monai.optimizers import Novograd
+                optimizer = Novograd(params=self.model.parameters(), lr = config["learning_rate"], weight_decay=1.e-5)
+            elif optim_name=='fusednovograd':
+                import apex
+                optimizer = apex.optimizers.FusedNovoGrad(params=self.model.parameters(), lr = config["learning_rate"], weight_decay=1.e-5)
+            else:
+                raise ValueError("Unsupported optim_name"+str(optim_name))
+
+        else:
+
+            if self.optimizer is None:
+                optimizer_part = ConfigParser(config["optimizer"]).get_parsed_content(instantiate=False)
+                optimizer = optimizer_part.instantiate(params=self.model.parameters())
+            else:
+                optimizer = self.optimizer
 
         if self.lr_scheduler is None:
             lr_scheduler = WarmupCosineSchedule(optimizer=optimizer, warmup_steps=config["num_warmup_epochs"], warmup_multiplier=0.1, t_total=num_epochs)
@@ -824,7 +1101,7 @@ class Segmenter:
         tb_writer = None
         csv_path = progress_path = None
 
-        if rank == 0 and ckpt_path is not None:
+        if self.global_rank == 0 and ckpt_path is not None:
             # rank 0 is responsible for heavy lifting of logging/saving
             progress_path = os.path.join(ckpt_path, "progress.yaml")
 
@@ -846,18 +1123,20 @@ class Segmenter:
                 ]
             )
 
-        best_ckpt_path = intermediate_ckpt_path = None
-        do_torch_save = (rank == 0) and ckpt_path is not None and config["ckpt_save"]
-        if do_torch_save:
-            best_ckpt_path = os.path.join(ckpt_path, "model.pt")
-            intermediate_ckpt_path = os.path.join(ckpt_path, "model_final.pt")
-
+        do_torch_save = (self.global_rank == 0) and ckpt_path is not None and config["ckpt_save"]
+        best_ckpt_path = os.path.join(ckpt_path, "model.pt")
+        intermediate_ckpt_path = os.path.join(ckpt_path, "model_final.pt")
 
         best_metric = -1
         best_metric_epoch = -1
         pre_loop_time = time.time()
+        report_num_epochs = num_epochs * num_steps_per_image
+        train_time = validation_time = 0
+        val_acc_history = []
 
         for epoch in range(num_epochs):
+
+            report_epoch = epoch * num_steps_per_image
 
             if distributed:
                 if isinstance(train_loader.sampler, DistributedSampler):
@@ -865,93 +1144,108 @@ class Segmenter:
                 dist.barrier()
 
             epoch_time = start_time = time.time()
-            train_loss, train_acc = self.train_epoch(
-                model=model,
-                train_loader=train_loader,
-                optimizer=optimizer,
-                loss_function=loss_function,
-                acc_function=acc_function,
-                grad_scaler=grad_scaler,
-                epoch=epoch,
-                rank=rank,
-                num_epochs=num_epochs,
-                sigmoid=sigmoid,
-                use_amp=use_amp,
-                use_cuda=use_cuda,
-            )
-            train_time = "{:.2f}s".format(time.time() - start_time)
 
-            if rank == 0:
+            train_loss, train_acc =0,0
+            if not config.get('skip_train', False):
+                train_loss, train_acc = self.train_epoch(
+                    model=self.model,
+                    train_loader=train_loader,
+                    optimizer=optimizer,
+                    loss_function=loss_function,
+                    acc_function=acc_function,
+                    grad_scaler=grad_scaler,
+                    epoch=report_epoch,
+                    rank=self.rank,
+                    global_rank=self.global_rank,
+                    num_epochs=report_num_epochs,
+                    sigmoid=sigmoid,
+                    use_amp=use_amp,
+                    use_cuda=use_cuda,
+                    channels_last=channels_last,
+                    num_steps_per_image=num_steps_per_image
+                )
+
+            train_time = time.time() - start_time
+
+            if self.global_rank == 0:
                 print(
-                    "Final training  {}/{}".format(epoch, num_epochs - 1),
+                    "Final training  {}/{}".format(report_epoch, report_num_epochs - 1),
                     "loss: {:.4f}".format(train_loss),
                     "acc_avg: {:.4f}".format(np.mean(train_acc)),
-                    "acc",
-                    train_acc,
-                    "time",
-                    train_time,
+                    "acc", train_acc,
+                    "time {:.2f}s".format(train_time)
                 )
 
                 if tb_writer is not None:
-                    tb_writer.add_scalar("train/loss", train_loss, epoch)
-                    tb_writer.add_scalar("train/acc", np.mean(train_acc), epoch)
+                    tb_writer.add_scalar("train/loss", train_loss, report_epoch)
+                    tb_writer.add_scalar("train/acc", np.mean(train_acc), report_epoch)
 
             # validate every num_epochs_per_validation epochs (defaults to 1, every epoch)
             val_acc_mean = -1
-            if (epoch + 1) % config["num_epochs_per_validation"] == 0 and val_loader is not None and len(val_loader)>0:
+            if len(val_schedule_list) > 0 and epoch + 1 >= val_schedule_list[0] and val_loader is not None and len(val_loader)>0:
+
+                val_schedule_list.pop(0)
 
                 start_time = time.time()
                 val_loss, val_acc = self.val_epoch(
-                    model=model,
+                    model=self.model,
                     val_loader=val_loader,
                     sliding_inferrer=sliding_inferrer,
                     loss_function=loss_function,
                     acc_function=acc_function,
-                    epoch=epoch,
-                    rank=rank,
-                    num_epochs=num_epochs,
+                    epoch=report_epoch,
+                    rank=self.rank,
+                    global_rank=self.global_rank,
+                    num_epochs=report_num_epochs,
                     sigmoid=sigmoid,
                     use_amp=use_amp,
                     use_cuda=use_cuda,
+                    channels_last=channels_last,
+                    calc_val_loss=calc_val_loss
                 )
 
-                validation_time = "{:.2f}s".format(time.time() - start_time)
+                torch.cuda.empty_cache()
+
+                validation_time = time.time() - start_time
 
                 val_acc_mean = float(np.mean(val_acc))
-                if rank == 0:
+                val_acc_history.append((report_epoch, val_acc_mean))
+
+                if self.global_rank == 0:
                     print(
-                        "Final validation  {}/{}".format(epoch, num_epochs - 1),
+                        "Final validation  {}/{}".format(report_epoch, report_num_epochs - 1),
                         "loss: {:.4f}".format(val_loss),
                         "acc_avg: {:.4f}".format(val_acc_mean),
-                        "acc",
-                        val_acc,
-                        "time",
-                        validation_time,
+                        "acc", val_acc,
+                        "time {:.2f}s".format(validation_time)
                     )
 
                     if tb_writer is not None:
-                        tb_writer.add_scalar("val/loss", val_loss, epoch)
-                        tb_writer.add_scalar("val/acc", val_acc_mean, epoch)
+
+                        tb_writer.add_scalar("val/acc", val_acc_mean, report_epoch)
                         for i in range(min(len(config["class_names"]), len(val_acc))):  # accuracy per class
-                            tb_writer.add_scalar("val_class/" + config["class_names"][i], val_acc[i], epoch)
+                            tb_writer.add_scalar("val_class/" + config["class_names"][i], val_acc[i], report_epoch)
+                        if calc_val_loss:
+                            tb_writer.add_scalar("val/loss", val_loss, report_epoch)
 
                     timing_dict = dict(
-                        train_time=train_time,
-                        validation_time=validation_time,
+                        train_time="{:.2f}s".format(train_time),
+                        validation_time="{:.2f}s".format(validation_time),
                         epoch_time="{:.2f}s".format(time.time() - epoch_time)
                     )
 
                     if val_acc_mean > best_metric:
                         print(f"New best metric ({best_metric:.6f} --> {val_acc_mean:.6f}). ")
-                        best_metric, best_metric_epoch = val_acc_mean, epoch
+                        best_metric, best_metric_epoch = val_acc_mean, report_epoch
                         save_time = 0
                         if do_torch_save:
-                            save_time = self.checkpoint_save(ckpt=best_ckpt_path, model=self.model, epoch=best_metric_epoch, best_metric=best_metric)
+                            save_time = self.checkpoint_save(ckpt=best_ckpt_path, model= self.model, config = config,
+                                                              epoch=best_metric_epoch, best_metric=best_metric)
 
                         if progress_path is not None:
                             self.save_progress_yaml(
                                 progress_path=progress_path,
-                                ckpt=best_ckpt_path,
+                                ckpt=best_ckpt_path if do_torch_save else None,
                                 best_avg_dice_score_epoch=best_metric_epoch,
                                 best_avg_dice_score=best_metric,
                                 save_time = save_time,
@@ -960,39 +1254,130 @@ class Segmenter:
                     if csv_path is not None:
                         self.save_history_csv(
                             csv_path=csv_path,
-                            epoch=epoch,
+                            epoch=report_epoch,
                             metric="{:.4f}".format(val_acc_mean),
                             loss="{:.4f}".format(val_loss),
-                            iter=epoch * len(train_loader.dataset),
+                            iter=report_epoch * len(train_loader.dataset),
                             time="{:.2f}s".format(time.time() - pre_loop_time),
                             **timing_dict,
                         )
 
+                            # sanity check
+
+                #sanity check
+                if epoch > max(20, num_epochs/4) and 0 <= val_acc_mean < 0.01:
+                    raise ValueError(f"Accuracy seems very low at epoch {report_epoch}, acc {val_acc_mean}."
+                                        f"Most likely optimization diverged, try setting  a smaller learning_rate than {config['learning_rate']}")
+
+
             # save intermediate checkpoint every num_epochs_per_saving epochs
-            if do_torch_save and ((epoch + 1) % config["num_epochs_per_saving"] == 0 or epoch == num_epochs-1):
-                if epoch != best_metric_epoch:
-                    self.checkpoint_save(ckpt=intermediate_ckpt_path, model=self.model, epoch=epoch, best_metric=val_acc_mean)
+            if do_torch_save and ((epoch + 1) % num_epochs_per_saving == 0 or (epoch + 1)  >= num_epochs):
+                if report_epoch != best_metric_epoch:
+                    self.checkpoint_save(ckpt=intermediate_ckpt_path, model = self.model, config = config,
+                                          epoch=report_epoch, best_metric=val_acc_mean)
                 else:
                     shutil.copyfile(best_ckpt_path, intermediate_ckpt_path) #if already saved once
 
             if lr_scheduler is not None:
                 lr_scheduler.step()
 
+            if self.global_rank==0:
+                #report time estimate
+                time_remaining_estimate = train_time * (num_epochs-epoch)
+                if val_loader is not None and len(val_loader)>0:
+                    if validation_time==0:
+                        validation_time = train_time
+                    time_remaining_estimate += validation_time *  len(val_schedule_list)
+                print('Estimated remaining training time for the current model fold', config["fold"], 'is',
+                       time.strftime("%H hr %M min", time.gmtime(time_remaining_estimate)))
+
+            if distributed:
+                dist.barrier()
+
+
+            ## early stopping
+            if config["early_stopping_fraction"] > 0 and epoch > num_epochs/2 and len(val_acc_history)>10:
+
+                check_interval = int(0.1 * num_epochs * num_steps_per_image)
+                check_stats = [va[1] for va in val_acc_history if report_epoch-va[0] < check_interval] #at least 10% epochs
+                if len(check_stats)<10:
+                    check_stats = [va[1] for va in val_acc_history[-10:]] #at least 10 sample points
+                mac, mic = max(check_stats), min(check_stats)
+
+                early_stopping_fraction = (mac-mic)/(abs(mac) + 1e-8)
+                if mac > 0 and mic > 0 and early_stopping_fraction < config["early_stopping_fraction"]:
+                    if self.global_rank==0:
+                        print(f"Early stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} ", check_stats[-50:])
+                    break
+                else:
+                   if self.global_rank==0:
+                        print(f"No stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} ", check_stats[-50:])
+
+
+
+
         #### end of main epoch loop
 
         train_loader = None
         val_loader = None
 
+        #optionally validate best checkpoint at the original image resolution
+        if config["validate_final_original_res"] and config["resample"]==True:
+
+            pretrained_ckpt_name = best_ckpt_path if os.path.exists(best_ckpt_path) else intermediate_ckpt_path
+            if os.path.exists(pretrained_ckpt_name):
+                self.model = None
+                torch.cuda.empty_cache()
+
+                best_metric = self.original_resolution_validate(pretrained_ckpt_name=pretrained_ckpt_name,
+                                                                progress_path=progress_path,
+                                                                best_metric_epoch=best_metric_epoch)
+            else:
+                if self.global_rank==0:
+                    print("Unable to validate at the original res since none model checkpoints found", best_ckpt_path, intermediate_ckpt_path)
+
         if tb_writer is not None:
-            print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
+            print(f"=== DONE: best_metric: {best_metric:.4f} at epoch: {best_metric_epoch} of {report_num_epochs}.")
             tb_writer.flush()
             tb_writer.close()
 
         return best_metric
 
+    def original_resolution_validate(self, pretrained_ckpt_name, progress_path, best_metric_epoch):
+
+        if self.global_rank==0:
+            print("Running final best model validation on the original image resolution!")
+
+        self.model = self.setup_model(pretrained_ckpt_name=pretrained_ckpt_name)
+
+        ## validate
+        start_time=time.time()
+        val_acc_mean, val_loss, val_acc=self.validate()
+        validation_time = "{:.2f}s".format(time.time() - start_time)
+        val_acc_mean = float(np.mean(val_acc))
+        if self.global_rank == 0:
+            print(
+                "Original resolution validation:",
+                "loss: {:.4f}".format(val_loss), "acc_avg: {:.4f}".format(val_acc_mean),
+                "acc", val_acc, "time", validation_time)
+
+            if progress_path is not None:
+                self.save_progress_yaml(
+                    progress_path=progress_path,
+                    ckpt=pretrained_ckpt_name,
+                    best_avg_dice_score_epoch=best_metric_epoch,
+                    best_avg_dice_score=val_acc_mean,
+                    validation_time=validation_time,
+                    inverted_best_validation=True
+                )
+
+        return val_acc_mean
+
+
     def validate(self, validation_files=None):
 
         config = self.config
+        resample = config["resample"]
 
         val_config = self.config["validate"]
         output_path = val_config.get("output_path", None)
@@ -1005,7 +1390,7 @@ class Segmenter:
             else:
                 _, validation_files = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=config["fold"])
 
-        if self.rank==0:
+        if self.global_rank==0:
             print("validation files", len(validation_files))
 
         if len(validation_files)==0:
@@ -1023,6 +1408,7 @@ class Segmenter:
                 transform=val_transform,
                 sigmoid=self.config["sigmoid"],
                 output_path=output_path,
+                resample = resample
             )
 
         start_time = time.time()
@@ -1033,22 +1419,24 @@ class Segmenter:
             loss_function=self.loss_function,
             acc_function=self.acc_function,
             rank=self.rank,
+            global_rank=self.global_rank,
             sigmoid=self.config["sigmoid"],
             use_amp=self.config["amp"],
             use_cuda=self.config["cuda"],
             post_transforms=post_transforms,
+            channels_last=self.config["channels_last"],
+            calc_val_loss=self.config["calc_val_loss"],
         )
-        val_acc_mean = np.mean(val_acc)
+        val_acc_mean = float(np.mean(val_acc))
 
-        if self.rank == 0:
-            print(
-                "Validation complete, loss_avg: {:.4f}".format(val_loss),
+        if self.global_rank == 0:
+            print("Validation complete, loss_avg: {:.4f}".format(val_loss),
                 "acc_avg: {:.4f}".format(val_acc_mean),
                 "acc",
                 val_acc,
-                "time {:.2f}s".format(time.time() - start_time),
-            )
-        return val_acc_mean
+                "time {:.2f}s".format(time.time() - start_time))
+
+        return val_acc_mean, val_loss, val_acc
 
     def infer(self, testing_files=None):
 
@@ -1056,7 +1444,7 @@ class Segmenter:
         testing_key = self.config["infer"].get("data_list_key", "testing")
 
         if output_path is None:
-            if self.rank == 0:
+            if self.global_rank == 0:
                 print("Inference output_path is not specified")
             return
 
@@ -1068,7 +1456,7 @@ class Segmenter:
                 key=testing_key,
             )
 
-        if self.rank==0:
+        if self.global_rank==0:
             print("testing_files files", len(testing_files))
         if len(testing_files)==0:
             warnings.warn("No testing_files files found!")
@@ -1083,6 +1471,7 @@ class Segmenter:
             transform=inf_transform,
             sigmoid=self.config["sigmoid"],
             output_path=output_path,
+            resample=self.config["resample"]
         )
 
         start_time = time.time()
@@ -1091,17 +1480,21 @@ class Segmenter:
             val_loader=inf_loader,
             sliding_inferrer=self.sliding_inferrer,
             rank=self.rank,
+            global_rank=self.global_rank,
             sigmoid=self.config["sigmoid"],
             use_amp=self.config["amp"],
             use_cuda=self.config["cuda"],
             post_transforms=post_transforms,
+            channels_last=self.config["channels_last"],
+            calc_val_loss=self.config["calc_val_loss"],
+
         )
 
-        if self.rank == 0:
+        if self.global_rank == 0:
             print("Inference complete, time {:.2f}s".format(time.time() - start_time))
 
     @torch.no_grad()
-    def infer_image(self, image_file, save_mask=False):
+    def infer_image(self, image_file, save_mask=False, channels_last=False):
 
         self.model.eval()
 
@@ -1112,22 +1505,29 @@ class Segmenter:
 
         start_time = time.time()
         sigmoid = self.config["sigmoid"]
+        resample = self.config["resample"]
 
-        inf_transform = self.data_tranform_builder(augment=False, resample_label=False)
+
+        inf_transform = self.get_data_transform_builder()(augment=False, resample_label=False)
 
         batch_data = inf_transform([image_file])
         batch_data = list_data_collate([batch_data])
 
-        data = batch_data["image"].as_subclass(torch.Tensor).to(self.device)
+        memory_format = torch.channels_last_3d if channels_last else torch.preserve_format
+        data = batch_data["image"].as_subclass(torch.Tensor).to(memory_format=memory_format, device=self.device)
 
         with autocast(enabled=self.config["amp"]):
             logits = self.sliding_inferrer(inputs=data, network=self.model)
 
-        pred = logits2pred(logits=logits.float(), sigmoid=sigmoid)
+        data = None
+        logits=logits.float()
+        pred = logits2pred(logits=logits, sigmoid=sigmoid, out=logits)
+        logits = None
 
         post_transforms = DataTransformBuilder.get_postprocess_transform(
-            save_mask=save_mask, invert=True, transform=inf_transform, sigmoid=sigmoid, output_path=output_path
+            save_mask=save_mask, invert=True, transform=inf_transform, sigmoid=sigmoid, output_path=output_path, resample=resample
         )
+
         batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[0]  # make Meta tensor
         pred = [post_transforms(x)["pred"] for x in decollate_batch(batch_data)]
 
@@ -1147,14 +1547,18 @@ class Segmenter:
         grad_scaler,
         epoch,
         rank,
+        global_rank=0,
         num_epochs=0,
         sigmoid=False,
         use_amp=True,
         use_cuda=True,
+        channels_last=False,
+        num_steps_per_image=1
     ):
 
         model.train()
         device = torch.device(rank) if use_cuda else torch.device("cpu")
+        memory_format = torch.channels_last_3d if channels_last else torch.preserve_format
 
         run_loss = CumulativeAverage()
         run_acc = CumulativeAverage()
@@ -1163,44 +1567,54 @@ class Segmenter:
         avg_loss = avg_acc = 0
         for idx, batch_data in enumerate(train_loader):
 
-            data = batch_data["image"].as_subclass(torch.Tensor).to(device=device)
-            target = batch_data["label"].as_subclass(torch.Tensor).to(device=device)
+            data = batch_data["image"].as_subclass(torch.Tensor).to(memory_format=memory_format, device=device)
+            target = batch_data["label"].as_subclass(torch.Tensor).to(memory_format=memory_format, device=device)
 
-            optimizer.zero_grad(set_to_none=True)
+            data_list = data.chunk(num_steps_per_image) if num_steps_per_image>1 else [data]
+            target_list = target.chunk(num_steps_per_image)  if num_steps_per_image>1 else [target]
 
-            with autocast(enabled=use_amp):
-                logits = model(data)
+            for ich in range(num_steps_per_image):
 
-            loss = loss_function(logits, target)
-            grad_scaler.scale(loss).backward()
-            grad_scaler.step(optimizer)
-            grad_scaler.update()
+                data = data_list[ich]
+                target = target_list[ich]
 
-            with torch.no_grad():
-                pred = logits2pred(logits, sigmoid=sigmoid)
-                acc = acc_function(pred, target)
+                # optimizer.zero_grad(set_to_none=True)
+                for param in model.parameters(): param.grad = None
 
-            batch_size_adjusted = batch_size = data.shape[0]
-            if isinstance(acc, (list, tuple)):
-                acc, batch_size_adjusted = acc
+                with autocast(enabled=use_amp):
+                    logits = model(data)
 
-            run_loss.append(loss, count=batch_size)
-            run_acc.append(acc, count=batch_size_adjusted)
+                loss = loss_function(logits, target)
+                grad_scaler.scale(loss).backward()
+                grad_scaler.step(optimizer)
+                grad_scaler.update()
+
+                with torch.no_grad():
+                    pred = logits2pred(logits, sigmoid=sigmoid)
+                    acc = acc_function(pred, target)
+
+                batch_size_adjusted = batch_size = data.shape[0]
+                if isinstance(acc, (list, tuple)):
+                    acc, batch_size_adjusted = acc
+
+                run_loss.append(loss, count=batch_size)
+                run_acc.append(acc, count=batch_size_adjusted)
 
             avg_loss = run_loss.aggregate()
             avg_acc = run_acc.aggregate()
 
-            if rank == 0:
+            if global_rank == 0:
                 print(
                     "Epoch {}/{} {}/{}".format(epoch, num_epochs, idx, len(train_loader)),
                     "loss: {:.4f}".format(avg_loss),
-                    "acc",
-                    avg_acc,
+                    "acc", avg_acc,
                     "time {:.2f}s".format(time.time() - start_time),
                 )
                 start_time = time.time()
 
-        optimizer.zero_grad(set_to_none=True)
+        #optimizer.zero_grad(set_to_none=True)
+        for param in model.parameters(): param.grad = None
+
 
         return avg_loss, avg_acc
 
@@ -1214,21 +1628,29 @@ class Segmenter:
         acc_function=None,
         epoch=0,
         rank=0,
+        global_rank=0,
         num_epochs=0,
         sigmoid=False,
         use_amp=True,
         use_cuda=True,
         post_transforms=None,
+        channels_last=False,
+        calc_val_loss=False
     ):
 
         model.eval()
         device = torch.device(rank) if use_cuda else torch.device("cpu")
+        memory_format = torch.channels_last_3d if channels_last else torch.preserve_format
+        distributed = dist.is_initialized()
 
         run_loss = CumulativeAverage()
         run_acc = CumulativeAverage()
+        run_loss.append(torch.tensor(0, device=device), count=0)
+        run_acc.append(torch.tensor(0, device=device), count=0)
 
         avg_loss = avg_acc = 0
         start_time = time.time()
+
 
         # In DDP, each replica has a subset of data, but if total data length is not evenly divisible by num_replicas, then some replicas has 1 extra repeated item.
         # For proper validation with batch of 1, we only want to collect metrics for non-repeated items, hence let's compute a proper subset length
@@ -1239,41 +1661,53 @@ class Segmenter:
 
         for idx, batch_data in enumerate(val_loader):
 
-            data = batch_data["image"].as_subclass(torch.Tensor).to(device=device)
+            data = batch_data["image"].as_subclass(torch.Tensor).to(memory_format=memory_format, device=device)
+            filename = batch_data["image"].meta[ImageMetaKey.FILENAME_OR_OBJ]
+            batch_size = data.shape[0]
+
 
             with autocast(enabled=use_amp):
                 logits = sliding_inferrer(inputs=data, network=model)
 
-            logits = logits.float()
-            pred = logits2pred(logits, sigmoid=sigmoid)
+            data = None
+            pred = logits2pred(logits, sigmoid=sigmoid, out=logits if not calc_val_loss else None)
+            pred = pred.to(device=device)
 
             if post_transforms:
-                batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[0]  # make Meta tensor
-                pred = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)])
+                batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[0]
+                pred  = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)])
 
-                if pred.shape != logits.shape:
+                if logits is not None and pred.shape != logits.shape:
                     logits = None  # if shape changed due to inverse resampling on un-cropping
 
             if "label" in batch_data and loss_function is not None and acc_function is not None:
 
+                pred = pred.to(device=device)
+                loss = acc = None
+
                 if idx < nonrepeated_data_length:
 
-                    target = batch_data["label"].as_subclass(torch.Tensor).to(pred.device)
-                    acc = acc_function(pred, target)
+                    if calc_val_loss:
+                        if logits is not None:
+                            target = batch_data["label"].as_subclass(torch.Tensor).to(device=logits.device)
+                            loss = loss_function(logits, target)
+                            run_loss.append(loss.to(device=device), count=batch_size)
+                            logits = None
 
-                    batch_size_adjusted = batch_size = data.shape[0]
-                    if isinstance(acc, (list, tuple)):
-                        acc, batch_size_adjusted = acc
-                    run_acc.append(acc.to(device=device), count=batch_size_adjusted)
+                    target = batch_data["label"].as_subclass(torch.Tensor).to(device=pred.device)
+                    with torch.no_grad():
+                        print('accuracy pred', pred.shape, 'target', target.shape)
 
-                    if logits is not None:
-                        loss = loss_function(logits, target)
-                        run_loss.append(loss.to(device=device), count=batch_size)
+                        acc = acc_function(pred, target)
+                        batch_size_adjusted = batch_size
+                        if isinstance(acc, (list, tuple)):
+                            acc, batch_size_adjusted = acc
+                        run_acc.append(acc.detach().to(device=device), count=batch_size_adjusted)
 
-                avg_loss = run_loss.aggregate()
-                avg_acc = run_acc.aggregate()
+                avg_loss = loss.cpu() if loss is not None else 0
+                avg_acc = acc.cpu().numpy() if acc is not None else 0
 
-                if rank == 0:
+                if global_rank == 0:
                     print(
                         "Val {}/{} {}/{}".format(epoch, num_epochs, idx, len(val_loader)),
                         "loss: {:.4f}".format(avg_loss),
@@ -1283,7 +1717,7 @@ class Segmenter:
                     )
 
             else:
-                if rank == 0:
+                if global_rank == 0:
                     print(
                         "Val {}/{} {}/{}".format(epoch, num_epochs, idx, len(val_loader)),
                         "time {:.2f}s".format(time.time() - start_time),
@@ -1291,39 +1725,78 @@ class Segmenter:
 
             start_time = time.time()
 
+        pred = None
+        batch_data = None
+        data = None
+        target = None
+
+        if distributed:
+            dist.barrier()
+
+        avg_loss = run_loss.aggregate()
+        avg_acc = run_acc.aggregate()
+
+        if np.any(avg_acc < 0):
+            dist.barrier()
+            warnings.warn('Avg dice accuracy is negative, something went wrong!!!!!')
+            print("global_rank", global_rank, "rank", rank, "cumulative avg info", run_acc.sum, run_acc.count)
+
         return avg_loss, avg_acc
+
+    def get_avail_cpu_memory(self):
+
+        avail_memory = psutil.virtual_memory().available
+
+        #check if in docker
+        memory_limit_filename = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
+        if os.path.exists(memory_limit_filename):
+            with open(memory_limit_filename, "r") as f:
+                docker_limit = int(f.read())
+                avail_memory = min(docker_limit, avail_memory) # could be lower limit in docker
+
+        return avail_memory
 
     def get_cache_rate(self, train_cases=0, validation_cases=0, prioritise_train=True):
 
         config = self.config
-        cache_rate = config.get("cache_rate", None)
+        cache_rate = config["cache_rate"]
+        cache_class_indices = config["cache_class_indices"]
+        avail_memory = None
+
         total_cases = train_cases + validation_cases
 
+        image_size_mm_90 = config.get("image_size_mm_90", None)
+        if config["resample"] and image_size_mm_90 is not None:
+            image_size = (np.array(image_size_mm_90) / np.array(config["resample_resolution"]) ).astype(np.int32).tolist()
+        else:
+            image_size = config["image_size"]
+
+        approx_data_cache_required = (4  * config["input_channels"] + 1) * np.prod(image_size) * total_cases
+        approx_os_cache_required = 50 * 1024**3 #reserve 50gb
+
+
         if cache_rate is None:
-            cache_rate = 0.0
-            image_size = config.get("image_size", None)
+            cache_rate = 0
 
             if image_size is not None:
-                approx_cache_required = (4 * 2 * np.prod(image_size) * config["input_channels"]) * total_cases
-                avail_memory = psutil.virtual_memory().available
-                cache_rate = min(0.5 * avail_memory / float(approx_cache_required), 1.0)
-                if cache_rate < 0.1:
-                    cache_rate = 0.0  # don't cache small amounts
 
-                if self.rank == 0:
-                    print(
-                        f"Calculating cache required {approx_cache_required /1024**3:.0f}GB, available RAM {avail_memory/1024**3:.0f}GB given avg image size {image_size}."
-                    )
+                avail_memory = self.get_avail_cpu_memory()
+                cache_rate = min(avail_memory / float(approx_data_cache_required + approx_os_cache_required ), 1.0)
+                if cache_rate < 0.1:
+                    cache_rate = 0.0  # don't cache small
+
+                if self.global_rank == 0:
+                    print( f"Calculating cache required {approx_data_cache_required >> 30}GB, available RAM {avail_memory >> 30}GB given avg image size {image_size}.")
                     if cache_rate < 1:
-                        print(
-                            f"Available RAM is not enought to cache full dataset, caching a fraction {cache_rate:.2f}"
-                        )
+                        print(f"Available RAM is not enought to cache full dataset, caching a fraction {cache_rate:.2f}")
                     else:
                         print("Caching full dataset in RAM")
+            else:
+                print("Cant calculate cache_rate since image_size is not provided!!!!")
 
         else:
-            if self.rank == 0:
-                print(f"Using user specified cache_rate {cache_rate} to cache data in RAM")
+            if self.global_rank == 0:
+                print(f"Using user specified cache_rate={cache_rate} to cache data in RAM")
 
         # allocate cache_rate to training files first
         cache_rate_train = cache_rate_val = cache_rate
@@ -1337,10 +1810,25 @@ class Segmenter:
                 else:
                     cache_rate_val = (cache_num - cache_rate_train * train_cases) / validation_cases
 
-                if self.rank == 0:
+                if self.global_rank == 0:
                     print(f"Prioritizing cache_rate training {cache_rate_train} validation {cache_rate_val}")
 
-        return cache_rate_train, cache_rate_val
+
+        if cache_class_indices is None and cache_rate > 0:
+            if avail_memory is None:
+                avail_memory = self.get_avail_cpu_memory()
+            approx_indices_cache_required = 4  * np.prod(image_size) * train_cases
+            cache_class_indices = bool(avail_memory > (approx_data_cache_required * cache_rate + approx_os_cache_required + approx_indices_cache_required))
+            if self.global_rank == 0:
+                print(f"Autosetting cache_class_indices to {cache_class_indices} since it fits {approx_indices_cache_required >> 30}Gb in RAM. "
+                    "Set cache_class_indices=True/False manually to override")
+        else:
+            if self.global_rank == 0:
+                print(f"Using user specified cache_class_indices={cache_class_indices} to cache label indices in RAM")
+
+
+
+        return cache_rate_train, cache_rate_val, cache_class_indices
 
     def save_history_csv(self, csv_path=None, header=None, **kwargs):
         if csv_path is not None:
@@ -1382,24 +1870,30 @@ def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]
 
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     dist_available = dist.is_available()
+    global_rank = rank
+
+    if type(config_file) == str and ',' in config_file:
+        config_file = config_file.split(',')
 
     if dist_available:
         mgpu = override.get("mgpu", None)
         if mgpu is not None:
             dist.init_process_group(backend="nccl", rank=rank, **mgpu)  # we spawn this process
-            mgpu["rank"] = rank
+            mgpu.update({"rank": rank, "global_rank": rank})
             if rank == 0:
                 print("Distributed: initializing multi-gpu tcp:// process group", mgpu)
 
-        elif dist.is_torchelastic_launched():
+        elif dist_launched():
 
             rank = int(os.getenv("LOCAL_RANK"))
+            global_rank = int(os.getenv("RANK"))
             world_size = int(os.getenv("LOCAL_WORLD_SIZE"))
             dist.init_process_group(backend="nccl", init_method="env://")  # torchrun spawned it
-            override["mgpu"] = {"world_size": world_size, "rank": rank}
-            print("Distributed: initializing multi-gpu env:// process group", override["mgpu"])
+            override["mgpu"] = {"world_size": world_size, "rank": rank, "global_rank": global_rank}
 
-    segmenter = Segmenter(config_file=config_file, config_dict=override, rank=rank)
+            print("Distributed launched: initializing multi-gpu env:// process group", override["mgpu"])
+
+    segmenter = Segmenter(config_file=config_file, config_dict=override, rank=rank, global_rank=global_rank)
     best_metric = segmenter.run()
     segmenter = None
 
@@ -1409,15 +1903,23 @@ def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]
     return best_metric
 
 
+def dist_launched() -> bool:
+    return dist.is_torchelastic_launched() or \
+            (os.getenv("NGC_ARRAY_SIZE") is not None and int(os.getenv("NGC_ARRAY_SIZE")) > 1)
+
 def run_segmenter(config_file: Optional[Union[str, Sequence[str]]] = None, **kwargs):
     """
     if multiple gpu available, start multiprocessing for all gpus
     """
+
     nprocs = torch.cuda.device_count()
-    if nprocs > 1 and not dist.is_torchelastic_launched():
+
+    if nprocs > 1 and not dist_launched():
+        print('Manually spawning processes', nprocs)
         kwargs["mgpu"] = {"world_size": nprocs, "init_method": kwargs.get("init_method", "tcp://127.0.0.1:23456")}
         torch.multiprocessing.spawn(run_segmenter_worker, nprocs=nprocs, args=(config_file, kwargs))
     else:
+        print('Not spawning processes, dist is already launched', nprocs)
         run_segmenter_worker(0, config_file, kwargs)
 
 
