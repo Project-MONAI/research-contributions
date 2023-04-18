@@ -16,7 +16,7 @@ show_cache_progress: false
 # hyper-parameters
 amp: true
 input_channels: null
-learning_rate: 0.0001
+learning_rate: 0.0004
 log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/training.log'"
 num_images_per_batch: 2
 num_epochs: 200
@@ -28,7 +28,7 @@ num_workers: 8
 num_workers_validation: 4
 num_cache_workers: 8
 output_classes: null
-overlap_ratio: 0.625
+overlap_ratio: 0.5
 patch_size: null
 patch_size_valid: null
 random_seed: 0
@@ -46,15 +46,15 @@ early_stop_delta: 0
 early_stop_patience: 20
 
 loss:
-  _target_: DiceFocalLoss
+  _target_: DiceCELoss
   include_background: true
-  to_onehot_y: "$@softmax"
-  softmax: "$@softmax"
-  sigmoid: "$not @softmax"
   squared_pred: true
-  batch: true
-  smooth_nr: 1.0e-05
+  smooth_nr: 0
   smooth_dr: 1.0e-05
+  softmax: $@softmax
+  sigmoid: $not @softmax
+  to_onehot_y: $@softmax
+
 optimizer:
   _target_: torch.optim.AdamW
   lr: "@learning_rate"
@@ -62,7 +62,7 @@ optimizer:
 lr_scheduler:
   _target_: monai.optimizers.WarmupCosineSchedule
   optimizer: "$@optimizer"
-  warmup_steps: $@num_epochs//20
+  warmup_steps: $@num_epochs//100
   t_total: '$@num_epochs // @num_epochs_per_validation + 1'
 
 # fine-tuning
