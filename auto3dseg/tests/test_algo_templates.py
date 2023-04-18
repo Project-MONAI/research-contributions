@@ -54,7 +54,7 @@ num_epochs = 2
 num_epochs_per_validation = 1
 num_warmup_epochs = 1
 
-train_param = {
+train_params = {
     "num_epochs_per_validation": num_epochs_per_validation,
     "num_images_per_batch": num_images_per_batch,
     "num_epochs": num_epochs,
@@ -66,9 +66,10 @@ train_param = {
 pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
 
 SIM_TEST_CASES = [
-    [{"sim_dim": (24, 24, 24), "modality": "MRI"}],
-    [{"sim_dim": (320, 320, 15), "modality": "MRI"}],
-    [{"sim_dim": (32, 32, 32), "modality": "CT"}],
+    [{"sim_dim": (24, 24, 24), "modality": "MRI", "dints_search": False}],
+    [{"sim_dim": (320, 320, 15), "modality": "MRI", "dints_search": False}],
+    [{"sim_dim": (32, 32, 32), "modality": "CT", "dints_search": False}],
+    [{"sim_dim": (32, 32, 32), "modality": "CT", "dints_search": True}],
 ]
 
 def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
@@ -95,7 +96,7 @@ def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
             label_fpath = os.path.join(dataroot, d["label"])
             nib.save(nib_image, label_fpath)
 
-def auto_run(work_dir, data_src_cfg, algos):
+def auto_run(work_dir, data_src_cfg, algos, search=False):
     """
     Similar to Auto3DSeg AutoRunner, auto_run function executes the data analyzer, bundle generation,
     and ensemble.
@@ -104,6 +105,7 @@ def auto_run(work_dir, data_src_cfg, algos):
         work_dir: working directory path.
         data_src_cfg: the input is a dictionary that includes dataroot, datalist and modality keys.
         algos: the algorithm templates (a dictionary of Algo classes).
+        search: for dints only. Switch to include the search phase or not.
 
     Returns:
         A list of predictions made the ensemble inference.
@@ -127,8 +129,12 @@ def auto_run(work_dir, data_src_cfg, algos):
     history = bundle_generator.get_history()
 
     for algo_dict in history:
+        name = algo_dict[AlgoKeys.ID]
         algo = algo_dict[AlgoKeys.ALGO]
-        algo.train(train_param)
+        if "dints" in name:
+            algo.train(train_params=train_params, search=search)
+        else:
+            algo.train(train_params=train_params)
 
     builder = AlgoEnsembleBuilder(history, data_src_cfg_file)
     builder.set_ensemble_method(AlgoEnsembleBestN(n_best=len(history)))  # inference all models
@@ -153,7 +159,7 @@ class TestAlgoTemplates(unittest.TestCase):
         )
 
         data_src_cfg = {"modality": input_params["modality"], "datalist": datalist_file, "dataroot": dataroot_dir}
-        preds = auto_run(work_dir, data_src_cfg, ["dints", "segresnet", "segresnet2d", "swinunetr"])
+        preds = auto_run(work_dir, data_src_cfg, ["dints"], search=input_params["dints_search"])
         self.assertTupleEqual(preds[0].shape, (2, sim_dim[0], sim_dim[1], sim_dim[2]))
 
         shutil.rmtree(work_dir)

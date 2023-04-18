@@ -1,12 +1,4 @@
 ---
-bundle_root: null
-
-transforms:
-  resample_to_spacing: "$@searching#resample_to_spacing"
-
-cache_rate: 1
-train_cache_rate: "$@cache_rate"
-validate_cache_rate: "$@cache_rate"
 
 searching:
   # hyper-parameters
@@ -32,7 +24,11 @@ searching:
   ram_cost_factor: 0.8
   resample_to_spacing: null
   softmax: true
-
+  cache_rate: 1
+  train_cache_rate: "$@searching#cache_rate"
+  validate_cache_rate: "$@searching#cache_rate"
+  transforms:
+    resample_to_spacing: "$@searching#resample_to_spacing"
   # architecture searching
   loss:
     _target_: DiceFocalLoss
