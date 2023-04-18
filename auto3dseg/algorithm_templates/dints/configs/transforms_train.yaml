@@ -17,26 +17,21 @@ transforms_train:
     image_only: true
   - _target_: EnsureChannelFirstd
     keys: ["@image_key", "@label_key"]
+  - PLACEHOLDER_INTENSITY_NORMALIZATION
   - _target_: Orientationd
     keys: ["@image_key", "@label_key"]
     axcodes: RAS
   - _target_: Spacingd
     keys: ["@image_key", "@label_key"]
-    pixdim: "$@transforms#resample_to_spacing"
+    pixdim: "$@training#transforms#resample_to_spacing"
     mode: [bilinear, nearest]
     align_corners: [true, true]
   - _target_: CastToTyped
-    keys: "@image_key"
-    dtype: "$torch.float32"
-  - PLACEHOLDER_INTENSITY_NORMALIZATION
-  - _target_: CastToTyped
     keys: ["@image_key", "@label_key"]
-    dtype: ["$torch.float16", "$torch.uint8"]
+    dtype: ["$torch.float32", "$torch.float32"]
   - _target_: EnsureTyped
     keys: ["@image_key", "@label_key"]
-  - _target_: CastToTyped
-    keys: "@image_key"
-    dtype: "$torch.float32"
+    track_meta: true
   - _target_: SpatialPadd
     keys: ["@image_key", "@label_key"]
     spatial_size: "@training#patch_size"
@@ -52,6 +47,7 @@ transforms_train:
     num_classes: "@training#output_classes"
     spatial_size: "@training#patch_size"
     num_samples: "@training#num_patches_per_image"
+    warn: false
   - _target_: RandRotated
     keys: ["@image_key", "@label_key"]
     range_x: 0.3
@@ -99,6 +95,3 @@ transforms_train:
     keys: ["@image_key", "@label_key"]
     spatial_axis: 2
     prob: 0.5
-  - _target_: CastToTyped
-    keys: ["@image_key", "@label_key"]
-    dtype: ["$torch.float32", "$torch.uint8"]
