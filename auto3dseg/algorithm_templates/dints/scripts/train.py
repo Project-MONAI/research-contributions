@@ -57,7 +57,8 @@ _libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
 assert p_value.contents.value == 128
 
 torch.backends.cudnn.benchmark = True
-torch.set_float32_matmul_precision("high")
+if hasattr(torch, "set_float32_matmul_precision"):
+    torch.set_float32_matmul_precision("high")
 
 
 CONFIG = {
@@ -322,7 +323,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         logger.debug(f"num_epochs_per_validation: {num_epochs_per_validation}")
 
     # patch fix to support PolynomialLR use in PyTorch <= 1.12
-    if  "PolynomialLR" in parser.get("training#lr_scheduler#_target_") and not pytorch_after(1,13):
+    if "PolynomialLR" in parser.get("training#lr_scheduler#_target_") and not pytorch_after(1, 13):
         dints_dir = os.path.dirname(os.path.dirname(__file__))
         sys.path.insert(0, dints_dir)
         parser["training#lr_scheduler#_target_"] = "scripts.utils.PolynomialLR"
