@@ -33,7 +33,6 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
 
 import monai
-from apex.contrib.clip_grad import clip_grad_norm_
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
 from monai.apps.utils import DEFAULT_FMT
@@ -43,6 +42,10 @@ from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
 from monai.utils import set_determinism
+try:
+    from apex.contrib.clip_grad import clip_grad_norm_
+except ModuleNotFoundError:
+    from torch.nn.utils import clip_grad_norm_
 
 
 _libcudart = ctypes.CDLL("libcudart.so")
