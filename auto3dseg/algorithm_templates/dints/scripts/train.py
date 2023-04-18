@@ -464,7 +464,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             "train/loss",
                             loss.item(),
                             epoch_len *
-                            num_rounds +
+                            _round +
                             step)
 
             lr_scheduler.step()
