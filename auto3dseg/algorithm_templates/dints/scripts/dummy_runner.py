@@ -65,7 +65,7 @@ class DummyRunnerDiNTS(object):
         with open(data_stats_file) as f_data_stat:
             data_stat = yaml.full_load(f_data_stat)
 
-        pixdim = parser.get_parsed_content("transforms_train#transforms#3#pixdim")
+        pixdim = parser.get_parsed_content("transforms_train#transforms#4#pixdim")
         pixdim = [np.abs(pixdim[_i]) for _i in range(3)]
 
         if "sizemm" not in data_stat["stats_summary"]["image_stats"]:
