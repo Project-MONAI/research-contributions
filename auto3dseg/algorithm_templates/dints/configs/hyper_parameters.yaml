@@ -7,7 +7,7 @@ fold: 0
 
 transforms:
   resample_to_spacing: "$@training#resample_to_spacing"
-  lazy_resampling: true
+  lazy_resampling: false
 
 cache_rate: 0
 train_cache_rate: "$@cache_rate"
