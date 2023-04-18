@@ -5,13 +5,6 @@ data_file_base_dir: null
 data_list_file_path: null
 fold: 0
 
-transforms:
-  resample_to_spacing: "$@training#resample_to_spacing"
-  lazy_resampling: true
-
-cache_rate: 0
-train_cache_rate: "$@cache_rate"
-validate_cache_rate: "$@cache_rate"
 show_cache_progress: false
 
 training:
@@ -46,6 +39,12 @@ training:
   early_stop_delta: 0
   early_stop_patience: 20
 
+  cache_rate: 0
+  train_cache_rate: "$@training#cache_rate"
+  validate_cache_rate: "$@training#cache_rate"
+  transforms:
+    resample_to_spacing: "$@training#resample_to_spacing"
+    lazy_resampling: true
   loss:
     _target_: DiceFocalLoss
     include_background: true

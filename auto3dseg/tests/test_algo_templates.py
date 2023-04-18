@@ -19,7 +19,7 @@ import numpy as np
 from parameterized import parameterized
 import shutil
 
-from monai.apps.auto3dseg import AlgoEnsembleBestByFold, AlgoEnsembleBestN, AlgoEnsembleBuilder, BundleGen, DataAnalyzer
+from monai.apps.auto3dseg import AlgoEnsembleBestN, AlgoEnsembleBuilder, BundleGen, DataAnalyzer
 from monai.bundle.config_parser import ConfigParser
 from monai.data import create_test_image_3d
 from monai.utils.enums import AlgoKeys
@@ -49,14 +49,12 @@ algo_templates = os.path.join("auto3dseg", "algorithm_templates")
 
 sys.path.insert(0, algo_templates)
 
-num_gpus = 4 if torch.cuda.device_count() > 4 else torch.cuda.device_count()
 num_images_per_batch = 2
 num_epochs = 2
 num_epochs_per_validation = 1
 num_warmup_epochs = 1
 
-train_param = {
-    "CUDA_VISIBLE_DEVICES": [x for x in range(num_gpus)],
+train_params = {
     "num_epochs_per_validation": num_epochs_per_validation,
     "num_images_per_batch": num_images_per_batch,
     "num_epochs": num_epochs,
@@ -68,9 +66,10 @@ train_param = {
 pred_param = {"files_slices": slice(0, 1), "mode": "mean", "sigmoid": True}
 
 SIM_TEST_CASES = [
-    [{"sim_dim": (24, 24, 24), "modality": "MRI"}],
-    [{"sim_dim": (320, 320, 15), "modality": "MRI"}],
-    [{"sim_dim": (32, 32, 32), "modality": "CT"}],
+    [{"sim_dim": (24, 24, 24), "modality": "MRI", "dints_search": False}],
+    [{"sim_dim": (320, 320, 15), "modality": "MRI", "dints_search": False}],
+    [{"sim_dim": (32, 32, 32), "modality": "CT", "dints_search": False}],
+    [{"sim_dim": (32, 32, 32), "modality": "CT", "dints_search": True}],
 ]
 
 def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
@@ -97,7 +96,7 @@ def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
             label_fpath = os.path.join(dataroot, d["label"])
             nib.save(nib_image, label_fpath)
 
-def auto_run(work_dir, data_src_cfg, algos):
+def auto_run(work_dir, data_src_cfg, algos, search=False):
     """
     Similar to Auto3DSeg AutoRunner, auto_run function executes the data analyzer, bundle generation,
     and ensemble.
@@ -106,6 +105,7 @@ def auto_run(work_dir, data_src_cfg, algos):
         work_dir: working directory path.
         data_src_cfg: the input is a dictionary that includes dataroot, datalist and modality keys.
         algos: the algorithm templates (a dictionary of Algo classes).
+        search: for dints only. Switch to include the search phase or not.
 
     Returns:
         A list of predictions made the ensemble inference.
@@ -119,14 +119,22 @@ def auto_run(work_dir, data_src_cfg, algos):
     analyser.get_all_case_stats()
 
     bundle_generator = BundleGen(
-        algos=algos, data_stats_filename=datastats_file, data_src_cfg_name=data_src_cfg_file
+        algo_path=work_dir,
+        templates_path_or_url=algo_templates,
+        algos=algos,
+        data_stats_filename=datastats_file,
+        data_src_cfg_name=data_src_cfg_file
     )
     bundle_generator.generate(work_dir, num_fold=1)
     history = bundle_generator.get_history()
 
     for algo_dict in history:
+        name = algo_dict[AlgoKeys.ID]
         algo = algo_dict[AlgoKeys.ALGO]
-        algo.train(train_param)
+        if "dints" in name:
+            algo.train(train_params=train_params, search=search)
+        else:
+            algo.train(train_params=train_params)
 
     builder = AlgoEnsembleBuilder(history, data_src_cfg_file)
     builder.set_ensemble_method(AlgoEnsembleBestN(n_best=len(history)))  # inference all models
@@ -134,23 +142,12 @@ def auto_run(work_dir, data_src_cfg, algos):
     return preds
 
 class TestAlgoTemplates(unittest.TestCase):
-    def setUp(self) -> None:
-        self.algos = {}
-        for name in os.listdir("auto3dseg/algorithm_templates"):
-            self.algos.update(
-                {
-                    name: dict(
-                        _target_=name + ".scripts.algo." + name[0].upper() + name[1:] + "Algo",
-                        template_path=os.path.join(algo_templates, name),
-                    )
-                }
-            )
-
     @parameterized.expand(SIM_TEST_CASES)
     def test_sim(self, input_params) -> None:
         work_dir = os.path.join('./tmp_sim_work_dir')
-        if not os.path.isdir(work_dir):
-            os.makedirs(work_dir)
+        if os.path.isdir(work_dir):
+            shutil.rmtree(work_dir)  # folders are created by failed tests
+        os.makedirs(work_dir)
 
         dataroot_dir = os.path.join(work_dir, "sim_dataroot")
         datalist_file = os.path.join(work_dir, "sim_datalist.json")
@@ -162,7 +159,7 @@ class TestAlgoTemplates(unittest.TestCase):
         )
 
         data_src_cfg = {"modality": input_params["modality"], "datalist": datalist_file, "dataroot": dataroot_dir}
-        preds = auto_run(work_dir, data_src_cfg, self.algos)
+        preds = auto_run(work_dir, data_src_cfg, ["dints", "segresnet", "segresnet2d", "swinunetr"], search=input_params["dints_search"])
         self.assertTupleEqual(preds[0].shape, (2, sim_dim[0], sim_dim[1], sim_dim[2]))
 
         shutil.rmtree(work_dir)
