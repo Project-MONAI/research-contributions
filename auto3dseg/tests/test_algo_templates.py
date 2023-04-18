@@ -159,7 +159,7 @@ class TestAlgoTemplates(unittest.TestCase):
         )
 
         data_src_cfg = {"modality": input_params["modality"], "datalist": datalist_file, "dataroot": dataroot_dir}
-        preds = auto_run(work_dir, data_src_cfg, ["dints"], search=input_params["dints_search"])
+        preds = auto_run(work_dir, data_src_cfg, ["dints", "segresnet", "segresnet2d", "swinunetr"], search=input_params["dints_search"])
         self.assertTupleEqual(preds[0].shape, (2, sim_dim[0], sim_dim[1], sim_dim[2]))
 
         shutil.rmtree(work_dir)
