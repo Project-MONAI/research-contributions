@@ -2,9 +2,6 @@ name: release
 # generating and testing package artefacts from the main branch
 
 on:
-  push:
-    branches:
-      - temp-test
   workflow_dispatch:
 
 jobs:
