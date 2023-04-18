@@ -11,7 +11,7 @@ jobs:
       - name: dispatch
         uses: peter-evans/slash-command-dispatch@v3.0.0
         with:
-          token: ${{ secrets.MONAI_BOT_READ }}
+          token: ${{ secrets.PR_MAINTAIN_WYLI }}
           # reaction-token: ${{ secrets.GITHUB_TOKEN }}
           reactions: false
           config: >
