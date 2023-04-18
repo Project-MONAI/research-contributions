@@ -41,6 +41,7 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
+from monai.networks.utils import pytorch_after
 from monai.utils import set_determinism
 try:
     from apex.contrib.clip_grad import clip_grad_norm_
