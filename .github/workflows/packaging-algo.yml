@@ -19,14 +19,13 @@ jobs:
       run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
     - name: Build
       env:
-        release_version: ${{ steps.name.outputs.shar_short }}
+        release_version: ${{ steps.name.outputs.sha_short }}
       run: |
         echo $release_version
         cd auto3dseg/
-        sha_short=$(git rev-parse --short HEAD)
         tar -cvzf "$release_version".tar.gz algorithm_templates
     - name: Upload
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ steps.name.outputs.shar_short }}.tar.gz
-        path: auto3dseg/${{ steps.name.outputs.shar_short }}.tar.gz
+        name: ${{ steps.name.outputs.sha_short }}.tar.gz
+        path: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz
