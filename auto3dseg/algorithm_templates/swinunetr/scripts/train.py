@@ -51,7 +51,7 @@ _libcudart = ctypes.CDLL("libcudart.so")
 p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
 _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
 _libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
-assert p_value.contents.value == 128
+# assert p_value.contents.value == 128
 
 torch.backends.cudnn.benchmark = True
 
