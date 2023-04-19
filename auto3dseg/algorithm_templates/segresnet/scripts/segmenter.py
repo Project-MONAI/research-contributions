@@ -668,8 +668,10 @@ class Segmenter:
         sync_batch_norm = True
 
         if norm_name == "INSTANCE_NVFUSER":
-            _, has_nvfuser = optional_import("apex.normalization", name="InstanceNorm3dNVFuser")
-            if has_nvfuser and spatial_dims == 3:
+
+            from monai.networks.utils import has_nvfuser_instance_norm
+
+            if has_nvfuser_instance_norm() and spatial_dims == 3:
                 # ensure not inplace activations for  INSTANCE_NVFUSER (if available from Apex)
                 act = config["network"].get("act", 'relu')
                 if isinstance(act, str):
