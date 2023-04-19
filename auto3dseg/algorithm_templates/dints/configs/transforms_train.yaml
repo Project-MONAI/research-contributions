@@ -28,9 +28,6 @@ transforms_train:
   - _target_: CastToTyped
     keys: ["@image_key", "@label_key"]
     dtype: ["$torch.float32", "$torch.float32"]
-  - _target_: Lambdad
-    keys: "@image_key"
-    func: "$lambda x: torch.cat((x, torch.nn.AvgPool3d(kernel_size=5, stride=1, padding=2)(x.unsqueeze(0)).squeeze(0)), dim=0)"
   - _target_: EnsureTyped
     keys: ["@image_key", "@label_key"]
     track_meta: true

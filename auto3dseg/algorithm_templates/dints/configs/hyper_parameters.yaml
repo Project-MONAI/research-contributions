@@ -38,7 +38,7 @@ training:
   sw_input_on_cpu: false
   softmax: true
 
-  adapt_valid_mode: false
+  adapt_valid_mode: true
   adapt_valid_progress_percentages: [10, 40, 70]
   adapt_valid_num_epochs_per_validation: [2, 4, 2]
 
