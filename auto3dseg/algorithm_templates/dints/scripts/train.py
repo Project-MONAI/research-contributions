@@ -121,7 +121,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if isinstance(config_file, str) and ',' in config_file:
         config_file = config_file.split(',')
 
-    torch.set_float32_matmul_precision("high")
+    if hasattr(torch, "set_float32_matmul_precision"):
+        torch.set_float32_matmul_precision("high")
 
     _args = _update_args(config_file=config_file, **override)
     config_file_ = _pop_args(_args, "config_file")[0]
