@@ -492,7 +492,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         target_num_epochs_per_validation = ad_num_epochs_per_validation[-1 - _j]
                         break
 
-                if target_num_epochs_per_validation > 0 and (_round + 1) < num_rounds:
+                if target_num_epochs_per_validation > 0 and (
+                        _round + 1) < num_rounds:
                     if (_round + 1) % (target_num_epochs_per_validation //
                                        num_epochs_per_validation) != 0:
                         continue
@@ -662,7 +663,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             logger.warning(
                 f"{os.path.basename(bundle_root)} - training: finished with early stop")
         else:
-            logger.warning(f"{os.path.basename(bundle_root)} - training: finished")
+            logger.warning(
+                f"{os.path.basename(bundle_root)} - training: finished")
 
     if torch.cuda.device_count() > 1:
         dist.destroy_process_group()

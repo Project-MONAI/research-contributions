@@ -15,7 +15,7 @@ training_network:
   network:
     _target_: DiNTS
     dints_space: "$@training_network#dints_space"
-    in_channels: "@training#input_channels"
+    in_channels: "$2 * @training#input_channels"
     num_classes: "@training#output_classes"
     use_downsample: true
     node_a: "$@training_network#arch_ckpt['node_a']"

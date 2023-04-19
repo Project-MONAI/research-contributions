@@ -124,8 +124,13 @@ class DintsAlgo(BundleAlgo):
             batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
             batch_size = int(batch_size)
             batch_size = max(batch_size, 1)
-            hyper_parameters.update({"training#num_patches_per_iter": batch_size})
-            hyper_parameters.update({"training#num_patches_per_image": batch_size * 2})
+
+            hyper_parameters.update(
+                {"training#num_patches_per_iter": batch_size})
+            hyper_parameters.update(
+                {"training#num_patches_per_image": 2 * batch_size})
+            hyper_parameters.update(
+                {"training#num_epochs": int(500.0 / float(batch_size))})
 
             intensity_upper_bound = float(
                 data_stats[
@@ -286,7 +291,8 @@ class DintsAlgo(BundleAlgo):
 
         mem = get_mem_from_visible_gpus()
         device_id = np.argmin(mem)
-        print(f"[info] device {device_id} in visible GPU list has the minimum memory.")
+        print(
+            f"[info] device {device_id} in visible GPU list has the minimum memory.")
 
         mem = min(mem) if isinstance(mem, list) else mem
         mem = round(float(mem) / 1024.0)
