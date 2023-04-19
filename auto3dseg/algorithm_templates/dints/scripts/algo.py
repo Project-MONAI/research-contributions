@@ -130,7 +130,7 @@ class DintsAlgo(BundleAlgo):
             hyper_parameters.update(
                 {"training#num_patches_per_image": 2 * batch_size})
             hyper_parameters.update(
-                {"training#num_epochs": int(500.0 / float(batch_size))})
+                {"training#num_epochs": int(400.0 / float(batch_size))})
 
             intensity_upper_bound = float(
                 data_stats[
