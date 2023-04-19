@@ -489,8 +489,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 target_num_epochs_per_validation = -1
                 for _j in range(len(ad_progress_percentages)):
                     if _percentage <= ad_progress_percentages[-1 - _j]:
-                        target_num_epochs_per_validation = ad_num_epochs_per_validation[-1 - _j]
-                        break
+                        if _j == (len(ad_progress_percentages) - \
+                                  1) or _percentage > ad_progress_percentages[-2 - _j]:
+                            target_num_epochs_per_validation = ad_num_epochs_per_validation[-1 - _j]
+                            break
 
                 if target_num_epochs_per_validation > 0 and (
                         _round + 1) < num_rounds:
