@@ -596,7 +596,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         logger.debug(
                             f"evaluation metric - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
                         writer.add_scalar(
-                            f"val/acc/class{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
+                            f"val_class/acc{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
                     avg_metric = 0
                     for _c in range(metric_dim):
                         avg_metric += metric[2 * _c] / metric[2 * _c + 1]
