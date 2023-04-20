@@ -690,7 +690,7 @@ class Segmenter:
             print(f"Total parameters count: {pytorch_total_params} distributed: {self.distributed}")
 
         return model
-    
+
     def logger_configure(self, log_output_file: str = None) -> None:
 
         CONFIG = {
@@ -705,14 +705,14 @@ class Segmenter:
                 "file": {
                     "class": "logging.FileHandler",
                     "filename": "runner.log",
-                    "mode": "a",  
+                    "mode": "a",
                     "level": "DEBUG",
                     "formatter": "monai_default",
                     # "filters": ["rank_filter"],
                 },
                 "console": {
                     "class": "logging.StreamHandler",
-                    "level": "INFO", 
+                    "level": "INFO",
                     "formatter": "monai_default",
                     # "filters": ["rank_filter"],
                 },
@@ -1063,7 +1063,7 @@ class Segmenter:
         if config["num_steps_per_image"] is None and cache_rate_train < 0.75 and config["cache_rate"] is None and not distributed:
             config["num_steps_per_image"] = 4
             if self.global_rank==0:
-                print(f"Given the low cache_rate {cache_rate_train} num_steps_per_image was autoset to" 
+                print(f"Given the low cache_rate {cache_rate_train} num_steps_per_image was autoset to"
                       f"{config['num_steps_per_image']}, to disable this behaviour set manually, e.g. num_steps_per_image=1")
         else:
             config["num_steps_per_image"] = 1
