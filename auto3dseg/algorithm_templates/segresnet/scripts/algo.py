@@ -54,11 +54,6 @@ class SegresnetAlgo(BundleAlgo):
             data_stats = ConfigParser(globals=False)
             data_stats.read_config(data_stats_file)
 
-            # with open(str(data_stats_file), 'r') as f:
-            #     data_stats_content=yaml.load(f, Loader=yaml.CLoader)
-            #     # data_stats_content=yaml.load(f, Loader=yaml.CBaseLoader)
-            #     data_stats.set(config=data_stats_content)
-
             if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
                 input_config = ConfigParser.load_config_file(self.data_list_file)
                 print("Loaded self.data_list_file", self.data_list_file)
@@ -187,9 +182,7 @@ class SegresnetAlgo(BundleAlgo):
 
             image_size_mm_90 = data_stats["stats_summary#image_stats#sizemm#percentile_90_0"]
             image_size_mm_median = data_stats["stats_summary#image_stats#sizemm#median"]
-            # image_size_median = (np.array(image_size_mm_median) / np.array(spacing)).astype(np.int32).tolist()
             image_size_90 = (np.array(image_size_mm_90) / np.array(spacing)).astype(np.int32).tolist()
-            # image_size = data_stats["stats_summary#image_stats#shape#percentile_90_0"]
 
             print('Found sizemm in new datastats median', image_size_mm_median, 'per90', image_size_mm_90,  'n_cases', n_cases)
 

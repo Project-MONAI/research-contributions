@@ -37,7 +37,7 @@ from monai.bundle.config_parser import ConfigParser
 from monai.data import CacheDataset, DataLoader, Dataset, decollate_batch, list_data_collate, DistributedSampler
 from monai.losses import DeepSupervisionLoss
 from monai.metrics import CumulativeAverage
-from monai.inferers import SlidingWindowInferer
+from monai.inferers import SlidingWindowInfererAdapt
 from monai.utils import ImageMetaKey
 from monai.networks.layers.factories import split_args
 
@@ -90,11 +90,16 @@ from monai.apps.auto3dseg.transforms import EnsureSameShaped
 from monai.metrics import DiceHelper
 
 
+from monai.apps.utils import DEFAULT_FMT
+from monai.apps.auto3dseg.auto_runner import logger
+print = logger.debug
+
+tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
+
 if __package__ in (None, ""):
     from utils import auto_adjust_network_settings
 else:
     from .utils import auto_adjust_network_settings
-
 
 
 class LabelEmbedClassIndex(MapTransform):
@@ -153,18 +158,6 @@ def schedule_validation_epochs(num_epochs, num_epochs_per_validation=None, fract
         x = list(range(num_epochs_per_validation, num_epochs, num_epochs_per_validation))
 
     return x
-
-def get_gpu_mem_size():
-
-    gpu_mem = 0
-    n_gpus = torch.cuda.device_count()
-    if n_gpus > 0:
-        gpu_mem = min([torch.cuda.mem_get_info(i)[1] for i in range(n_gpus)])
-
-    gpu_mem = gpu_mem/1024**3
-
-    return gpu_mem
-
 
 class DataTransformBuilder:
     def __init__(
@@ -243,7 +236,6 @@ class DataTransformBuilder:
         extra_keys = list(self.extra_modalities)
 
         if self.extra_options.get("crop_foreground", False) and len(extra_keys) == 0:
-            print("Transform cropping foreground!!!")
             ts.append(CropForegroundd(keys=keys, source_key=self.image_key, allow_missing_keys=True, margin=10, allow_smaller=True))
 
         if self.resample:
@@ -355,7 +347,7 @@ class DataTransformBuilder:
 
             num_steps_per_image = self.crop_params.get("num_steps_per_image", 1)
             if num_steps_per_image > 1:
-                print('Cropping with num_steps_per_image', num_steps_per_image)
+                print(f"Cropping with num_steps_per_image {num_steps_per_image}")
 
             ts.append(
                 RandCropByLabelClassesd(
@@ -462,15 +454,14 @@ class DataTransformBuilder:
 
         ts.extend(self.get_final_transforms())
 
-        if self.lazy_evaluation:
-            ts.append(Identityd(keys=[self.image_key, self.label_key])) #?
+        if self.lazy_evaluation: #experimental
             compose_ts = Compose(ts,
                                 lazy_evaluation=True,
                                 verbose=self.lazy_verbose,
                                 override_keys=[self.image_key, self.label_key],
                                 overrides = dict(mode=["bilinear", "nearest"],
                                                 padding_mode=["border","border"],
-                                                # dtype = torch.float32
+                                                dtype = torch.float32
                                                 ),
                                 )
         else:
@@ -500,12 +491,20 @@ class Segmenter:
         self.distributed = dist.is_initialized()
 
         if self.global_rank == 0:
-            print("Segmenter started", config_file, config_dict)
+            print(f"Segmenter started  config_file:{config_file}, config_dict: {config_dict}")
 
         np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True)
+        logging.getLogger("torch.nn.parallel.distributed").setLevel(logging.WARNING)
+
 
         config = self.parse_input_config(config_file=config_file, override=config_dict)
         self.config = config
+
+        if config["ckpt_path"] is not None and not os.path.exists(config["ckpt_path"]):
+            os.makedirs(config["ckpt_path"], exist_ok=True)
+
+        self.logger_configure(log_output_file=config["log_output_file"])
+
 
         if config["fork"] and "fork" in mp.get_all_start_methods():
             mp.set_start_method("fork", force=True)  # lambda functions fail to pickle without it
@@ -522,8 +521,6 @@ class Segmenter:
         if self.global_rank == 0:
             print(yaml.dump(config))
 
-        if config["ckpt_path"] is not None and not os.path.exists(config["ckpt_path"]):
-            os.makedirs(config["ckpt_path"], exist_ok=True)
 
         if config["determ"]:
             set_determinism(seed=0)
@@ -532,7 +529,6 @@ class Segmenter:
 
 
         ##auto adjust network settings
-
         if config["auto_scale_batch"] or config["auto_scale_roi"] or config["auto_scale_filters"]:
             roi_size, _, init_filters, batch_size = auto_adjust_network_settings(
                                 auto_scale_batch = config["auto_scale_batch"],
@@ -564,34 +560,14 @@ class Segmenter:
         if config.get("sliding_inferrer") is not None:
             self.sliding_inferrer = ConfigParser(config["sliding_inferrer"]).get_parsed_content()
         else:
-
-            try:
-
-                from monai.inferers import SlidingWindowInfererAdapt
-                self.sliding_inferrer = SlidingWindowInfererAdapt(
-                    roi_size=config["roi_size"],
-                    sw_batch_size=1,
-                    overlap=0.625,
-                    mode="gaussian",
-                    cache_roi_weight_map=False,
-                    progress=False
-                )
-
-                if self.global_rank==0:
-                    print('Using SlidingWindowInfererAdapt!')
-
-            except:
-
-                self.sliding_inferrer = SlidingWindowInferer(
-                    roi_size=config["roi_size"],
-                    sw_batch_size=1,
-                    overlap=0.625,
-                    mode="gaussian",
-                    cache_roi_weight_map=True,
-                    progress=False,
-                    cpu_thresh=512**3 // config["output_classes"],
-                )
-
+            self.sliding_inferrer = SlidingWindowInfererAdapt(
+                roi_size=config["roi_size"],
+                sw_batch_size=1,
+                overlap=0.625,
+                mode="gaussian",
+                cache_roi_weight_map=False,
+                progress=False
+            )
 
         self._data_transform_builder : DataTransformBuilder = None
         self.lr_scheduler = None
@@ -616,8 +592,7 @@ class Segmenter:
             custom_transforms[tr["key"]].append(tr["transform"])
 
         if len(custom_transforms) > 0 and self.global_rank == 0:
-            print("Using custom transforms", custom_transforms)
-
+            print(f"Using custom transforms {custom_transforms}")
 
         if isinstance(config["class_index"], list) and len(config["class_index"])>0:
             # custom label embedding, if class_index provided
@@ -626,13 +601,11 @@ class Segmenter:
 
         return custom_transforms
 
-
     def get_data_transform_builder(self):
 
         if self._data_transform_builder is None:
             config = self.config
             custom_transforms = self.get_custom_transforms()
-
 
             self._data_transform_builder = DataTransformBuilder(
                 roi_size=config["roi_size"],
@@ -658,7 +631,6 @@ class Segmenter:
 
         return self._data_transform_builder
 
-
     def setup_model(self, pretrained_ckpt_name=None):
 
         config = self.config
@@ -670,7 +642,6 @@ class Segmenter:
         if norm_name == "INSTANCE_NVFUSER":
             _, has_nvfuser = optional_import("apex.normalization", name="InstanceNorm3dNVFuser")
             if has_nvfuser and spatial_dims == 3:
-                # ensure not inplace activations for  INSTANCE_NVFUSER (if available from Apex)
                 act = config["network"].get("act", 'relu')
                 if isinstance(act, str):
                     config["network"]["act"] = [act, {"inplace": False}]
@@ -691,7 +662,7 @@ class Segmenter:
             if config.get("anisotropic_scales", False) and 'SegResNetDS' in config["network"]["_target_"]:
                 config["network"]["resolution"] = copy.deepcopy(config["resample_resolution"])
                 if self.global_rank==0:
-                    print('Using anisotropic scales', config['network'])
+                    print(f"Using anisotropic scales {config['network']}")
 
         model = ConfigParser(config["network"]).get_parsed_content()
 
@@ -716,14 +687,57 @@ class Segmenter:
 
         if self.global_rank == 0:
             pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-            print("Total parameters count", pytorch_total_params, "distributed", self.distributed)
+            print(f"Total parameters count: {pytorch_total_params} distributed: {self.distributed}")
 
         return model
+    
+    def logger_configure(self, log_output_file: str = None) -> None:
+
+        CONFIG = {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {"monai_default": {"format": "%(message)s"}},
+            "loggers": {
+                "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
+            },
+            # "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+            "handlers": {
+                "file": {
+                    "class": "logging.FileHandler",
+                    "filename": "runner.log",
+                    "mode": "a",  
+                    "level": "DEBUG",
+                    "formatter": "monai_default",
+                    # "filters": ["rank_filter"],
+                },
+                "console": {
+                    "class": "logging.StreamHandler",
+                    "level": "INFO", 
+                    "formatter": "monai_default",
+                    # "filters": ["rank_filter"],
+                },
+            },
+        }
+
+
+        if log_output_file is None:
+            log_output_file = os.path.join(self.config["ckpt_path"], "training.log")
+        CONFIG["handlers"]["file"]["filename"] = log_output_file
+
+        if self.config["debug"]:
+            CONFIG["handlers"]["console"]["level"] = "DEBUG"
+
+        logging.config.dictConfig(CONFIG)
+        # if self.global_rank!=0:
+        #      logger.addFilter(lambda x: False)
+
+        print(f"TEST LOGGER on rank {self.config['rank']}, {self.config['global_rank']}")
+
+
 
     def parse_input_config(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}
     ) -> Tuple[ConfigParser, Dict]:
-
 
         config = {}
         if config_file is None or override.get("use_ckpt_config", False) == True:
@@ -734,7 +748,7 @@ class Segmenter:
                     checkpoint = torch.load(ckpt, map_location="cpu")
                     config = checkpoint.get("config", {})
                     if self.global_rank==0:
-                        print(f"Initializing config from the checkpoint {ckpt}: ", yaml.dump(config))
+                        print(f"Initializing config from the checkpoint {ckpt}: {yaml.dump(config)}")
 
             if len(config)==0 and config_file is None:
                 warnings.warn("No input config_file provided, and no valid checkpoints found")
@@ -764,9 +778,11 @@ class Segmenter:
         if "normalize_mode" not in config:
             config["normalize_mode"] = "range" if config["modality"].lower() == "ct" else "meanstd"
             if self.global_rank == 0:
-                print("CONFIG: normalize_mode is not provided, assuming: ", config["normalize_mode"])
+                print(f"CONFIG: normalize_mode is not provided, assuming: {config['normalize_mode']}")
 
         # assign defaults
+        config.setdefault("debug", False)
+
         config.setdefault("loss", None)
         config.setdefault("acc", None)
         config.setdefault("amp", True)
@@ -796,6 +812,7 @@ class Segmenter:
 
         config.setdefault("ckpt_path", None)
         config.setdefault("ckpt_save", True)
+        config.setdefault("log_output_file", None)
 
         config.setdefault("crop_mode", "ratio")
         config.setdefault("crop_ratios", None)
@@ -825,11 +842,8 @@ class Segmenter:
         config.setdefault("auto_scale_batch", False)
         config.setdefault("auto_scale_roi", False)
         config.setdefault("auto_scale_filters", False)
-        # config.setdefault("auto_gpu_adapt", False)
-
 
         if pretrained_ckpt_name is not None:
-            # config["auto_gpu_adapt"] = False
             config["auto_scale_roi"] = False
             config["auto_scale_filters"] = False
 
@@ -865,7 +879,7 @@ class Segmenter:
 
         save_time = time.time() - save_time
         kwargs.pop("config")
-        print("Saving checkpoint process:", ckpt, kwargs, "save_time {:.2f}s".format(save_time))
+        print(f"Saving checkpoint process: {ckpt}, {kwargs}, save_time {save_time:.2f}s")
 
         return save_time
 
@@ -925,7 +939,6 @@ class Segmenter:
             shl = shl0
 
         return shl
-
 
 
     def get_train_loader(self, data, cache_rate=0, persistent_workers=False):
@@ -1019,11 +1032,10 @@ class Segmenter:
         if config["quick"]:  # quick run on a smaller subset of files
             train_files, validation_files = train_files[:8], validation_files[:8]
         if self.global_rank == 0:
-            print("train_files files", len(train_files), "validation files", len(validation_files))
+            print(f"train_files files {len(train_files)}, validation files {len(validation_files)}")
 
         if len(validation_files)==0:
             warnings.warn("No validation files found!")
-
 
         cache_rate_train, cache_rate_val, cache_class_indices = self.get_cache_rate(train_cases=len(train_files),validation_cases=len(validation_files))
 
@@ -1043,8 +1055,8 @@ class Segmenter:
         if config["num_steps_per_image"] is None and cache_rate_train < 0.75 and config["cache_rate"] is None and not distributed:
             config["num_steps_per_image"] = 4
             if self.global_rank==0:
-                print("Given the low cache_rate", cache_rate_train, "num_steps_per_image was autoset to",
-                    config["num_steps_per_image"], "to disable this behaviour set manually, e.g. num_steps_per_image=1")
+                print(f"Given the low cache_rate {cache_rate_train} num_steps_per_image was autoset to" 
+                      f"{config['num_steps_per_image']}, to disable this behaviour set manually, e.g. num_steps_per_image=1")
         else:
             config["num_steps_per_image"] = 1
 
@@ -1060,7 +1072,7 @@ class Segmenter:
         val_schedule_list = schedule_validation_epochs(num_epochs=num_epochs,
                                                        num_epochs_per_validation=num_epochs_per_validation)
         if self.global_rank==0:
-            print('Scheduling validation loops at epochs:', val_schedule_list)
+            print(f"Scheduling validation loops at epochs: {val_schedule_list}")
 
 
         train_loader = self.get_train_loader(data=train_files,
@@ -1075,7 +1087,7 @@ class Segmenter:
 
         optim_name = config.get("optim_name", None) #experimental
         if optim_name is not None:
-            print("Using optimizer!!!", optim_name)
+            print(f"Using optimizer: {optim_name}")
             if optim_name=='novograd_monai':
                 from monai.optimizers import Novograd
                 optimizer = Novograd(params=self.model.parameters(), lr = config["learning_rate"], weight_decay=1.e-5)
@@ -1106,7 +1118,7 @@ class Segmenter:
             progress_path = os.path.join(ckpt_path, "progress.yaml")
 
             tb_writer = SummaryWriter(log_dir=ckpt_path)
-            print("Writing Tensorboard logs to ", tb_writer.log_dir)
+            print(f"Writing Tensorboard logs to {tb_writer.log_dir}")
 
             csv_path = os.path.join(ckpt_path, "accuracy_history.csv")
             self.save_history_csv(
@@ -1134,7 +1146,14 @@ class Segmenter:
         train_time = validation_time = 0
         val_acc_history = []
 
-        for epoch in range(num_epochs):
+
+        range_num_epochs = range(num_epochs)
+        if  self.global_rank==0 and has_tqdm and not config["debug"]:
+            range_num_epochs = tqdm(range(num_epochs),
+                                desc= str(os.path.basename(config["bundle_root"])) + " - training",
+                                unit="epoch")
+
+        for epoch in range_num_epochs:
 
             report_epoch = epoch * num_steps_per_image
 
@@ -1169,11 +1188,11 @@ class Segmenter:
 
             if self.global_rank == 0:
                 print(
-                    "Final training  {}/{}".format(report_epoch, report_num_epochs - 1),
-                    "loss: {:.4f}".format(train_loss),
-                    "acc_avg: {:.4f}".format(np.mean(train_acc)),
-                    "acc", train_acc,
-                    "time {:.2f}s".format(train_time)
+                    f"Final training  {report_epoch}/{report_num_epochs - 1}"
+                    f"loss: {train_loss:.4f}"
+                    f"acc_avg: {np.mean(train_acc):.4f}"
+                    f"acc {train_acc}"
+                    f"time {train_time:.2f}s"
                 )
 
                 if tb_writer is not None:
@@ -1213,11 +1232,11 @@ class Segmenter:
 
                 if self.global_rank == 0:
                     print(
-                        "Final validation  {}/{}".format(report_epoch, report_num_epochs - 1),
-                        "loss: {:.4f}".format(val_loss),
-                        "acc_avg: {:.4f}".format(val_acc_mean),
-                        "acc", val_acc,
-                        "time {:.2f}s".format(validation_time)
+                        f"Final validation {report_epoch}/{report_num_epochs - 1}"
+                        f"loss: {val_loss:.4f}"
+                        f"acc_avg: {val_acc_mean:.4f}"
+                        f"acc {val_acc}"
+                        f"time {validation_time:.2f}s"
                     )
 
                     if tb_writer is not None:
@@ -1288,12 +1307,11 @@ class Segmenter:
                     if validation_time==0:
                         validation_time = train_time
                     time_remaining_estimate += validation_time *  len(val_schedule_list)
-                print('Estimated remaining training time for the current model fold', config["fold"], 'is',
-                       time.strftime("%H hr %M min", time.gmtime(time_remaining_estimate)))
+                print(f"Estimated remaining training time for the current model fold {config['fold']} is"
+                      f"{time.strftime('%H hr %M min', time.gmtime(time_remaining_estimate))}")
 
             if distributed:
                 dist.barrier()
-
 
             ## early stopping
             if config["early_stopping_fraction"] > 0 and epoch > num_epochs/2 and len(val_acc_history)>10:
@@ -1307,13 +1325,11 @@ class Segmenter:
                 early_stopping_fraction = (mac-mic)/(abs(mac) + 1e-8)
                 if mac > 0 and mic > 0 and early_stopping_fraction < config["early_stopping_fraction"]:
                     if self.global_rank==0:
-                        print(f"Early stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} ", check_stats[-50:])
+                        print(f"Early stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} {check_stats[-50:]}")
                     break
                 else:
                    if self.global_rank==0:
-                        print(f"No stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} ", check_stats[-50:])
-
-
+                        print(f"No stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} {check_stats[-50:]}")
 
 
         #### end of main epoch loop
@@ -1334,7 +1350,7 @@ class Segmenter:
                                                                 best_metric_epoch=best_metric_epoch)
             else:
                 if self.global_rank==0:
-                    print("Unable to validate at the original res since none model checkpoints found", best_ckpt_path, intermediate_ckpt_path)
+                    print(f"Unable to validate at the original res since none model checkpoints found {best_ckpt_path}, {intermediate_ckpt_path}")
 
         if tb_writer is not None:
             print(f"=== DONE: best_metric: {best_metric:.4f} at epoch: {best_metric_epoch} of {report_num_epochs}.")
@@ -1357,9 +1373,9 @@ class Segmenter:
         val_acc_mean = float(np.mean(val_acc))
         if self.global_rank == 0:
             print(
-                "Original resolution validation:",
-                "loss: {:.4f}".format(val_loss), "acc_avg: {:.4f}".format(val_acc_mean),
-                "acc", val_acc, "time", validation_time)
+                f"Original resolution validation:"
+                f"loss: {val_loss:.4f} acc_avg: {val_acc_mean:.4f}"
+                f"acc {val_acc} time {validation_time}")
 
             if progress_path is not None:
                 self.save_progress_yaml(
@@ -1391,7 +1407,7 @@ class Segmenter:
                 _, validation_files = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=config["fold"])
 
         if self.global_rank==0:
-            print("validation files", len(validation_files))
+            print(f"validation files {len(validation_files)}")
 
         if len(validation_files)==0:
             warnings.warn("No validation files found!")
@@ -1430,11 +1446,10 @@ class Segmenter:
         val_acc_mean = float(np.mean(val_acc))
 
         if self.global_rank == 0:
-            print("Validation complete, loss_avg: {:.4f}".format(val_loss),
-                "acc_avg: {:.4f}".format(val_acc_mean),
-                "acc",
-                val_acc,
-                "time {:.2f}s".format(time.time() - start_time))
+            print(f"Validation complete, loss_avg: {val_loss:.4f}"
+                f"acc_avg: {val_acc_mean:.4f}"
+                f"acc {val_acc}"
+                f"time {time.time() - start_time:.2f}s")
 
         return val_acc_mean, val_loss, val_acc
 
@@ -1457,7 +1472,8 @@ class Segmenter:
             )
 
         if self.global_rank==0:
-            print("testing_files files", len(testing_files))
+            print("testing_files files {len(testing_files)}")
+
         if len(testing_files)==0:
             warnings.warn("No testing_files files found!")
             return
@@ -1491,7 +1507,7 @@ class Segmenter:
         )
 
         if self.global_rank == 0:
-            print("Inference complete, time {:.2f}s".format(time.time() - start_time))
+            print(f"Inference complete, time {time.time() - start_time:.2f}s")
 
     @torch.no_grad()
     def infer_image(self, image_file, save_mask=False, channels_last=False):
@@ -1533,7 +1549,7 @@ class Segmenter:
 
         pred = pred[0]
 
-        print("Inference complete, time {:.2f}s".format(time.time() - start_time), "shape", pred.shape, image_file)
+        print(f"Inference complete, time {time.time() - start_time:.2f}s shape {pred.shape} {image_file}")
 
         return pred
 
@@ -1605,10 +1621,10 @@ class Segmenter:
 
             if global_rank == 0:
                 print(
-                    "Epoch {}/{} {}/{}".format(epoch, num_epochs, idx, len(train_loader)),
-                    "loss: {:.4f}".format(avg_loss),
-                    "acc", avg_acc,
-                    "time {:.2f}s".format(time.time() - start_time),
+                    f"Epoch {epoch}/{num_epochs} {idx}/{len(train_loader)}"
+                    f"loss: {avg_loss:.4f}"
+                    f"acc {avg_acc}"
+                    f"time {time.time() - start_time:.2f}s"
                 )
                 start_time = time.time()
 
@@ -1696,8 +1712,6 @@ class Segmenter:
 
                     target = batch_data["label"].as_subclass(torch.Tensor).to(device=pred.device)
                     with torch.no_grad():
-                        print('accuracy pred', pred.shape, 'target', target.shape)
-
                         acc = acc_function(pred, target)
                         batch_size_adjusted = batch_size
                         if isinstance(acc, (list, tuple)):
@@ -1709,18 +1723,17 @@ class Segmenter:
 
                 if global_rank == 0:
                     print(
-                        "Val {}/{} {}/{}".format(epoch, num_epochs, idx, len(val_loader)),
-                        "loss: {:.4f}".format(avg_loss),
-                        "acc",
-                        avg_acc,
-                        "time {:.2f}s".format(time.time() - start_time),
+                        f"Val {epoch}/{num_epochs} {idx}/{len(val_loader)}"
+                        f"loss: {avg_loss:.4f}"
+                        f"acc {avg_acc}"
+                        f"time {time.time() - start_time:.2f}s"
                     )
 
             else:
                 if global_rank == 0:
                     print(
-                        "Val {}/{} {}/{}".format(epoch, num_epochs, idx, len(val_loader)),
-                        "time {:.2f}s".format(time.time() - start_time),
+                        f"Val {epoch}/{num_epochs} {idx}/{len(val_loader)}"
+                        f"time {time.time() - start_time:.2f}s"
                     )
 
             start_time = time.time()
@@ -1739,7 +1752,6 @@ class Segmenter:
         if np.any(avg_acc < 0):
             dist.barrier()
             warnings.warn('Avg dice accuracy is negative, something went wrong!!!!!')
-            print("global_rank", global_rank, "rank", rank, "cumulative avg info", run_acc.sum, run_acc.count)
 
         return avg_loss, avg_acc
 
@@ -1855,7 +1867,7 @@ class Segmenter:
             with open(progress_path, "a") as progress_file:
                 yaml.dump([report], stream=progress_file, allow_unicode=True, default_flow_style=None, sort_keys=False)
 
-        print("Progress:", ",".join(f" {k}: {v}" for k, v in report.items()))
+        print("Progress:" + ",".join(f" {k}: {v}" for k, v in report.items()))
 
     def run(self):
         if self.config["validate"]["enabled"]:
@@ -1878,20 +1890,22 @@ def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]
     if dist_available:
         mgpu = override.get("mgpu", None)
         if mgpu is not None:
+            logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
             dist.init_process_group(backend="nccl", rank=rank, **mgpu)  # we spawn this process
             mgpu.update({"rank": rank, "global_rank": rank})
             if rank == 0:
-                print("Distributed: initializing multi-gpu tcp:// process group", mgpu)
+                print(f"Distributed: initializing multi-gpu tcp:// process group {mgpu}")
 
         elif dist_launched():
 
             rank = int(os.getenv("LOCAL_RANK"))
             global_rank = int(os.getenv("RANK"))
             world_size = int(os.getenv("LOCAL_WORLD_SIZE"))
+            logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
             dist.init_process_group(backend="nccl", init_method="env://")  # torchrun spawned it
             override["mgpu"] = {"world_size": world_size, "rank": rank, "global_rank": global_rank}
 
-            print("Distributed launched: initializing multi-gpu env:// process group", override["mgpu"])
+            print(f"Distributed launched: initializing multi-gpu env:// process group {override['mgpu']}")
 
     segmenter = Segmenter(config_file=config_file, config_dict=override, rank=rank, global_rank=global_rank)
     best_metric = segmenter.run()
@@ -1915,11 +1929,11 @@ def run_segmenter(config_file: Optional[Union[str, Sequence[str]]] = None, **kwa
     nprocs = torch.cuda.device_count()
 
     if nprocs > 1 and not dist_launched():
-        print('Manually spawning processes', nprocs)
+        print("Manually spawning processes {nprocs}")
         kwargs["mgpu"] = {"world_size": nprocs, "init_method": kwargs.get("init_method", "tcp://127.0.0.1:23456")}
         torch.multiprocessing.spawn(run_segmenter_worker, nprocs=nprocs, args=(config_file, kwargs))
     else:
-        print('Not spawning processes, dist is already launched', nprocs)
+        print("Not spawning processes, dist is already launched {nprocs}")
         run_segmenter_worker(0, config_file, kwargs)
 
 

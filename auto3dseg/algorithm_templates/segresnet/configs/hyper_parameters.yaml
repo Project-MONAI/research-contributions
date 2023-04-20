@@ -8,15 +8,14 @@ output_classes: null
 class_names: null
 class_index: null
 
+degug: false
 quick: false
 channels_last: true
 validate_final_original_res: false
 calc_val_loss: false
 
-# auto_gpu_adapt: true
-
-auto_scale_batch: True
-auto_scale_roi: false
+auto_scale_roi: true
+auto_scale_batch: false
 auto_scale_filters: false
 
 
@@ -28,6 +27,7 @@ normalize_mode: meanstd
 amp: true
 bundle_root: null
 ckpt_path: "$@bundle_root + '/model'"
+log_output_file: null
 ckpt_save: true
 cache_rate: null
 cache_class_indices: null
