@@ -8,7 +8,7 @@ output_classes: null
 class_names: null
 class_index: null
 
-degug: false
+debug: false
 quick: false
 channels_last: true
 validate_final_original_res: false

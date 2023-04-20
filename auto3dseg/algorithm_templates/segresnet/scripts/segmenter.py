@@ -90,10 +90,8 @@ from monai.apps.auto3dseg.transforms import EnsureSameShaped
 from monai.metrics import DiceHelper
 
 
-from monai.apps.utils import DEFAULT_FMT
 from monai.apps.auto3dseg.auto_runner import logger
 print = logger.debug
-
 tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
 
 if __package__ in (None, ""):
@@ -414,7 +412,8 @@ class DataTransformBuilder:
 
     @classmethod
     def get_postprocess_transform(
-        cls, save_mask=False, invert=False, transform=None, sigmoid=False, output_path=None, resample=False
+        cls, save_mask=False, invert=False, transform=None, sigmoid=False, output_path=None, resample=False,
+        data_root_dir = "", output_dtype = np.uint8
     ) -> Compose:
 
         ts = []
@@ -431,7 +430,8 @@ class DataTransformBuilder:
                     keys=["seg"],
                     output_dir=output_path,
                     output_postfix="",
-                    output_dtype=np.uint8,
+                    data_root_dir = data_root_dir,
+                    output_dtype=output_dtype,
                     separate_folder=False,
                     squeeze_end_dims=True,
                     resample=False,
@@ -791,6 +791,7 @@ class Segmenter:
         config.setdefault("batch_size", 1)
         config.setdefault("determ", False)
         config.setdefault("quick", False)
+        config.setdefault("sigmoid", False)
         config.setdefault("cache_rate", None)
         config.setdefault("cache_class_indices", None)
 
@@ -827,6 +828,13 @@ class Segmenter:
         config.setdefault("class_names", [])
         if not isinstance(config["class_names"], (list, tuple)):
             config["class_names"] = []
+
+        if len(config["class_names"])==0:
+            n_foreground_classes = int(config["output_classes"])
+            if not config["sigmoid"]:
+                n_foreground_classes -= 1
+            config["class_names"] = ["acc_"+str(i) for i in range(n_foreground_classes)]
+
 
         pretrained_ckpt_name = config.get("pretrained_ckpt_name", None)
         if pretrained_ckpt_name is None:
@@ -1424,7 +1432,9 @@ class Segmenter:
                 transform=val_transform,
                 sigmoid=self.config["sigmoid"],
                 output_path=output_path,
-                resample = resample
+                resample = resample,
+                data_root_dir=self.config["data_file_base_dir"],
+                output_dtype=np.uint8 if self.config["output_classes"] < 255 else np.uint16
             )
 
         start_time = time.time()
@@ -1487,7 +1497,9 @@ class Segmenter:
             transform=inf_transform,
             sigmoid=self.config["sigmoid"],
             output_path=output_path,
-            resample=self.config["resample"]
+            resample=self.config["resample"],
+            data_root_dir=self.config["data_file_base_dir"],
+            output_dtype=np.uint8 if self.config["output_classes"] < 255 else np.uint16
         )
 
         start_time = time.time()
@@ -1541,7 +1553,9 @@ class Segmenter:
         logits = None
 
         post_transforms = DataTransformBuilder.get_postprocess_transform(
-            save_mask=save_mask, invert=True, transform=inf_transform, sigmoid=sigmoid, output_path=output_path, resample=resample
+            save_mask=save_mask, invert=True, transform=inf_transform, sigmoid=sigmoid, output_path=output_path, resample=resample,
+            data_root_dir=self.config["data_file_base_dir"],
+            output_dtype=np.uint8 if self.config["output_classes"] < 255 else np.uint16
         )
 
         batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[0]  # make Meta tensor
