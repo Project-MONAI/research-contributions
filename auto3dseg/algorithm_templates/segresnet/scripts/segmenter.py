@@ -724,7 +724,7 @@ class Segmenter:
             log_output_file = os.path.join(self.config["ckpt_path"], "training.log")
         CONFIG["handlers"]["file"]["filename"] = log_output_file
 
-        if self.config["debug"]:
+        if self.config["debug"] or bool(os.environ.get("SEGRESNET_DEBUG", False)):
             CONFIG["handlers"]["console"]["level"] = "DEBUG"
 
         logging.config.dictConfig(CONFIG)
