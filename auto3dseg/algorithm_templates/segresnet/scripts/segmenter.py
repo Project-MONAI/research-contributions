@@ -1241,11 +1241,9 @@ class Segmenter:
 
                 if self.global_rank == 0:
                     print(
-                        f"Final validation {report_epoch}/{report_num_epochs - 1}"
-                        f"loss: {val_loss:.4f}"
-                        f"acc_avg: {val_acc_mean:.4f}"
-                        f"acc {val_acc}"
-                        f"time {validation_time:.2f}s"
+                        f"Final validation {report_epoch}/{report_num_epochs - 1} "
+                        f"loss: {val_loss:.4f} acc_avg: {val_acc_mean:.4f} "
+                        f"acc {val_acc} time {validation_time:.2f}s"
                     )
 
                     if tb_writer is not None:
@@ -1636,9 +1634,9 @@ class Segmenter:
 
             if global_rank == 0:
                 print(
-                    f"Epoch {epoch}/{num_epochs} {idx}/{len(train_loader)}"
-                    f"loss: {avg_loss:.4f}"
-                    f"acc {avg_acc}"
+                    f"Epoch {epoch}/{num_epochs} {idx}/{len(train_loader)} "
+                    f"loss: {avg_loss:.4f} "
+                    f"acc {avg_acc} "
                     f"time {time.time() - start_time:.2f}s"
                 )
                 start_time = time.time()
@@ -1738,18 +1736,13 @@ class Segmenter:
 
                 if global_rank == 0:
                     print(
-                        f"Val {epoch}/{num_epochs} {idx}/{len(val_loader)}"
-                        f"loss: {avg_loss:.4f}"
-                        f"acc {avg_acc}"
-                        f"time {time.time() - start_time:.2f}s"
+                        f"Val {epoch}/{num_epochs} {idx}/{len(val_loader)}  loss: {avg_loss:.4f} "
+                        f"acc {avg_acc}  time {time.time() - start_time:.2f}s"
                     )
 
             else:
                 if global_rank == 0:
-                    print(
-                        f"Val {epoch}/{num_epochs} {idx}/{len(val_loader)}"
-                        f"time {time.time() - start_time:.2f}s"
-                    )
+                    print(f"Val {epoch}/{num_epochs} {idx}/{len(val_loader)} time {time.time() - start_time:.2f}s")
 
             start_time = time.time()
 
