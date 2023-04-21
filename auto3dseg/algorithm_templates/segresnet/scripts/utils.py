@@ -1,6 +1,8 @@
 import numpy as np
 import torch
-import warnings
+
+from monai.apps.auto3dseg.auto_runner import logger
+print = logger.debug
 
 def get_gpu_mem_size():
 
@@ -10,8 +12,6 @@ def get_gpu_mem_size():
         gpu_mem = min([torch.cuda.get_device_properties(i).total_memory for i in range(n_gpus)])
 
     gpu_mem = gpu_mem/1024**3
-    print('GPU device memory min: ', gpu_mem)
-
 
     return gpu_mem
 
@@ -36,16 +36,16 @@ def auto_adjust_network_settings(
     base_numel = roi_size.prod()
     gpu_factor = 1
 
-
-
     # adapting to GPU
     if auto_scale_batch or auto_scale_roi or auto_scale_filters:
         gpu_mem = get_gpu_mem_size()
+        print(f"GPU device memory min: {gpu_mem}")
+
         gpu_factor_init =  gpu_factor =  max(1, gpu_mem/16)
         if anisotropic_scales:
             gpu_factor = max(1, 0.8 * gpu_factor)
 
-        print('base_numel', base_numel, 'gpu_factor', gpu_factor, 'gpu_factor_init', gpu_factor_init)
+        print(f"base_numel {base_numel} gpu_factor {gpu_factor} gpu_factor_init {gpu_factor_init}")
     else:
         gpu_mem = 16
         gpu_factor = gpu_factor_init = 1
@@ -53,7 +53,7 @@ def auto_adjust_network_settings(
 
     if image_size_mm is not None and spacing is not None:
         image_size = np.floor(np.array(image_size_mm) / np.array(spacing)) #TODO
-        print('input roi', roi_size, 'image_size', image_size, 'numel', roi_size.prod())
+        print(f"input roi {roi_size} image_size {image_size} numel  {roi_size.prod()}")
         roi_size = np.minimum(roi_size, image_size)
     else:
         raise ValueError("image_size_mm or spacing is not provided, network params may be inaccuracy")
@@ -64,10 +64,10 @@ def auto_adjust_network_settings(
     while roi_size.prod() < max_numel:
         old_numel = roi_size.prod()
         roi_size = np.minimum(roi_size * 1.15, image_size)
-        print('increasing roi step', roi_size)
+        print(f"increasing roi step {roi_size}")
         if roi_size.prod()==old_numel:
             break
-        print('increasing roi result 1', roi_size)
+        print(f"increasing roi result 1 {roi_size}")
 
 
     # adjust number of network downsize levels
@@ -75,13 +75,13 @@ def auto_adjust_network_settings(
 
         if levels is None:
             levels = np.floor(np.log2(roi_size))
-            print('levels 1', levels)
+            print(f"levels 1 {levels}")
             levels = min(min(levels) , levels_limit) # limit to 5
-            print('levels 2', levels)
+            print(f"levels 2' {levels}")
 
         factor = 2**(levels - 1)
         roi_size = factor * np.maximum(2, np.floor(roi_size/factor))
-        print('roi_size factored', roi_size)
+        print(f"roi_size factored {roi_size}")
 
     else:
 
@@ -91,34 +91,34 @@ def auto_adjust_network_settings(
         if levels is None:
             #calc levels
             levels = np.floor(np.log2(roi_size))
-            print('levels 1 aniso', levels, 'extra_levels', extra_levels)
+            print(f"levels 1 aniso {levels} extra_levels {extra_levels}")
             levels = min(min(levels + extra_levels), levels_limit) # limit to 5
-            print('levels 2', levels)
+            print(f"levels 2 {levels}")
 
         factor = 2**(np.maximum(1,levels - extra_levels) - 1)
         roi_size = factor * np.maximum(2, np.floor(roi_size/factor))
-        print('roi_size factored', roi_size, 'factor', factor, 'extra_levels', extra_levels)
+        print(f"roi_size factored {roi_size} factor {factor} extra_levels {extra_levels}")
 
 
     # optionally adjust initial filters (above 32)
     if auto_scale_filters and roi_size.prod() < base_numel*gpu_factor:
         init_filters = int(max(32, np.floor(4 * (base_numel / roi_size.prod())) * 8))
-        print('checking to increase init_filters', init_filters)
+        print(f"checking to increase init_filters {init_filters}")
         gpu_factor_init *= init_filters / 32
         gpu_factor *= init_filters / 32
     else:
-        print(f'kept filters the same base_numel {base_numel},  gpu_factor {gpu_factor}')
+        print(f"kept filters the same base_numel {base_numel},  gpu_factor {gpu_factor}")
 
         init_filters = init_filters_default
 
     # finally scale batch
     if auto_scale_batch and roi_size.prod() < base_numel*gpu_factor_init:
         batch_size =int(1.1*gpu_factor_init)
-        print(f'inscreased batch_size {batch_size} base_numel {base_numel},  gpu_factor {gpu_factor},  gpu_factor_init {gpu_factor_init}')
+        print(f"inscreased batch_size {batch_size} base_numel {base_numel},  gpu_factor {gpu_factor},  gpu_factor_init {gpu_factor_init}")
 
     else:
         batch_size = batch_size_default
-        print(f'kept batch the same base_numel {base_numel},  gpu_factor {gpu_factor},  gpu_factor_init {gpu_factor_init}')
+        print(f"kept batch the same base_numel {base_numel},  gpu_factor {gpu_factor},  gpu_factor_init {gpu_factor_init}")
 
 
 
