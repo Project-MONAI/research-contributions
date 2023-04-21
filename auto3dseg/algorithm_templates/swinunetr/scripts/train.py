@@ -549,7 +549,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 mode="gaussian",
                                 overlap=overlap_ratio,
                                 sw_device=device)
-                    except BaseException:
+                    except RuntimeError as e:
+                        if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                            raise e
                         val_devices[val_filename] = "cpu"
 
                         with autocast(enabled=amp):
