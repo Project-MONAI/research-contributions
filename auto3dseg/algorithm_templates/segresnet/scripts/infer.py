@@ -17,19 +17,23 @@ import fire
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-
 if __package__ in (None, ""):
-    from segmenter import Segmenter, run_segmenter
+    from segmenter import Segmenter, run_segmenter, dist_launched
 else:
-    from .segmenter import Segmenter, run_segmenter
+    from .segmenter import Segmenter, run_segmenter, dist_launched
 
 
 class InferClass:
-    def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, rank: int = 0, **override):
+    def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, rank: int = 0, global_rank: int = 0, **override):
         override["infer#enabled"] = True
         if "use_ckpt_config" not in override:
             override["use_ckpt_config"] = True
-        self.segmenter = Segmenter(rank=rank, config_file=config_file, config_dict=override)
+
+        if dist_launched():
+            rank = int(os.getenv("LOCAL_RANK"))
+            global_rank = int(os.getenv("RANK"))
+
+        self.segmenter = Segmenter(config_file=config_file, rank=rank, global_rank=global_rank, config_dict=override)
 
     def infer(self, image_file):
         pred = self.segmenter.infer_image(image_file, save_mask=False)
