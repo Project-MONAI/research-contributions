@@ -42,11 +42,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
     fold = parser.get_parsed_content("fold")
-    num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
-    output_classes = parser.get_parsed_content("training#output_classes")
-    overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
-    patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
-    softmax = parser.get_parsed_content("training#softmax")
+    num_sw_batch_size = parser.get_parsed_content("num_sw_batch_size")
+    output_classes = parser.get_parsed_content("output_classes")
+    overlap_ratio = parser.get_parsed_content("overlap_ratio")
+    patch_size_valid = parser.get_parsed_content("patch_size_valid")
+    softmax = parser.get_parsed_content("softmax")
 
     ckpt_name = parser.get_parsed_content("validate")["ckpt_name"]
     output_path = parser.get_parsed_content("validate")["output_path"]
@@ -99,7 +99,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     pretrained_ckpt = torch.load(ckpt_name, map_location=device)
     model.load_state_dict(pretrained_ckpt)
-    logger.debug(f"[info] checkpoint {ckpt_name:s} loaded")
+    logger.debug(f"[debug] checkpoint {ckpt_name:s} loaded")
 
     if softmax:
         post_pred = transforms.Compose(

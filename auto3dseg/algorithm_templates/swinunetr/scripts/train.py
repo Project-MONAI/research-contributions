@@ -108,70 +108,6 @@ class EarlyStopping:
             self.best_score = val_acc
             self.counter = 0
 
-_libcudart = ctypes.CDLL("libcudart.so")
-# Set device limit on the current device
-# cudaLimitMaxL2FetchGranularity = 0x05
-p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
-_libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
-_libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
-if p_value.contents.value != 128:
-    warnings.warn(f"p_value.contents.value: {p_value.contents.value} != 128")
-
-torch.backends.cudnn.benchmark = True
-
-
-CONFIG = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {"monai_default": {"format": DEFAULT_FMT}},
-    "loggers": {
-        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
-    },
-    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
-    "handlers": {
-        "file": {
-            "class": "logging.FileHandler",
-            "filename": "runner.log",
-            "mode": "a",  # append or overwrite
-            "level": "DEBUG",
-            "formatter": "monai_default",
-            "filters": ["rank_filter"],
-        },
-        "console": {
-            "class": "logging.StreamHandler",
-            "level": "INFO",
-            "formatter": "monai_default",
-            "filters": ["rank_filter"],
-        },
-    },
-}
-
-
-class EarlyStopping:
-    def __init__(self, patience=5, delta=0, verbose=False):
-        self.patience = patience
-        self.delta = delta
-        self.verbose = verbose
-        self.counter = 0
-        self.best_score = None
-        self.early_stop = False
-        self.val_acc_max = -1
-
-    def __call__(self, val_acc):
-        if self.best_score is None:
-            self.best_score = val_acc
-        elif val_acc + self.delta < self.best_score:
-            self.counter += 1
-            if self.verbose:
-                logger.debug(
-                    f"EarlyStopping counter: {self.counter} out of {self.patience}"
-                )
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.best_score = val_acc
-            self.counter = 0
-
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -246,7 +182,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     CONFIG["handlers"]["file"]["filename"] = log_output_file
     logging.config.dictConfig(CONFIG)
 
-    logger.debug(f"[info] number of GPUs: {torch.cuda.device_count()}")
+    logger.debug(f"[debug] number of GPUs: {torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
         logging.getLogger("torch.distributed.distributed_c10d").setLevel(
             logging.WARNING)
@@ -254,7 +190,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         world_size = dist.get_world_size()
     else:
         world_size = 1
-    logger.debug(f"[info] world_size: {world_size}")
+    logger.debug(f"[debug] world_size: {world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
 
@@ -340,7 +276,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     train_loader = DataLoader(
         train_ds,
-        num_workers=parser.get_parsed_content("training#num_workers"),
+        num_workers=parser.get_parsed_content("num_workers"),
         batch_size=num_images_per_batch,
         shuffle=True,
         persistent_workers=True,
@@ -374,7 +310,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             if "out" not in key:
                 store_dict[key].copy_(model_dict[key])
         model.load_state_dict(store_dict)
-        logger.debug("[info] use pretrained weights")
+        logger.debug("[debug] use pretrained weights")
 
 
     if torch.cuda.device_count() > 1:
@@ -387,7 +323,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         post_pred = transforms.Compose([transforms.EnsureType(), transforms.Activations(
             sigmoid=True), transforms.AsDiscrete(threshold=0.5)])
 
-    loss_function = parser.get_parsed_content("training#loss")
+    loss_function = parser.get_parsed_content("loss")
 
     optimizer_part = parser.get_parsed_content(
         "optimizer", instantiate=False)
@@ -408,7 +344,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if finetune["activate"] and os.path.isfile(
             finetune["pretrained_ckpt_name"]):
         logger.debug(
-            "[info] fine-tuning pre-trained checkpoint {:s}".format(finetune["pretrained_ckpt_name"]))
+            "[debug] fine-tuning pre-trained checkpoint {:s}".format(finetune["pretrained_ckpt_name"]))
         if torch.cuda.device_count() > 1:
             model.module.load_state_dict(
                 torch.load(
@@ -420,14 +356,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     finetune["pretrained_ckpt_name"],
                     map_location=device))
     else:
-        logger.debug("[info] training from scratch")
+        logger.debug("[debug] training from scratch")
 
     if amp:
         from torch.cuda.amp import GradScaler, autocast
 
         scaler = GradScaler()
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-            logger.debug("[info] amp enabled")
+            logger.debug("[debug] amp enabled")
 
     best_metric = -1
     best_metric_epoch = -1
@@ -543,7 +479,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             "train/loss",
                             loss.item(),
                             epoch_len *
-                            num_rounds +
+                            _round +
                             step)
 
             lr_scheduler.step()
@@ -568,10 +504,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 target_num_epochs_per_validation = -1
                 for _j in range(len(ad_progress_percentages)):
                     if _percentage <= ad_progress_percentages[-1 - _j]:
-                        target_num_epochs_per_validation = ad_num_epochs_per_validation[-1 - _j]
-                        break
+                        if _j == (len(ad_progress_percentages) - \
+                                  1) or _percentage > ad_progress_percentages[-2 - _j]:
+                            target_num_epochs_per_validation = ad_num_epochs_per_validation[-1 - _j]
+                            break
 
-                if target_num_epochs_per_validation > 0 and (_round + 1) < num_rounds:
+                if target_num_epochs_per_validation > 0 and (
+                        _round + 1) < num_rounds:
                     if (_round + 1) % (target_num_epochs_per_validation //
                                        num_epochs_per_validation) != 0:
                         continue
@@ -610,9 +549,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 mode="gaussian",
                                 overlap=overlap_ratio,
                                 sw_device=device)
-                    except RuntimeError as e:
-                        if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
-                            raise e
+                    except BaseException:
                         val_devices[val_filename] = "cpu"
 
                         with autocast(enabled=amp):
@@ -740,16 +677,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         if es and (_round + 1) < num_rounds:
-            logger.warning(
-                f"{os.path.basename(bundle_root)} - training: finished with early stop")
-        else:
-            logger.warning(f"{os.path.basename(bundle_root)} - training: finished")
-
-    if torch.cuda.device_count() > 1:
-        dist.destroy_process_group()
-
-    if rank == 0:
-        if es:
             logger.warning(
                 f"{os.path.basename(bundle_root)} - training: finished with early stop")
         else:
