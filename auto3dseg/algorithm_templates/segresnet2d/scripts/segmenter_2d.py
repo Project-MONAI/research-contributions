@@ -29,6 +29,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 from monai.apps.auto3dseg.transforms import EnsureSameShaped
 from monai.bundle.config_parser import ConfigParser
+from monai.inferers import SlidingWindowInfererAdapt
 
 
 # from monai.optimizers.lr_scheduler import WarmupCosineSchedule
@@ -83,7 +84,7 @@ else:
 
 class WrappedModel2D(torch.nn.Module):
     
-    def __init__(self, net=None, memory_format=torch.preserve_format):
+    def __init__(self, net, memory_format=torch.preserve_format):
         super().__init__()
         self.net = net
         self.memory_format = memory_format
@@ -201,7 +202,26 @@ class DataTransformBuilder2D(DataTransformBuilder):
 
         
 class Segmenter2D(Segmenter):
-    
+    def __init__(
+        self, config_file: Optional[Union[str, Sequence[str]]] = None, config_dict: Dict = {}, rank: int = 0, global_rank: int = 0
+    ) -> None:
+        super().__init__(config_file=config_file, config_dict=config_dict,  rank=rank, global_rank=global_rank)
+
+        config = self.config
+
+        if config.get("sliding_inferrer") is not None:
+            self.sliding_inferrer = ConfigParser(config["sliding_inferrer"]).get_parsed_content()
+        else:
+            self.sliding_inferrer = SlidingWindowInfererAdapt(
+                roi_size=config["roi_size"],
+                sw_batch_size=1,
+                overlap=[0.625 ,0.625, 0],
+                mode="gaussian",
+                cache_roi_weight_map=False,
+                progress=False
+            )
+        
+            
     # change model to be wrapped 2D
     def setup_model(self, pretrained_ckpt_name=None):
 

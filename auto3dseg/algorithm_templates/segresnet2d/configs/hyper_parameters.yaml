@@ -74,6 +74,7 @@ network:
   in_channels: "@input_channels"
   out_channels: "@output_classes"
   dsdepth: 4
+  spatial_dims: 2
 
 
 finetune:
