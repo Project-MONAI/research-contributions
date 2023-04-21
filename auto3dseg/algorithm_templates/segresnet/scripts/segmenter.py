@@ -1070,12 +1070,12 @@ class Segmenter:
             if self.global_rank==0:
                 print(f"Given the low cache_rate {cache_rate_train} num_steps_per_image was autoset to"
                       f"{config['num_steps_per_image']}, to disable this behaviour set manually, e.g. num_steps_per_image=1")
-        else:
+                
+        elif config["num_steps_per_image"] is None:
             config["num_steps_per_image"] = 1
 
 
         num_steps_per_image = int(config["num_steps_per_image"])
-        num_steps_per_image = 4 #FIXME
 
         num_epochs = max(1, config["num_epochs"] // num_steps_per_image)
         num_epochs_per_saving = max(1, config["num_epochs_per_saving"] // num_steps_per_image)
