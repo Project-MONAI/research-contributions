@@ -736,9 +736,6 @@ class Segmenter:
         # if self.global_rank!=0:
         #      logger.addFilter(lambda x: False)
 
-        print(f"TEST LOGGER on rank {self.config['rank']}, {self.config['global_rank']}")
-
-
 
     def parse_input_config(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}
