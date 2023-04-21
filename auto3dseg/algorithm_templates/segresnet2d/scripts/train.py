@@ -14,9 +14,9 @@ from typing import Optional, Sequence, Union
 import fire
 
 if __package__ in (None, ""):
-    from segmenter import run_segmenter
+    from segmenter_2d import run_segmenter
 else:
-    from .segmenter import run_segmenter
+    from .segmenter_2d import run_segmenter
 
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
