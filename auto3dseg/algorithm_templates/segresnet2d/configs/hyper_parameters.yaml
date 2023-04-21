@@ -72,7 +72,7 @@ network:
   _target_: SegResNetDS
   init_filters: 32
   blocks_down: [1, 2, 2, 4, 4]
-  norm: INSTANCE
+  norm: BATCH
   in_channels: "@input_channels"
   out_channels: "@output_classes"
   dsdepth: 4
