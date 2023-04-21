@@ -14,7 +14,7 @@ channels_last: true
 validate_final_original_res: false
 calc_val_loss: false
 
-auto_scale_roi: true
+auto_scale_roi: false
 auto_scale_batch: false
 auto_scale_filters: false
 

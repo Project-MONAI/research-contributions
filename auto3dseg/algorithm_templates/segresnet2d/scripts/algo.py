@@ -220,7 +220,7 @@ class Segresnet2dAlgo(BundleAlgo):
             ###########################################
 
             config["auto_scale_batch"] = input_config.pop("auto_scale_batch", False)
-            config["auto_scale_roi"] = input_config.pop("auto_scale_roi", True)
+            config["auto_scale_roi"] = input_config.pop("auto_scale_roi", False)
             config["auto_scale_filters"] = input_config.pop("auto_scale_filters", False)
 
             if input_config.get("roi_size", None):
