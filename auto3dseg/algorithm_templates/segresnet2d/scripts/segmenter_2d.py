@@ -81,6 +81,8 @@ if __package__ in (None, ""):
 else:
     from .segmenter import Segmenter, DataTransformBuilder
 
+from monai.apps.auto3dseg.auto_runner import logger
+print = logger.debug
 
 class WrappedModel2D(torch.nn.Module):
     
