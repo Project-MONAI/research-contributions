@@ -152,8 +152,13 @@ def schedule_validation_epochs(num_epochs, num_epochs_per_validation=None, fract
         x[-1]=num_epochs
         x = x.tolist()
     else:
-        num_epochs_per_validation = min(num_epochs_per_validation, num_epochs)
-        x = list(range(num_epochs_per_validation, num_epochs, num_epochs_per_validation))
+        if num_epochs_per_validation >= num_epochs:
+            x = [num_epochs_per_validation]
+        else:
+            x = list(range(num_epochs_per_validation, num_epochs, num_epochs_per_validation))
+
+    if len(x)==0:
+        x = [0]
 
     return x
 
@@ -1314,7 +1319,7 @@ class Segmenter:
                     if validation_time==0:
                         validation_time = train_time
                     time_remaining_estimate += validation_time *  len(val_schedule_list)
-                print(f"Estimated remaining training time for the current model fold {config['fold']} is"
+                print(f"Estimated remaining training time for the current model fold {config['fold']} is "
                       f"{time.strftime('%H hr %M min', time.gmtime(time_remaining_estimate))}")
 
             if distributed:
@@ -1380,8 +1385,8 @@ class Segmenter:
         val_acc_mean = float(np.mean(val_acc))
         if self.global_rank == 0:
             print(
-                f"Original resolution validation:"
-                f"loss: {val_loss:.4f} acc_avg: {val_acc_mean:.4f}"
+                f"Original resolution validation: "
+                f"loss: {val_loss:.4f} acc_avg: {val_acc_mean:.4f} "
                 f"acc {val_acc} time {validation_time}")
 
             if progress_path is not None:
@@ -1455,10 +1460,8 @@ class Segmenter:
         val_acc_mean = float(np.mean(val_acc))
 
         if self.global_rank == 0:
-            print(f"Validation complete, loss_avg: {val_loss:.4f}"
-                f"acc_avg: {val_acc_mean:.4f}"
-                f"acc {val_acc}"
-                f"time {time.time() - start_time:.2f}s")
+            print(f"Validation complete, loss_avg: {val_loss:.4f} "
+                f"acc_avg: {val_acc_mean:.4f} acc {val_acc} time {time.time() - start_time:.2f}s")
 
         return val_acc_mean, val_loss, val_acc
 
@@ -1635,9 +1638,7 @@ class Segmenter:
             if global_rank == 0:
                 print(
                     f"Epoch {epoch}/{num_epochs} {idx}/{len(train_loader)} "
-                    f"loss: {avg_loss:.4f} "
-                    f"acc {avg_acc} "
-                    f"time {time.time() - start_time:.2f}s"
+                    f"loss: {avg_loss:.4f} acc {avg_acc}  time {time.time() - start_time:.2f}s"
                 )
                 start_time = time.time()
 
