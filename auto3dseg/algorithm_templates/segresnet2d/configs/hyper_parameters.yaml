@@ -18,10 +18,7 @@ auto_scale_roi: false
 auto_scale_batch: false
 auto_scale_filters: false
 
-
-
-roi_size: [224, 224, 32]
-# roi_size: [448, 448, 32]
+roi_size: [448, 448, 32]
 
 crop_mode: ratio
 normalize_mode: meanstd

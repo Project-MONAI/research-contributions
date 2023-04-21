@@ -29,8 +29,7 @@ def auto_adjust_network_settings(
 
     batch_size_default = 1
     #roi_size_default = [224, 224, 144]
-    # roi_size_default = [448, 448, 32]
-    roi_size_default = [224, 224, 32]
+    roi_size_default = [448, 448, 32]
 
     init_filters_default = 32
 
