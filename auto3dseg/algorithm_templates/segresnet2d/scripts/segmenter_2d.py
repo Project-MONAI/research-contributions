@@ -85,7 +85,7 @@ from monai.apps.auto3dseg.auto_runner import logger
 print = logger.debug
 
 class WrappedModel2D(torch.nn.Module):
-    
+
     def __init__(self, net, memory_format=torch.preserve_format):
         super().__init__()
         self.net = net
@@ -101,7 +101,7 @@ class WrappedModel2D(torch.nn.Module):
         return x.reshape(sh[0], sh[4], x.shape[1], x.shape[2], x.shape[3]).permute(0,2,3,4,1)
 
     def forward(self, x: torch.Tensor):
-        
+
         # print('WrappedModel2D input', x.shape,  'local', self.memory_format)
         sh = x.shape
         x = self.reshape2D(x)
@@ -136,7 +136,7 @@ class DataTransformBuilder2D(DataTransformBuilder):
         if self.resample:
             if self.resample_resolution is None:
                 raise ValueError("resample_resolution is not provided")
-            
+
             pixdim = self.resample_resolution
             ts.append(
                 Spacingd(
@@ -160,7 +160,7 @@ class DataTransformBuilder2D(DataTransformBuilder):
         ts.extend(self.get_custom("after_resample_transforms", resample_label=resample_label))
 
         return ts
-    
+
     def get_augment_transforms(self):
 
         ts = self.get_custom("augment_transforms")
@@ -202,7 +202,7 @@ class DataTransformBuilder2D(DataTransformBuilder):
 
         return ts
 
-        
+
 class Segmenter2D(Segmenter):
     def __init__(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, config_dict: Dict = {}, rank: int = 0, global_rank: int = 0
@@ -222,14 +222,14 @@ class Segmenter2D(Segmenter):
                 cache_roi_weight_map=False,
                 progress=False
             )
-        
-            
+
+
     # change model to be wrapped 2D
     def setup_model(self, pretrained_ckpt_name=None):
 
         config = self.config
 
-        memory_format = torch.channels_last if self.config['channels_last'] else torch.preserve_format     
+        memory_format = torch.channels_last if self.config['channels_last'] else torch.preserve_format
         self.config['channels_last'] = False
 
         model = ConfigParser(config["network"]).get_parsed_content()
@@ -287,7 +287,7 @@ class Segmenter2D(Segmenter):
 
         return self._data_transform_builder
 
-    
+
 def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}):
 
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
