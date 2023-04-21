@@ -28,7 +28,7 @@ else:
     from .utils import auto_adjust_network_settings
 
 
-class SegresnetAlgo(BundleAlgo):
+class Segresnet2dAlgo(BundleAlgo):
     def fill_template_config(self, data_stats_file: Optional[str] = None, output_path: Optional[str] = None, **kwargs):
         """
         Fill the freshly copied config templates
