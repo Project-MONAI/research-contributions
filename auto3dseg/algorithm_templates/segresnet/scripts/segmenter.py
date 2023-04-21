@@ -1070,6 +1070,7 @@ class Segmenter:
 
 
         num_steps_per_image = int(config["num_steps_per_image"])
+        num_steps_per_image = 4 #FIXME
 
         num_epochs = max(1, config["num_epochs"] // num_steps_per_image)
         num_epochs_per_saving = max(1, config["num_epochs_per_saving"] // num_steps_per_image)
