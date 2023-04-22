@@ -736,7 +736,6 @@ class Segmenter:
         # if self.global_rank!=0:
         #      logger.addFilter(lambda x: False)
 
-
     def parse_input_config(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}
     ) -> Tuple[ConfigParser, Dict]:
