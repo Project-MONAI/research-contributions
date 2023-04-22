@@ -46,7 +46,8 @@ class Segresnet2dAlgo(BundleAlgo):
         if len(spacing) > 2:
             if spacing[-1] < 3 * (spacing[0] + spacing[1]) / 2:
                 skip_bundlegen = True
-                skip_info = f'2D network is skipped due to median spacing of {spacing}.'
+                skip_info = f"SegresNet2D is skipped due to median spacing of {spacing},  which means the dataset is not highly anisotropic, e.g. spacing[2] < 3*(spacing[0] + spacing[1])/2) ."
+                
         return skip_bundlegen, skip_info
 
     def fill_template_config(self, data_stats_file: Optional[str] = None, output_path: Optional[str] = None, **kwargs):
