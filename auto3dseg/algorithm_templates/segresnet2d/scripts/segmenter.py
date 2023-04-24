@@ -323,9 +323,6 @@ class DataTransformBuilder:
         ts = []
         ts.append(SpatialPadd(keys=keys, spatial_size=self.roi_size))
 
-        if self.lazy_evaluation:
-            ts.append(Identityd(keys=[self.label_key]))
-
         if self.crop_mode == "ratio":
 
             output_classes = self.crop_params.get("output_classes", None)
@@ -339,7 +336,10 @@ class DataTransformBuilder:
                 max_samples_per_class = None
             indices_key  = None
 
-            if cache_class_indices and not self.lazy_evaluation:
+            if self.lazy_evaluation:
+                ts.append(Identityd(keys=[self.label_key]))
+                
+            if cache_class_indices:
                 ts.append(ClassesToIndicesd(keys=self.label_key,
                                             num_classes=output_classes,
                                             indices_postfix="_cls_indices",
