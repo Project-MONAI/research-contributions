@@ -178,7 +178,6 @@ class DataTransformBuilder:
         custom_transforms=None,
         debug: bool = False,
         rank: int = 0,
-        lazy_evaluation: bool = False,
         lazy_verbose: bool = False,
         **kwargs,
     ) -> None:
@@ -198,7 +197,7 @@ class DataTransformBuilder:
         self.debug = debug
         self.rank = rank
 
-        self.lazy_evaluation = lazy_evaluation
+        self.lazy_evaluation = False
         self.lazy_verbose = lazy_verbose
 
 
@@ -240,6 +239,8 @@ class DataTransformBuilder:
 
         if self.extra_options.get("crop_foreground", False) and len(extra_keys) == 0:
             ts.append(CropForegroundd(keys=keys, source_key=self.image_key, allow_missing_keys=True, margin=10, allow_smaller=True))
+            if self.lazy_evaluation:
+                ts.append(Identityd(keys=keys))
 
         if self.resample:
             if self.resample_resolution is None:
@@ -323,9 +324,6 @@ class DataTransformBuilder:
         ts = []
         ts.append(SpatialPadd(keys=keys, spatial_size=self.roi_size))
 
-        if self.lazy_evaluation:
-            ts.append(Identityd(keys=[self.label_key]))
-
         if self.crop_mode == "ratio":
 
             output_classes = self.crop_params.get("output_classes", None)
@@ -339,7 +337,10 @@ class DataTransformBuilder:
                 max_samples_per_class = None
             indices_key  = None
 
-            if cache_class_indices and not self.lazy_evaluation:
+            if self.lazy_evaluation:
+                ts.append(Identityd(keys=[self.label_key]))
+
+            if cache_class_indices:
                 ts.append(ClassesToIndicesd(keys=self.label_key,
                                             num_classes=output_classes,
                                             indices_postfix="_cls_indices",
@@ -446,7 +447,9 @@ class DataTransformBuilder:
 
         return Compose(ts)
 
-    def __call__(self, augment=False, resample_label=False) -> Compose:
+    def __call__(self, augment=False, resample_label=False, lazy_evaluation=False) -> Compose:
+
+        self.lazy_evaluation = lazy_evaluation
 
         ts = []
         ts.extend(self.get_load_transforms())
@@ -629,8 +632,7 @@ class Segmenter:
 
                 extra_modalities=config["extra_modalities"],
                 custom_transforms=custom_transforms,
-                lazy_evaluation = config.get("lazy_evaluation" , False),
-                lazy_verbose = config.get("lazy_verbose" , False),
+                lazy_verbose = config["lazy_verbose"],
                 crop_foreground =  config.get("crop_foreground" , True),
             )
 
@@ -735,7 +737,6 @@ class Segmenter:
         logging.config.dictConfig(CONFIG)
         # if self.global_rank!=0:
         #      logger.addFilter(lambda x: False)
-
 
     def parse_input_config(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}
@@ -956,8 +957,9 @@ class Segmenter:
         distributed = self.distributed
         num_workers = self.config["num_workers"]
         batch_size = self.config["batch_size"]
+        lazy_evaluation = self.config["lazy_evaluation"]
 
-        train_transform = self.get_data_transform_builder()(augment=True, resample_label=True)
+        train_transform = self.get_data_transform_builder()(augment=True, resample_label=True, lazy_evaluation=lazy_evaluation)
 
         if cache_rate > 0:
             runtime_cache = self.get_shared_memory_list(length=len(data))
@@ -1080,6 +1082,10 @@ class Segmenter:
         if num_epochs_per_validation is not None:
             num_epochs_per_validation = max(1, num_epochs_per_validation // num_steps_per_image)
 
+        if self.global_rank==0:
+            print(f"Auto setting num_steps_per_image :{config['num_steps_per_image']} num_epochs: {num_epochs} ")
+
+
         val_schedule_list = schedule_validation_epochs(num_epochs=num_epochs,
                                                        num_epochs_per_validation=num_epochs_per_validation)
         if self.global_rank==0:
@@ -1199,10 +1205,10 @@ class Segmenter:
 
             if self.global_rank == 0:
                 print(
-                    f"Final training  {report_epoch}/{report_num_epochs - 1}"
-                    f"loss: {train_loss:.4f}"
-                    f"acc_avg: {np.mean(train_acc):.4f}"
-                    f"acc {train_acc}"
+                    f"Final training  {report_epoch}/{report_num_epochs - 1} "
+                    f"loss: {train_loss:.4f} "
+                    f"acc_avg: {np.mean(train_acc):.4f} "
+                    f"acc {train_acc} "
                     f"time {train_time:.2f}s"
                 )
 
@@ -1294,8 +1300,8 @@ class Segmenter:
 
                 #sanity check
                 if epoch > max(20, num_epochs/4) and 0 <= val_acc_mean < 0.01:
-                    raise ValueError(f"Accuracy seems very low at epoch {report_epoch}, acc {val_acc_mean}."
-                                        f"Most likely optimization diverged, try setting  a smaller learning_rate than {config['learning_rate']}")
+                    raise ValueError(f"Accuracy seems very low at epoch {report_epoch}, acc {val_acc_mean}. "
+                                    f"Most likely optimization diverged, try setting  a smaller learning_rate than {config['learning_rate']}")
 
 
             # save intermediate checkpoint every num_epochs_per_saving epochs

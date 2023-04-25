@@ -35,8 +35,9 @@ class Segresnet2dAlgo(BundleAlgo):
         If the median spacing of the dataset is not highly anisotropic (res_z < 3*(res_x + rex_y)/2),
         the 2D segresnet will be skipped by setting self.skip_bundlegen=True.
         """
-        if self.data_stats_files is None:
-            return
+        if self.data_stats_files is None or bool(os.environ.get("SEGRESNET2D_ALWAYS", False)):
+            return skip_bundlegen, skip_info
+
         data_stats = ConfigParser(globals=False)
         if os.path.exists(str(self.data_stats_files)):
             data_stats.read_config(str(self.data_stats_files))
