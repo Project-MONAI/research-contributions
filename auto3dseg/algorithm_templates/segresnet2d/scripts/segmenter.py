@@ -339,7 +339,7 @@ class DataTransformBuilder:
 
             if self.lazy_evaluation:
                 ts.append(Identityd(keys=[self.label_key]))
-                
+
             if cache_class_indices:
                 ts.append(ClassesToIndicesd(keys=self.label_key,
                                             num_classes=output_classes,

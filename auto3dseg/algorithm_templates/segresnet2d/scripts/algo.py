@@ -37,7 +37,7 @@ class Segresnet2dAlgo(BundleAlgo):
         """
         if self.data_stats_files is None or bool(os.environ.get("SEGRESNET2D_ALWAYS", False)):
             return skip_bundlegen, skip_info
-        
+
         data_stats = ConfigParser(globals=False)
         if os.path.exists(str(self.data_stats_files)):
             data_stats.read_config(str(self.data_stats_files))
