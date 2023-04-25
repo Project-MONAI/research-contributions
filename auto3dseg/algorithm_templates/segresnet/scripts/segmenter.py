@@ -240,6 +240,8 @@ class DataTransformBuilder:
 
         if self.extra_options.get("crop_foreground", False) and len(extra_keys) == 0:
             ts.append(CropForegroundd(keys=keys, source_key=self.image_key, allow_missing_keys=True, margin=10, allow_smaller=True))
+            if self.lazy_evaluation:
+                ts.append(Identityd(keys=keys))
 
         if self.resample:
             if self.resample_resolution is None:
