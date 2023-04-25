@@ -1081,6 +1081,10 @@ class Segmenter:
         if num_epochs_per_validation is not None:
             num_epochs_per_validation = max(1, num_epochs_per_validation // num_steps_per_image)
 
+        if self.global_rank==0:
+            print(f"Auto setting num_steps_per_image :{config['num_steps_per_image']} num_epochs: {num_epochs} ")
+
+
         val_schedule_list = schedule_validation_epochs(num_epochs=num_epochs,
                                                        num_epochs_per_validation=num_epochs_per_validation)
         if self.global_rank==0:
