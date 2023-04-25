@@ -120,7 +120,7 @@ class WrappedModel2D(torch.nn.Module):
 
 
 class DataTransformBuilder2D(DataTransformBuilder):
-    def get_resample_transforms(self, resample_label=True, crop_foreground=True):
+    def get_resample_transforms(self, resample_label=True):
 
         ts = self.get_custom("resample_transforms")
         if len(ts) > 0:
@@ -280,7 +280,6 @@ class Segmenter2D(Segmenter):
 
                 extra_modalities=config["extra_modalities"],
                 custom_transforms=custom_transforms,
-                lazy_evaluation = config.get("lazy_evaluation" , False),
                 lazy_verbose = config.get("lazy_verbose" , False),
                 crop_foreground =  config.get("crop_foreground" , True),
             )

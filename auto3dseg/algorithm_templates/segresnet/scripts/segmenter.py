@@ -178,7 +178,6 @@ class DataTransformBuilder:
         custom_transforms=None,
         debug: bool = False,
         rank: int = 0,
-        lazy_evaluation: bool = False,
         lazy_verbose: bool = False,
         **kwargs,
     ) -> None:
@@ -198,7 +197,7 @@ class DataTransformBuilder:
         self.debug = debug
         self.rank = rank
 
-        self.lazy_evaluation = lazy_evaluation
+        self.lazy_evaluation = False
         self.lazy_verbose = lazy_verbose
 
 
@@ -448,7 +447,9 @@ class DataTransformBuilder:
 
         return Compose(ts)
 
-    def __call__(self, augment=False, resample_label=False) -> Compose:
+    def __call__(self, augment=False, resample_label=False, lazy_evaluation=False) -> Compose:
+
+        self.lazy_evaluation = lazy_evaluation
 
         ts = []
         ts.extend(self.get_load_transforms())
@@ -631,8 +632,7 @@ class Segmenter:
 
                 extra_modalities=config["extra_modalities"],
                 custom_transforms=custom_transforms,
-                lazy_evaluation = config.get("lazy_evaluation" , False),
-                lazy_verbose = config.get("lazy_verbose" , False),
+                lazy_verbose = config["lazy_verbose"],
                 crop_foreground =  config.get("crop_foreground" , True),
             )
 
@@ -957,8 +957,9 @@ class Segmenter:
         distributed = self.distributed
         num_workers = self.config["num_workers"]
         batch_size = self.config["batch_size"]
+        lazy_evaluation = self.config["lazy_evaluation"]
 
-        train_transform = self.get_data_transform_builder()(augment=True, resample_label=True)
+        train_transform = self.get_data_transform_builder()(augment=True, resample_label=True, lazy_evaluation=lazy_evaluation)
 
         if cache_rate > 0:
             runtime_cache = self.get_shared_memory_list(length=len(data))
@@ -1204,10 +1205,10 @@ class Segmenter:
 
             if self.global_rank == 0:
                 print(
-                    f"Final training  {report_epoch}/{report_num_epochs - 1}"
-                    f"loss: {train_loss:.4f}"
-                    f"acc_avg: {np.mean(train_acc):.4f}"
-                    f"acc {train_acc}"
+                    f"Final training  {report_epoch}/{report_num_epochs - 1} "
+                    f"loss: {train_loss:.4f} "
+                    f"acc_avg: {np.mean(train_acc):.4f} "
+                    f"acc {train_acc} "
                     f"time {train_time:.2f}s"
                 )
 
@@ -1299,8 +1300,8 @@ class Segmenter:
 
                 #sanity check
                 if epoch > max(20, num_epochs/4) and 0 <= val_acc_mean < 0.01:
-                    raise ValueError(f"Accuracy seems very low at epoch {report_epoch}, acc {val_acc_mean}."
-                                        f"Most likely optimization diverged, try setting  a smaller learning_rate than {config['learning_rate']}")
+                    raise ValueError(f"Accuracy seems very low at epoch {report_epoch}, acc {val_acc_mean}. "
+                                    f"Most likely optimization diverged, try setting  a smaller learning_rate than {config['learning_rate']}")
 
 
             # save intermediate checkpoint every num_epochs_per_saving epochs
@@ -1406,8 +1407,6 @@ class Segmenter:
 
     def validate(self, validation_files=None):
 
-        self.config["lazy_evaluation"] = False
-
         config = self.config
         resample = config["resample"]
 
@@ -1471,8 +1470,6 @@ class Segmenter:
 
     def infer(self, testing_files=None):
 
-        self.config["lazy_evaluation"] = False
-
         output_path = self.config["infer"].get("output_path", None)
         testing_key = self.config["infer"].get("data_list_key", "testing")
 
@@ -1531,8 +1528,6 @@ class Segmenter:
 
     @torch.no_grad()
     def infer_image(self, image_file, save_mask=False, channels_last=False):
-
-        self.config["lazy_evaluation"] = False
 
         self.model.eval()
 
