@@ -1400,6 +1400,8 @@ class Segmenter:
 
     def validate(self, validation_files=None):
 
+        self.config["lazy_evaluation"] = False
+
         config = self.config
         resample = config["resample"]
 
@@ -1463,6 +1465,8 @@ class Segmenter:
 
     def infer(self, testing_files=None):
 
+        self.config["lazy_evaluation"] = False
+
         output_path = self.config["infer"].get("output_path", None)
         testing_key = self.config["infer"].get("data_list_key", "testing")
 
@@ -1522,6 +1526,7 @@ class Segmenter:
     @torch.no_grad()
     def infer_image(self, image_file, save_mask=False, channels_last=False):
 
+        self.config["lazy_evaluation"] = False
         self.model.eval()
 
         output_path = self.config["infer"].get("output_path", None)
