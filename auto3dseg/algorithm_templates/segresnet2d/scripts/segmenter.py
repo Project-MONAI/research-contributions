@@ -608,13 +608,9 @@ class Segmenter:
 
     def get_data_transform_builder(self):
 
-        print(f"get_data_transform_builder called lazy {config['lazy_evaluation']} ")
-
         if self._data_transform_builder is None:
             config = self.config
             custom_transforms = self.get_custom_transforms()
-
-            print(f"get_data_transform_builder init lazy {config['lazy_evaluation']} ")
 
             self._data_transform_builder = DataTransformBuilder(
                 roi_size=config["roi_size"],
@@ -1406,8 +1402,6 @@ class Segmenter:
 
         self.config["lazy_evaluation"] = False
 
-        print(f"Validated called!!! {self.config['lazy_evaluation']}")
-
         config = self.config
         resample = config["resample"]
 
@@ -1533,6 +1527,7 @@ class Segmenter:
     def infer_image(self, image_file, save_mask=False, channels_last=False):
 
         self.config["lazy_evaluation"] = False
+
         self.model.eval()
 
         output_path = self.config["infer"].get("output_path", None)
