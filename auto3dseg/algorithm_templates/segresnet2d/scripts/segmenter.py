@@ -608,9 +608,13 @@ class Segmenter:
 
     def get_data_transform_builder(self):
 
+        print(f"get_data_transform_builder called lazy {config['lazy_evaluation']} ")
+
         if self._data_transform_builder is None:
             config = self.config
             custom_transforms = self.get_custom_transforms()
+
+            print(f"get_data_transform_builder init lazy {config['lazy_evaluation']} ")
 
             self._data_transform_builder = DataTransformBuilder(
                 roi_size=config["roi_size"],
