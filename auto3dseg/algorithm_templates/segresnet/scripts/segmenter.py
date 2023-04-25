@@ -323,9 +323,6 @@ class DataTransformBuilder:
         ts = []
         ts.append(SpatialPadd(keys=keys, spatial_size=self.roi_size))
 
-        if self.lazy_evaluation:
-            ts.append(Identityd(keys=[self.label_key]))
-
         if self.crop_mode == "ratio":
 
             output_classes = self.crop_params.get("output_classes", None)
@@ -339,7 +336,10 @@ class DataTransformBuilder:
                 max_samples_per_class = None
             indices_key  = None
 
-            if cache_class_indices and not self.lazy_evaluation:
+            if self.lazy_evaluation:
+                ts.append(Identityd(keys=[self.label_key]))
+                
+            if cache_class_indices:
                 ts.append(ClassesToIndicesd(keys=self.label_key,
                                             num_classes=output_classes,
                                             indices_postfix="_cls_indices",
@@ -735,7 +735,6 @@ class Segmenter:
         logging.config.dictConfig(CONFIG)
         # if self.global_rank!=0:
         #      logger.addFilter(lambda x: False)
-
 
     def parse_input_config(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}
@@ -1401,6 +1400,8 @@ class Segmenter:
 
     def validate(self, validation_files=None):
 
+        self.config["lazy_evaluation"] = False
+
         config = self.config
         resample = config["resample"]
 
@@ -1464,6 +1465,8 @@ class Segmenter:
 
     def infer(self, testing_files=None):
 
+        self.config["lazy_evaluation"] = False
+
         output_path = self.config["infer"].get("output_path", None)
         testing_key = self.config["infer"].get("data_list_key", "testing")
 
@@ -1522,6 +1525,8 @@ class Segmenter:
 
     @torch.no_grad()
     def infer_image(self, image_file, save_mask=False, channels_last=False):
+
+        self.config["lazy_evaluation"] = False
 
         self.model.eval()
 
