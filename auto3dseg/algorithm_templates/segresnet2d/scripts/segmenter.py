@@ -1406,6 +1406,8 @@ class Segmenter:
 
         self.config["lazy_evaluation"] = False
 
+        print(f"Validated called!!! {self.config['lazy_evaluation']}")
+
         config = self.config
         resample = config["resample"]
 
