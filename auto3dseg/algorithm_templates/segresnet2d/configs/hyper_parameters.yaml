@@ -1,71 +1,94 @@
----
-# hyper-parameters
+modality: mri                               # main image modality, must be one of mri, ct, pet
+data_file_base_dir: null                    # location of the dataset
+data_list_file_path: null                   # location of the file with a list of files image/label in the dataset
+
+input_channels: null
+output_classes: null
+
+class_names: null
+class_index: null
+
+debug: false
+quick: false
+channels_last: true
+validate_final_original_res: false
+calc_val_loss: false
+
+auto_scale_roi: false
+auto_scale_batch: false
+auto_scale_filters: false
+
+roi_size: [448, 448, 32]
+
+crop_mode: ratio
+normalize_mode: meanstd
+
 amp: true
 bundle_root: null
+ckpt_path: "$@bundle_root + '/model'"
+log_output_file: null
+ckpt_save: true
+cache_rate: null
+cache_class_indices: null
+early_stopping_fraction: 0.001
 
-cache_rate: 1
-train_cache_rate: "$@cache_rate"
-validate_cache_rate: "$@cache_rate"
-
-ckpt_path: "$@bundle_root + '/model_fold' + str(@fold)"
-data_file_base_dir: null
-data_list_file_path: null
 determ: false
 fold: 0
-input_channels: null
-learning_rate: 0.2
-num_adjacent_slices: 1
-num_images_per_batch: 2
-num_epochs: 2000
-num_epochs_per_validation: 20
-num_patches_per_image: 2
-num_sw_batch_size: 2
-num_workers: 8
-num_cache_workers: 8
-output_classes: null
-overlap_ratio: 0.625
-patch_size: [-1, -1, "$@num_adjacent_slices * 2 + 1"]
-patch_size_valid: [-1, -1, "$@num_adjacent_slices * 2 + 1"]
-resample_to_spacing: null
-sw_input_on_cpu: false
-softmax: true
+learning_rate: 2.0e-4
+batch_size: $@num_images_per_batch
+num_images_per_batch: 1
+num_epochs: 300
+num_warmup_epochs: 3
+sigmoid: false
+resample: false
+resample_resolution: [1, 1, 1]
+intensity_bounds: null
 
-# training
+num_epochs_per_validation: null
+num_epochs_per_saving: 1
+num_workers: 4
+num_steps_per_image: null
+
+
 loss:
-  _target_: DiceFocalLoss
+  _target_: DiceCELoss
   include_background: true
-  to_onehot_y: "$@softmax"
-  softmax: "$@softmax"
-  sigmoid: "$not @softmax"
   squared_pred: true
-  batch: true
-  smooth_nr: 1.0e-05
+  smooth_nr: 0
   smooth_dr: 1.0e-05
+  softmax: $not @sigmoid
+  sigmoid: $@sigmoid
+  to_onehot_y: $not @sigmoid
+
 optimizer:
-  _target_: torch.optim.SGD
+  _target_: torch.optim.AdamW
   lr: "@learning_rate"
-  momentum: 0.9
-  weight_decay: 4.0e-05
-lr_scheduler:
-  _target_: torch.optim.lr_scheduler.StepLR
-  optimizer: "$@optimizer"
-  step_size: "$max(@num_epochs // 5, 1)"
-  gamma: 0.5
+  weight_decay: 1.e-5
 
-# fine-tuning
+network:
+  _target_: SegResNetDS
+  init_filters: 32
+  blocks_down: [1, 2, 2, 4, 4]
+  norm: BATCH
+  in_channels: "@input_channels"
+  out_channels: "@output_classes"
+  dsdepth: 4
+  spatial_dims: 2
+
+
 finetune:
-  activate: false
-  pretrained_ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
+  enabled: false
+  ckpt_name: "$@bundle_root + '/model/model.pt'"
 
-# validation
 validate:
-  ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
-  save_mask: true
-  output_path: "$@bundle_root + '/prediction_fold' + str(@fold)"
+  enabled: false
+  ckpt_name: "$@bundle_root + '/model/model.pt'"
+  output_path: "$@bundle_root + '/prediction_validation'"
+  save_mask: false
+  invert: true
 
-# inference
 infer:
-  ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
-  fast: false
-  data_list_key: testing
+  enabled: false
+  ckpt_name: "$@bundle_root + '/model/model.pt'"
   output_path: "$@bundle_root + '/prediction_' + @infer#data_list_key"
+  data_list_key: testing
