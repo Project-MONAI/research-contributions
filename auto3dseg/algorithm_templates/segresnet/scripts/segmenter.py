@@ -1221,7 +1221,7 @@ class Segmenter:
             if len(val_schedule_list) > 0 and epoch + 1 >= val_schedule_list[0] and val_loader is not None and len(val_loader)>0:
 
                 val_schedule_list.pop(0)
-                
+
 
                 start_time = time.time()
                 torch.cuda.empty_cache()
@@ -1722,7 +1722,7 @@ class Segmenter:
 
             if "label" in batch_data and loss_function is not None and acc_function is not None:
 
-            
+
                 loss = acc = None
 
                 if idx < nonrepeated_data_length:
@@ -1741,7 +1741,7 @@ class Segmenter:
                         batch_size_adjusted = batch_size
                         if isinstance(acc, (list, tuple)):
                             acc, batch_size_adjusted = acc
-                        acc = acc.detach().clone()                        
+                        acc = acc.detach().clone()
                         run_acc.append(acc.to(device=device), count=batch_size_adjusted)
 
                 avg_loss = loss.cpu() if loss is not None else 0
