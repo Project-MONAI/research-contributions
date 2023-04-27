@@ -318,7 +318,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if softmax:
         post_pred = transforms.Compose([transforms.EnsureType(
-        ), transforms.AsDiscrete(argmax=True, to_onehot=output_classes)])
+        ), transforms.AsDiscrete(argmax=True)])
     else:
         post_pred = transforms.Compose([transforms.EnsureType(), transforms.Activations(
             sigmoid=True), transforms.AsDiscrete(threshold=0.5)])
@@ -356,7 +356,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     finetune["pretrained_ckpt_name"],
                     map_location=device))
     else:
-        logger.debug("[debug] training from scratch")
+        if not use_pretrain:
+            logger.debug("[debug] training from scratch")
 
     if amp:
         from torch.cuda.amp import GradScaler, autocast
@@ -572,7 +573,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         value = torch.zeros(1, metric_dim).to(device)
                         for _k in range(1, metric_dim + 1):
                             value[0, _k - 1] = compute_dice(
-                                y_pred=val_outputs[:, _k: _k + 1],
+                                y_pred=(val_outputs == _k).float(),
                                 y=(val_labels == _k).float(),
                                 include_background=not softmax)
                     else:
