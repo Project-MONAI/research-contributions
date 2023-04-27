@@ -573,7 +573,7 @@ class Segmenter:
                 sw_batch_size=1,
                 overlap=0.625,
                 mode="gaussian",
-                cache_roi_weight_map=False,
+                cache_roi_weight_map=True,
                 progress=False
             )
 
@@ -930,14 +930,14 @@ class Segmenter:
 
                     src = g_rank = 0
                     while src < world_size:
-                        shl_list = [shl0]
                         # create sub-groups local to a node, to share memory only within a node
                         # and broadcast shared list within a node
                         group = dist.new_group(ranks=list(range(src, src + local_world_size)))
-                        dist.broadcast_object_list(shl_list, src=src, group=group, device=self.device)
-                        dist.destroy_process_group(group)
                         if group_rank==g_rank:
+                            shl_list = [shl0]
+                            dist.broadcast_object_list(shl_list, src=src, group=group, device=self.device)
                             shl = shl_list[0]
+                        dist.destroy_process_group(group)
                         src = src + lw_sizes[src].item() #rank of first process in the next node
                         g_rank += 1
 
@@ -1222,7 +1222,10 @@ class Segmenter:
 
                 val_schedule_list.pop(0)
 
+
                 start_time = time.time()
+                torch.cuda.empty_cache()
+
                 val_loss, val_acc = self.val_epoch(
                     model=self.model,
                     val_loader=val_loader,
@@ -1241,7 +1244,6 @@ class Segmenter:
                 )
 
                 torch.cuda.empty_cache()
-
                 validation_time = time.time() - start_time
 
                 val_acc_mean = float(np.mean(val_acc))
@@ -1648,6 +1650,11 @@ class Segmenter:
         #optimizer.zero_grad(set_to_none=True)
         for param in model.parameters(): param.grad = None
 
+        data = None
+        target = None
+        data_list = None
+        target_list = None
+        batch_data = None
 
         return avg_loss, avg_acc
 
@@ -1715,10 +1722,11 @@ class Segmenter:
 
             if "label" in batch_data and loss_function is not None and acc_function is not None:
 
-                pred = pred.to(device=device)
+
                 loss = acc = None
 
                 if idx < nonrepeated_data_length:
+                    pred = pred.to(device=device)
 
                     if calc_val_loss:
                         if logits is not None:
@@ -1733,10 +1741,12 @@ class Segmenter:
                         batch_size_adjusted = batch_size
                         if isinstance(acc, (list, tuple)):
                             acc, batch_size_adjusted = acc
-                        run_acc.append(acc.detach().to(device=device), count=batch_size_adjusted)
+                        acc = acc.detach().clone()
+                        run_acc.append(acc.to(device=device), count=batch_size_adjusted)
 
                 avg_loss = loss.cpu() if loss is not None else 0
                 avg_acc = acc.cpu().numpy() if acc is not None else 0
+                pred, target = None, None
 
                 if global_rank == 0:
                     print(
@@ -1750,10 +1760,8 @@ class Segmenter:
 
             start_time = time.time()
 
-        pred = None
-        batch_data = None
-        data = None
-        target = None
+        pred = target = data = batch_data = None
+
 
         if distributed:
             dist.barrier()
