@@ -11,7 +11,7 @@ class_index: null
 debug: false
 quick: false
 channels_last: true
-validate_final_original_res: false
+validate_final_original_res: true
 calc_val_loss: false
 
 auto_scale_roi: false
