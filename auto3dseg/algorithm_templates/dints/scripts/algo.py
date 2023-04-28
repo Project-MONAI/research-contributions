@@ -74,6 +74,17 @@ class DintsAlgo(BundleAlgo):
                 for p_k, shape_k in zip(patch_size, max_shape)
             ]
 
+            try:
+                if isinstance(data_src_cfg["class_names"], list):
+                    hyper_parameters.update(
+                        {"class_names": data_src_cfg["class_names"]}
+                    )
+                    hyper_parameters_search.update(
+                        {"class_names": data_src_cfg["class_names"]}
+                    )
+            except BaseException:
+                pass
+
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(
                 data_stats["stats_summary#label_stats#labels"])
