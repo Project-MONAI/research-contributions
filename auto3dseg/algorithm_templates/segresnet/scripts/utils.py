@@ -39,7 +39,7 @@ def logger_configure(log_output_file: str = None, debug = False, global_rank=0) 
         log_config["handlers"]["file"]["level"] = "DEBUG"
     else:
         log_config["handlers"]["file"]["level"] = "CRITICAL"
-        
+
     if debug or bool(os.environ.get("SEGRESNET_DEBUG", False)):
         log_config["handlers"]["console"]["level"] = "DEBUG"
 
@@ -180,6 +180,3 @@ def auto_adjust_network_settings(
 
 
     return roi_size, levels, init_filters, batch_size
-
-
-    

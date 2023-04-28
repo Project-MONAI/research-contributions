@@ -38,7 +38,7 @@ def logger_configure(log_output_file: str = None, debug = False, global_rank=0) 
         log_config["handlers"]["file"]["level"] = "DEBUG"
     else:
         log_config["handlers"]["file"]["level"] = "CRITICAL"
-        
+
     if debug or bool(os.environ.get("SEGRESNET_DEBUG", False)):
         log_config["handlers"]["console"]["level"] = "DEBUG"
 
@@ -47,7 +47,7 @@ def logger_configure(log_output_file: str = None, debug = False, global_rank=0) 
     logging.config.dictConfig(log_config)
     # if global_rank!=0:
     #      logger.addFilter(lambda x: False)
-    
+
 
 def get_gpu_mem_size():
 

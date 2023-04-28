@@ -63,7 +63,7 @@ class SegresnetAlgo(BundleAlgo):
             logger_configure(debug=input_config.get("debug", False))
             print(f"Loaded self.data_list_file {self.data_list_file}")
 
-            data_stats = ConfigParser(globals=False) 
+            data_stats = ConfigParser(globals=False)
             data_stats.read_config(data_stats_file)
 
             config["data_file_base_dir"] = os.path.abspath(input_config.pop("dataroot"))

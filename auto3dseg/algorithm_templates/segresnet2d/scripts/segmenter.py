@@ -1032,7 +1032,7 @@ class Segmenter:
         if cache_rate_train < 0.75 and config["num_steps_per_image"] is None and config["crop_mode"]=="ratio": #if low auto-detected cache rate
 
             num_crops_per_image = max(1, 4 // config["batch_size"]) * config["batch_size"] #batch divisible
-            config["num_steps_per_image"] = max(1, num_crops_per_image // config["batch_size"]) 
+            config["num_steps_per_image"] = max(1, num_crops_per_image // config["batch_size"])
             config["num_crops_per_image"] = num_crops_per_image
             config["batch_size"] = 1
 
@@ -1042,7 +1042,7 @@ class Segmenter:
                     f"num_crops_per_image => {config['num_crops_per_image']} \n "
                     f"num_steps_per_image => {config['num_steps_per_image']} \n "
                     f"to disable this behaviour set num_steps_per_image=1 \n ")
-        
+
         elif config["num_steps_per_image"] is None:
             config["num_steps_per_image"] = 1
 
@@ -1088,7 +1088,7 @@ class Segmenter:
                 raise ValueError("Unsupported optim_name"+str(optim_name))
 
         elif self.optimizer is None:
-            
+
             optimizer_part = ConfigParser(config["optimizer"]).get_parsed_content(instantiate=False)
             optimizer = optimizer_part.instantiate(params=self.model.parameters())
         else:
@@ -1295,7 +1295,7 @@ class Segmenter:
                         validation_time = train_time
                     time_remaining_estimate += validation_time *  len(val_schedule_list)
 
-                
+
                 print(f"Estimated remaining training time for the current model fold {config['fold']} is "
                       f"{time_remaining_estimate/3600:.2f} hr, "
                       f"running time {(time.time() - pre_loop_time)/3600:.2f} hr, "
@@ -1706,7 +1706,7 @@ class Segmenter:
 
                 loss = acc = None
                 if idx < nonrepeated_data_length:
-                    
+
                     target = batch_data["label"].as_subclass(torch.Tensor)
 
                     if calc_val_loss:

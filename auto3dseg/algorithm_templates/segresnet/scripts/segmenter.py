@@ -869,14 +869,14 @@ class Segmenter:
             checkpoint = torch.load(ckpt, map_location="cpu")
             model.load_state_dict(checkpoint["state_dict"], strict=True)
             epoch = checkpoint.get("epoch", 0)
-            
+
             # print(f"config before {self.config}")
 
 
             best_metric = checkpoint.get("best_metric", 0)
             self.config["start_epoch"] =  epoch if self.config.pop("continue", False) else 0
             print(f"=> loaded checkpoint {ckpt} (epoch {epoch}) (best_metric {best_metric}) setting start_epoch {self.config['start_epoch']}")
-      
+
             print(f"continue flag is {self.config.get('continue', False)}")
             # print(f"config after {self.config}")
 
@@ -1041,7 +1041,7 @@ class Segmenter:
         if cache_rate_train < 0.75 and config["num_steps_per_image"] is None and config["crop_mode"]=="ratio": #if low auto-detected cache rate
 
             num_crops_per_image = max(1, 4 // config["batch_size"]) * config["batch_size"] #batch divisible
-            num_steps_per_image = max(1, num_crops_per_image // config["batch_size"]) 
+            num_steps_per_image = max(1, num_crops_per_image // config["batch_size"])
             config["num_crops_per_image"] = num_crops_per_image
             config["batch_size"] = 1
 
@@ -1051,7 +1051,7 @@ class Segmenter:
                     f"num_crops_per_image => {config['num_crops_per_image']} \n "
                     f"num_steps_per_image => {num_steps_per_image} \n "
                     f"to disable this behaviour set num_steps_per_image=1 \n ")
-        
+
         elif config["num_steps_per_image"] is None:
             num_steps_per_image = 1
             config["num_crops_per_image"] = 1
@@ -1094,7 +1094,7 @@ class Segmenter:
                 raise ValueError("Unsupported optim_name"+str(optim_name))
 
         elif self.optimizer is None:
-            
+
             optimizer_part = ConfigParser(config["optimizer"]).get_parsed_content(instantiate=False)
             optimizer = optimizer_part.instantiate(params=self.model.parameters())
         else:
@@ -1151,7 +1151,7 @@ class Segmenter:
                 f"batch_size => {config['batch_size']} \n "
                 f"num_crops_per_image => {config['num_crops_per_image']} \n "
                 f"num_steps_per_image => {num_steps_per_image} \n ")
-            
+
 
         if self.lr_scheduler is None:
             lr_scheduler = WarmupCosineSchedule(optimizer=optimizer, warmup_steps=config["num_warmup_epochs"], warmup_multiplier=0.1, t_total=num_epochs)
@@ -1318,7 +1318,7 @@ class Segmenter:
                         validation_time = train_time
                     time_remaining_estimate += validation_time *  len(val_schedule_list)
 
-                
+
                 print(f"Estimated remaining training time for the current model fold {config['fold']} is "
                       f"{time_remaining_estimate/3600:.2f} hr, "
                       f"running time {(time.time() - pre_loop_time)/3600:.2f} hr, "
@@ -1729,7 +1729,7 @@ class Segmenter:
 
                 loss = acc = None
                 if idx < nonrepeated_data_length:
-                    
+
                     target = batch_data["label"].as_subclass(torch.Tensor)
 
                     if calc_val_loss:
