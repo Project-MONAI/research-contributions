@@ -1,8 +1,54 @@
+import os
 import numpy as np
 import torch
 
+import logging
 from monai.apps.auto3dseg.auto_runner import logger
 print = logger.debug
+
+def logger_configure(log_output_file: str = None, debug = False, global_rank=0) -> None:
+
+    log_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {"monai_default": {"format": "%(message)s"}},
+        "loggers": {
+            "monai.apps.auto3dseg.auto_runner": {"handlers": ["console", "file"], "level": "DEBUG", "propagate": False}
+        },
+        # "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "level": "INFO",
+                "formatter": "monai_default",
+                # "filters": ["rank_filter"],
+            },
+             "file": {
+                "class": "logging.FileHandler",
+                "filename": "runner.log",
+                "mode": "a",
+                "level": "DEBUG",
+                "formatter": "monai_default",
+                # "filters": ["rank_filter"],
+            },
+        },
+    }
+
+    if log_output_file is not None:
+        log_config["handlers"]["file"]["filename"] = log_output_file
+        log_config["handlers"]["file"]["level"] = "DEBUG"
+    else:
+        log_config["handlers"]["file"]["level"] = "CRITICAL"
+        
+    if debug or bool(os.environ.get("SEGRESNET_DEBUG", False)):
+        log_config["handlers"]["console"]["level"] = "DEBUG"
+
+    print(log_config)
+
+    logging.config.dictConfig(log_config)
+    # if global_rank!=0:
+    #      logger.addFilter(lambda x: False)
+
 
 def get_gpu_mem_size():
 
@@ -134,3 +180,6 @@ def auto_adjust_network_settings(
 
 
     return roi_size, levels, init_filters, batch_size
+
+
+    

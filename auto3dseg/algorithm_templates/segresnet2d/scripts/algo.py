@@ -22,11 +22,13 @@ import shutil
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
 
-if __package__ in (None, ""):
-    from utils import auto_adjust_network_settings
-else:
-    from .utils import auto_adjust_network_settings
+from monai.apps.auto3dseg.auto_runner import logger
+print = logger.debug
 
+if __package__ in (None, ""):
+    from utils import auto_adjust_network_settings, logger_configure
+else:
+    from .utils import auto_adjust_network_settings, logger_configure
 
 class Segresnet2dAlgo(BundleAlgo):
     def pre_check_skip_algo(self, skip_bundlegen: bool=False, skip_info: str=''):
@@ -66,21 +68,24 @@ class Segresnet2dAlgo(BundleAlgo):
         if output_path is None:
             raise ValueError("output_path is not provided")
 
+        os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:2048'
+
         if kwargs.pop("fill_with_datastats", True):
 
             config = {"bundle_root": output_path}
 
+            if self.data_list_file is None or not os.path.exists(str(self.data_list_file)):
+                raise ValueError(f"Unable to load self.data_list_file {self.data_list_file}")
+
             if data_stats_file is None or not os.path.exists(data_stats_file):
                 raise ValueError("data_stats_file unable to read: " + str(data_stats_file))
 
-            data_stats = ConfigParser(globals=False)
-            data_stats.read_config(data_stats_file)
+            input_config = ConfigParser.load_config_file(self.data_list_file)
+            logger_configure(debug=input_config.get("debug", False))
+            print(f"Loaded self.data_list_file {self.data_list_file}")
 
-            if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
-                input_config = ConfigParser.load_config_file(self.data_list_file)
-                print("Loaded self.data_list_file", self.data_list_file)
-            else:
-                print("Unable to load self.data_list_file", self.data_list_file)
+            data_stats = ConfigParser(globals=False) 
+            data_stats.read_config(data_stats_file)
 
             config["data_file_base_dir"] = os.path.abspath(input_config.pop("dataroot"))
             config["data_list_file_path"] = os.path.abspath(input_config.pop("datalist"))
@@ -194,12 +199,13 @@ class Segresnet2dAlgo(BundleAlgo):
 
             config["resample"] = False
 
-            print("Resampling all images to a working resolution" if  config["resample"] else "Not resampling images",
-                "resolution", config["resample_resolution"],
-                "resample_mode", resample_mode,
-                "anisotropic_scales", config["anisotropic_scales"],
-                "res bounds", config["spacing_lower"], config["spacing_upper"],
-                 "modality", modality )
+            print(f"Resampling params: \n",
+                f"resample {config['resample']} \n"
+                f"resolution {config['resample_resolution']} \n"
+                f"resample_mode {resample_mode} \n"
+                f"anisotropic_scales {config['anisotropic_scales']} \n"
+                f"res bounds {config['spacing_lower']} {config['spacing_upper']} \n"
+                f"modality {modality} \n")
 
             ###########################################
 
@@ -209,9 +215,9 @@ class Segresnet2dAlgo(BundleAlgo):
             image_size_mm_median = data_stats["stats_summary#image_stats#sizemm#median"]
             image_size_90 = (np.array(image_size_mm_90) / np.array(spacing)).astype(np.int32).tolist()
 
-            print('Found sizemm in new datastats median', image_size_mm_median, 'per90', image_size_mm_90,  'n_cases', n_cases)
+            print(f"Found sizemm in new datastats median {image_size_mm_median} per90 {image_size_mm_90} n_cases  {n_cases}")
+            print(f"Using avg image size 90 {image_size_90} for resample res {spacing} n_cases {n_cases}")
 
-            print('Using avg image size 90', image_size_90, 'for resample res', spacing,  'n_cases', n_cases)
             config["image_size_mm_median"] = image_size_mm_median
             config["image_size_mm_90"] = image_size_mm_90
 
@@ -251,7 +257,7 @@ class Segresnet2dAlgo(BundleAlgo):
             config["batch_size"] = batch_size
 
 
-            print('Updating roi_size (divisible) final ', roi_size, 'levels', levels)
+            print(f"Updating roi_size (divisible) final {roi_size} levels {levels}")
 
             ###########################################
             # update network config
@@ -315,10 +321,10 @@ class Segresnet2dAlgo(BundleAlgo):
             if "transform" in c and "_target_" in c["transform"]:
                 target = c["transform"]["_target_"]
                 target = "/".join(target.split(".")[:-1]) + ".py"
-                print("Copying custom transform file", target, "into", output_path)
+                print(f"Copying custom transform file {target} into {output_path}")
                 shutil.copy(target, output_path)
             else:
                 raise ValueError("Malformed custom_data_transforms parameter!"+str(c))
 
 if __name__ == "__main__":
-    fire.Fire({"SegresnetAlgo": SegresnetAlgo})
+    fire.Fire({"Segresnet2dAlgo": Segresnet2dAlgo})

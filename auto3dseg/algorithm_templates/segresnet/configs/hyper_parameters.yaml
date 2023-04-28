@@ -49,7 +49,7 @@ num_epochs_per_validation: null
 num_epochs_per_saving: 1
 num_workers: 4
 num_steps_per_image: null
-
+num_crops_per_image: 1
 
 loss:
   _target_: DiceCELoss
