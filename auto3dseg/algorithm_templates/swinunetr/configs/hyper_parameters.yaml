@@ -1,4 +1,3 @@
----
 bundle_root: null
 ckpt_path: "$@bundle_root + '/model_fold' + str(@fold)"
 data_file_base_dir: null
@@ -19,8 +18,8 @@ input_channels: null
 learning_rate: 0.0004
 log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/training.log'"
 num_images_per_batch: 2
-num_epochs: 1
-num_epochs_per_validation: 1
+num_epochs: 200
+num_epochs_per_validation: 5
 num_patches_per_image: 4
 num_patches_per_iter: 2
 num_sw_batch_size: "$@num_patches_per_iter"
@@ -35,6 +34,8 @@ random_seed: 0
 resample_to_spacing: null
 sw_input_on_cpu: false
 softmax: true
+valid_at_raw_resolution_at_last: true
+valid_at_raw_resolution_only: false
 use_pretrain: false
 pretrained_path: $@bundle_root + '/pretrained_model' + '/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt'
 adapt_valid_mode: true
