@@ -274,7 +274,7 @@ class Segmenter2D(Segmenter):
                 crop_params={"output_classes": config["output_classes"],
                             "crop_ratios": config["crop_ratios"],
                             "cache_class_indices": config["cache_class_indices"],
-                            "num_steps_per_image": config["num_steps_per_image"],
+                            "num_crops_per_image": config["num_crops_per_image"],
                             "max_samples_per_class": config["max_samples_per_class"]
                             },
 

@@ -9,9 +9,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:2048'
+
 import csv
 import logging
-import os
+import gc
 import sys
 import time
 import warnings
@@ -89,15 +92,14 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 from monai.apps.auto3dseg.transforms import EnsureSameShaped
 from monai.metrics import DiceHelper
 
-
 from monai.apps.auto3dseg.auto_runner import logger
 print = logger.debug
 tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
 
 if __package__ in (None, ""):
-    from utils import auto_adjust_network_settings
+    from utils import auto_adjust_network_settings, logger_configure
 else:
-    from .utils import auto_adjust_network_settings
+    from .utils import auto_adjust_network_settings, logger_configure
 
 
 class LabelEmbedClassIndex(MapTransform):
@@ -349,9 +351,9 @@ class DataTransformBuilder:
 
                 indices_key = self.label_key+"_cls_indices"
 
-            num_steps_per_image = self.crop_params.get("num_steps_per_image", 1)
-            if num_steps_per_image > 1:
-                print(f"Cropping with num_steps_per_image {num_steps_per_image}")
+            num_crops_per_image = self.crop_params.get("num_crops_per_image", 1)
+            if num_crops_per_image > 1:
+                print(f"Cropping with num_crops_per_image {num_crops_per_image}")
 
             ts.append(
                 RandCropByLabelClassesd(
@@ -359,7 +361,7 @@ class DataTransformBuilder:
                     label_key=self.label_key,
                     num_classes=output_classes,
                     spatial_size=self.roi_size,
-                    num_samples=num_steps_per_image,
+                    num_samples=num_crops_per_image,
                     ratios=crop_ratios,
                     indices_key=indices_key,
                     warn=False
@@ -511,7 +513,9 @@ class Segmenter:
         if config["ckpt_path"] is not None and not os.path.exists(config["ckpt_path"]):
             os.makedirs(config["ckpt_path"], exist_ok=True)
 
-        self.logger_configure(log_output_file=config["log_output_file"])
+        if config["log_output_file"] is None:
+            config["log_output_file"] = os.path.join(self.config["ckpt_path"], "training.log")
+        logger_configure(log_output_file=config["log_output_file"], debug=config["debug"], global_rank=self.global_rank)
 
 
         if config["fork"] and "fork" in mp.get_all_start_methods():
@@ -626,7 +630,7 @@ class Segmenter:
                 crop_params={"output_classes": config["output_classes"],
                             "crop_ratios": config["crop_ratios"],
                             "cache_class_indices": config["cache_class_indices"],
-                            "num_steps_per_image": config["num_steps_per_image"],
+                            "num_crops_per_image": config["num_crops_per_image"],
                             "max_samples_per_class": config["max_samples_per_class"]
                             },
 
@@ -698,46 +702,6 @@ class Segmenter:
 
         return model
 
-    def logger_configure(self, log_output_file: str = None) -> None:
-
-        CONFIG = {
-            "version": 1,
-            "disable_existing_loggers": False,
-            "formatters": {"monai_default": {"format": "%(message)s"}},
-            "loggers": {
-                "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
-            },
-            # "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
-            "handlers": {
-                "file": {
-                    "class": "logging.FileHandler",
-                    "filename": "runner.log",
-                    "mode": "a",
-                    "level": "DEBUG",
-                    "formatter": "monai_default",
-                    # "filters": ["rank_filter"],
-                },
-                "console": {
-                    "class": "logging.StreamHandler",
-                    "level": "INFO",
-                    "formatter": "monai_default",
-                    # "filters": ["rank_filter"],
-                },
-            },
-        }
-
-
-        if log_output_file is None:
-            log_output_file = os.path.join(self.config["ckpt_path"], "training.log")
-        CONFIG["handlers"]["file"]["filename"] = log_output_file
-
-        if self.config["debug"] or bool(os.environ.get("SEGRESNET_DEBUG", False)):
-            CONFIG["handlers"]["console"]["level"] = "DEBUG"
-
-        logging.config.dictConfig(CONFIG)
-        # if self.global_rank!=0:
-        #      logger.addFilter(lambda x: False)
-
     def parse_input_config(
         self, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}
     ) -> Tuple[ConfigParser, Dict]:
@@ -808,11 +772,13 @@ class Segmenter:
         config.setdefault("num_epochs_per_validation", None)
         config.setdefault("num_epochs_per_saving", 10)
         config.setdefault("num_steps_per_image", None)
+        config.setdefault("num_crops_per_image", 1)
         config.setdefault("max_samples_per_class", None)
 
         config.setdefault("calc_val_loss", False)
         config.setdefault("validate_final_original_res", False)
         config.setdefault("early_stopping_fraction", 0)
+        config.setdefault("start_epoch", 0)
 
         config.setdefault("ckpt_path", None)
         config.setdefault("ckpt_save", True)
@@ -903,8 +869,16 @@ class Segmenter:
             checkpoint = torch.load(ckpt, map_location="cpu")
             model.load_state_dict(checkpoint["state_dict"], strict=True)
             epoch = checkpoint.get("epoch", 0)
+
+            # print(f"config before {self.config}")
+
+
             best_metric = checkpoint.get("best_metric", 0)
-            print(f"=> loaded checkpoint {ckpt} (epoch {epoch}) (best_metric {best_metric})")
+            self.config["start_epoch"] =  epoch if self.config.pop("continue", False) else 0
+            print(f"=> loaded checkpoint {ckpt} (epoch {epoch}) (best_metric {best_metric}) setting start_epoch {self.config['start_epoch']}")
+
+            print(f"continue flag is {self.config.get('continue', False)}")
+            # print(f"config after {self.config}")
 
 
     def get_shared_memory_list(self, length=0):
@@ -1064,33 +1038,41 @@ class Segmenter:
             print(f"Auto setting max_samples_per_class :{config['max_samples_per_class']} cache_class_indices :{config['cache_class_indices']}")
 
 
-        if config["num_steps_per_image"] is None and cache_rate_train < 0.75 and config["cache_rate"] is None and not distributed:
-            config["num_steps_per_image"] = 4
+        if cache_rate_train < 0.75 and config["num_steps_per_image"] is None and config["crop_mode"]=="ratio": #if low auto-detected cache rate
+
+            num_crops_per_image = max(1, 4 // config["batch_size"]) * config["batch_size"] #batch divisible
+            num_steps_per_image = max(1, num_crops_per_image // config["batch_size"])
+            config["num_crops_per_image"] = num_crops_per_image
+            config["batch_size"] = 1
+
             if self.global_rank==0:
-                print(f"Given the low cache_rate {cache_rate_train} num_steps_per_image was autoset to"
-                      f"{config['num_steps_per_image']}, to disable this behaviour set manually, e.g. num_steps_per_image=1")
+                print(f"Given the low cache_rate {cache_rate_train} adjusting \n "
+                    f"batch_size => {config['batch_size']} \n "
+                    f"num_crops_per_image => {config['num_crops_per_image']} \n "
+                    f"num_steps_per_image => {num_steps_per_image} \n "
+                    f"to disable this behaviour set num_steps_per_image=1 \n ")
 
         elif config["num_steps_per_image"] is None:
-            config["num_steps_per_image"] = 1
+            num_steps_per_image = 1
+            config["num_crops_per_image"] = 1
+        else:
+            num_steps_per_image = config["num_steps_per_image"]
 
 
-        num_steps_per_image = int(config["num_steps_per_image"])
-
-        num_epochs = max(1, config["num_epochs"] // num_steps_per_image)
-        num_epochs_per_saving = max(1, config["num_epochs_per_saving"] // num_steps_per_image)
+        num_crops_per_image = int(config["num_crops_per_image"])
+        num_epochs = max(1, config["num_epochs"] // num_crops_per_image)
+        num_epochs_per_saving = max(1, config["num_epochs_per_saving"] // num_crops_per_image)
         num_epochs_per_validation = config["num_epochs_per_validation"]
-        if num_epochs_per_validation is not None:
-            num_epochs_per_validation = max(1, num_epochs_per_validation // num_steps_per_image)
 
-        if self.global_rank==0:
-            print(f"Auto setting num_steps_per_image :{config['num_steps_per_image']} num_epochs: {num_epochs} ")
+
+        if num_epochs_per_validation is not None:
+            num_epochs_per_validation = max(1, num_epochs_per_validation // num_crops_per_image)
 
 
         val_schedule_list = schedule_validation_epochs(num_epochs=num_epochs,
                                                        num_epochs_per_validation=num_epochs_per_validation)
         if self.global_rank==0:
             print(f"Scheduling validation loops at epochs: {val_schedule_list}")
-
 
         train_loader = self.get_train_loader(data=train_files,
                                             cache_rate=cache_rate_train,
@@ -1105,27 +1087,19 @@ class Segmenter:
         optim_name = config.get("optim_name", None) #experimental
         if optim_name is not None:
             print(f"Using optimizer: {optim_name}")
-            if optim_name=='novograd_monai':
-                from monai.optimizers import Novograd
-                optimizer = Novograd(params=self.model.parameters(), lr = config["learning_rate"], weight_decay=1.e-5)
-            elif optim_name=='fusednovograd':
+            if optim_name=='fusednovograd':
                 import apex
                 optimizer = apex.optimizers.FusedNovoGrad(params=self.model.parameters(), lr = config["learning_rate"], weight_decay=1.e-5)
             else:
                 raise ValueError("Unsupported optim_name"+str(optim_name))
 
-        else:
+        elif self.optimizer is None:
 
-            if self.optimizer is None:
-                optimizer_part = ConfigParser(config["optimizer"]).get_parsed_content(instantiate=False)
-                optimizer = optimizer_part.instantiate(params=self.model.parameters())
-            else:
-                optimizer = self.optimizer
-
-        if self.lr_scheduler is None:
-            lr_scheduler = WarmupCosineSchedule(optimizer=optimizer, warmup_steps=config["num_warmup_epochs"], warmup_multiplier=0.1, t_total=num_epochs)
+            optimizer_part = ConfigParser(config["optimizer"]).get_parsed_content(instantiate=False)
+            optimizer = optimizer_part.instantiate(params=self.model.parameters())
         else:
-            lr_scheduler = self.lr_scheduler
+            optimizer = self.optimizer
+
 
         tb_writer = None
         csv_path = progress_path = None
@@ -1159,20 +1133,43 @@ class Segmenter:
         best_metric = -1
         best_metric_epoch = -1
         pre_loop_time = time.time()
-        report_num_epochs = num_epochs * num_steps_per_image
+        report_num_epochs = num_epochs * num_crops_per_image
         train_time = validation_time = 0
         val_acc_history = []
 
+        start_epoch = config["start_epoch"]
+        start_epoch = start_epoch // num_crops_per_image
+        if start_epoch > 0:
+            val_schedule_list = [v for v in val_schedule_list if v >= start_epoch]
+            if len(val_schedule_list)==0:
+                val_schedule_list=[start_epoch]
+            print(f"adjusted schedule_list {val_schedule_list}")
 
-        range_num_epochs = range(num_epochs)
+        if self.global_rank==0:
+            print(f"Using num_epochs => {num_epochs}\n "
+                f"Using start_epoch => {start_epoch}\n "
+                f"batch_size => {config['batch_size']} \n "
+                f"num_crops_per_image => {config['num_crops_per_image']} \n "
+                f"num_steps_per_image => {num_steps_per_image} \n ")
+
+
+        if self.lr_scheduler is None:
+            lr_scheduler = WarmupCosineSchedule(optimizer=optimizer, warmup_steps=config["num_warmup_epochs"], warmup_multiplier=0.1, t_total=num_epochs)
+        else:
+            lr_scheduler = self.lr_scheduler
+        if lr_scheduler is not None and start_epoch > 0:
+            lr_scheduler.last_epoch = start_epoch
+
+
+        range_num_epochs = range(start_epoch, num_epochs)
         if  self.global_rank==0 and has_tqdm and not config["debug"]:
-            range_num_epochs = tqdm(range(num_epochs),
+            range_num_epochs = tqdm(range(start_epoch, num_epochs),
                                 desc= str(os.path.basename(config["bundle_root"])) + " - training",
                                 unit="epoch")
 
         for epoch in range_num_epochs:
 
-            report_epoch = epoch * num_steps_per_image
+            report_epoch = epoch * num_crops_per_image
 
             if distributed:
                 if isinstance(train_loader.sampler, DistributedSampler):
@@ -1206,10 +1203,9 @@ class Segmenter:
             if self.global_rank == 0:
                 print(
                     f"Final training  {report_epoch}/{report_num_epochs - 1} "
-                    f"loss: {train_loss:.4f} "
-                    f"acc_avg: {np.mean(train_acc):.4f} "
-                    f"acc {train_acc} "
-                    f"time {train_time:.2f}s"
+                    f"loss: {train_loss:.4f} acc_avg: {np.mean(train_acc):.4f} "
+                    f"acc {train_acc} time {train_time:.2f}s  "
+                    f"lr: {optimizer.param_groups[0]['lr']:.4e}"
                 )
 
                 if tb_writer is not None:
@@ -1221,7 +1217,6 @@ class Segmenter:
             if len(val_schedule_list) > 0 and epoch + 1 >= val_schedule_list[0] and val_loader is not None and len(val_loader)>0:
 
                 val_schedule_list.pop(0)
-
 
                 start_time = time.time()
                 torch.cuda.empty_cache()
@@ -1252,8 +1247,7 @@ class Segmenter:
                 if self.global_rank == 0:
                     print(
                         f"Final validation {report_epoch}/{report_num_epochs - 1} "
-                        f"loss: {val_loss:.4f} acc_avg: {val_acc_mean:.4f} "
-                        f"acc {val_acc} time {validation_time:.2f}s"
+                        f"loss: {val_loss:.4f} acc_avg: {val_acc_mean:.4f} acc: {val_acc} time: {validation_time:.2f}s"
                     )
 
                     if tb_writer is not None:
@@ -1265,9 +1259,10 @@ class Segmenter:
                             tb_writer.add_scalar("val/loss", val_loss, report_epoch)
 
                     timing_dict = dict(
+                        time="{:.2f} hr".format((time.time() - pre_loop_time)/3600),
                         train_time="{:.2f}s".format(train_time),
                         validation_time="{:.2f}s".format(validation_time),
-                        epoch_time="{:.2f}s".format(time.time() - epoch_time)
+                        epoch_time="{:.2f}s".format(time.time() - epoch_time),
                     )
 
                     if val_acc_mean > best_metric:
@@ -1292,13 +1287,11 @@ class Segmenter:
                             csv_path=csv_path,
                             epoch=report_epoch,
                             metric="{:.4f}".format(val_acc_mean),
-                            loss="{:.4f}".format(val_loss),
+                            loss="{:.4f}".format(train_loss),
                             iter=report_epoch * len(train_loader.dataset),
-                            time="{:.2f}s".format(time.time() - pre_loop_time),
                             **timing_dict,
                         )
 
-                            # sanity check
 
                 #sanity check
                 if epoch > max(20, num_epochs/4) and 0 <= val_acc_mean < 0.01:
@@ -1324,8 +1317,12 @@ class Segmenter:
                     if validation_time==0:
                         validation_time = train_time
                     time_remaining_estimate += validation_time *  len(val_schedule_list)
+
+
                 print(f"Estimated remaining training time for the current model fold {config['fold']} is "
-                      f"{time.strftime('%H hr %M min', time.gmtime(time_remaining_estimate))}")
+                      f"{time_remaining_estimate/3600:.2f} hr, "
+                      f"running time {(time.time() - pre_loop_time)/3600:.2f} hr, "
+                      f"est total time {(time.time() - pre_loop_time + time_remaining_estimate)/3600:.2f} hr \n")
 
             if distributed:
                 dist.barrier()
@@ -1333,7 +1330,7 @@ class Segmenter:
             ## early stopping
             if config["early_stopping_fraction"] > 0 and epoch > num_epochs/2 and len(val_acc_history)>10:
 
-                check_interval = int(0.1 * num_epochs * num_steps_per_image)
+                check_interval = int(0.1 * num_epochs * num_crops_per_image)
                 check_stats = [va[1] for va in val_acc_history if report_epoch-va[0] < check_interval] #at least 10% epochs
                 if len(check_stats)<10:
                     check_stats = [va[1] for va in val_acc_history[-10:]] #at least 10 sample points
@@ -1351,32 +1348,40 @@ class Segmenter:
 
         #### end of main epoch loop
 
-        train_loader = None
-        val_loader = None
+        train_loader = val_loader = optimizer = None
 
         #optionally validate best checkpoint at the original image resolution
+        orig_res = config["resample"]==False
         if config["validate_final_original_res"] and config["resample"]==True:
 
             pretrained_ckpt_name = best_ckpt_path if os.path.exists(best_ckpt_path) else intermediate_ckpt_path
             if os.path.exists(pretrained_ckpt_name):
                 self.model = None
+                gc.collect()
                 torch.cuda.empty_cache()
 
                 best_metric = self.original_resolution_validate(pretrained_ckpt_name=pretrained_ckpt_name,
                                                                 progress_path=progress_path,
-                                                                best_metric_epoch=best_metric_epoch)
+                                                                best_metric_epoch=best_metric_epoch,
+                                                                pre_loop_time=pre_loop_time)
+                orig_res = True
             else:
                 if self.global_rank==0:
-                    print(f"Unable to validate at the original res since none model checkpoints found {best_ckpt_path}, {intermediate_ckpt_path}")
+                    print(f"Unable to validate at the original res since no model checkpoints found {best_ckpt_path}, {intermediate_ckpt_path}")
+
 
         if tb_writer is not None:
-            print(f"=== DONE: best_metric: {best_metric:.4f} at epoch: {best_metric_epoch} of {report_num_epochs}.")
             tb_writer.flush()
             tb_writer.close()
 
+
+        if self.global_rank==0:
+            print(f"=== DONE: best_metric: {best_metric:.4f} at epoch: {best_metric_epoch} of {report_num_epochs} orig_res {orig_res}. Training time {(time.time() - pre_loop_time)/3600:.2f} hr.")
+
+
         return best_metric
 
-    def original_resolution_validate(self, pretrained_ckpt_name, progress_path, best_metric_epoch):
+    def original_resolution_validate(self, pretrained_ckpt_name, progress_path, best_metric_epoch, pre_loop_time):
 
         if self.global_rank==0:
             print("Running final best model validation on the original image resolution!")
@@ -1401,7 +1406,8 @@ class Segmenter:
                     best_avg_dice_score_epoch=best_metric_epoch,
                     best_avg_dice_score=val_acc_mean,
                     validation_time=validation_time,
-                    inverted_best_validation=True
+                    inverted_best_validation=True,
+                    time="{:.2f} hr".format((time.time() - pre_loop_time)/3600),
                 )
 
         return val_acc_mean
@@ -1643,7 +1649,7 @@ class Segmenter:
             if global_rank == 0:
                 print(
                     f"Epoch {epoch}/{num_epochs} {idx}/{len(train_loader)} "
-                    f"loss: {avg_loss:.4f} acc {avg_acc}  time {time.time() - start_time:.2f}s"
+                    f"loss: {avg_loss:.4f} acc {avg_acc}  time {time.time() - start_time:.2f}s "
                 )
                 start_time = time.time()
 
@@ -1711,33 +1717,36 @@ class Segmenter:
 
             data = None
             pred = logits2pred(logits, sigmoid=sigmoid, out=logits if not calc_val_loss else None)
-            pred = pred.to(device=device)
 
             if post_transforms:
                 batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[0]
                 pred  = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)])
 
                 if logits is not None and pred.shape != logits.shape:
-                    logits = None  # if shape changed due to inverse resampling on un-cropping
+                    logits = None  # if shape has changed due to inverse resampling or un-cropping
 
             if "label" in batch_data and loss_function is not None and acc_function is not None:
 
-
                 loss = acc = None
-
                 if idx < nonrepeated_data_length:
-                    pred = pred.to(device=device)
+
+                    target = batch_data["label"].as_subclass(torch.Tensor)
 
                     if calc_val_loss:
                         if logits is not None:
-                            target = batch_data["label"].as_subclass(torch.Tensor).to(device=logits.device)
-                            loss = loss_function(logits, target)
+                            loss = loss_function(logits, target.to(device=logits.device))
                             run_loss.append(loss.to(device=device), count=batch_size)
                             logits = None
 
-                    target = batch_data["label"].as_subclass(torch.Tensor).to(device=pred.device)
                     with torch.no_grad():
-                        acc = acc_function(pred, target)
+                        try:
+                            acc = acc_function(pred.to(device=device), target.to(device=device)) #try GPU
+                        except RuntimeError as e:
+                            if "OutOfMemoryError" not in str(type(e).__name__):
+                                raise e
+                            print(f"Val acc failed on GPU pred: {pred.shape} / {pred.device}. retrying on CPU")
+                            acc = acc_function(pred.cpu(), target.cpu())
+
                         batch_size_adjusted = batch_size
                         if isinstance(acc, (list, tuple)):
                             acc, batch_size_adjusted = acc
@@ -1865,7 +1874,7 @@ class Segmenter:
     def save_history_csv(self, csv_path=None, header=None, **kwargs):
         if csv_path is not None:
             if header is not None:
-                with open(csv_path, "w") as myfile:
+                with open(csv_path, "a") as myfile:
                     wrtr = csv.writer(myfile, delimiter="\t")
                     wrtr.writerow(header)
             if len(kwargs):
