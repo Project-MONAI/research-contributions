@@ -199,7 +199,7 @@ class Segresnet2dAlgo(BundleAlgo):
 
             config["resample"] = False
 
-            print(f"Resampling params: \n",
+            print(f"Resampling params: \n"
                 f"resample {config['resample']} \n"
                 f"resolution {config['resample_resolution']} \n"
                 f"resample_mode {resample_mode} \n"
