@@ -603,7 +603,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                 raise e
                             val_devices[val_filename] = "cpu"
-
+                            val_images = val_images.to(val_devices[val_filename])
+                            val_labels = val_labels.to(val_devices[val_filename])
+                            
                             with autocast(enabled=amp):
                                 val_outputs = sliding_window_inference(
                                     val_images,
@@ -753,7 +755,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     try:
                         val_labels = val_labels.to(device)
-
                         with autocast(enabled=amp):
                             val_data["pred"] = sliding_window_inference(
                                 inputs=val_data["image"].to(device),
@@ -763,22 +764,22 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 mode="gaussian",
                                 overlap=overlap_ratio,
                                 sw_device=device)
+                        val_outputs = [post_transforms(i) for i in monai.data.decollate_batch(val_data)][0]["pred"]
+                        val_outputs = val_outputs[None, ...]
                     except BaseException:
+                        val_labels = val_labels.to('cpu')
                         with autocast(enabled=amp):
                             val_data["pred"] = sliding_window_inference(
-                                val_data["image"],
+                                val_data["image"].to('cpu'),
                                 patch_size_valid,
                                 sw_batch_size=num_sw_batch_size,
                                 predictor=model,
                                 mode="gaussian",
                                 overlap=overlap_ratio,
                                 sw_device=device)
+                        val_outputs = [post_transforms(i) for i in monai.data.decollate_batch(val_data)][0]["pred"]
+                        val_outputs = val_outputs[None, ...]
 
-                    val_data = [
-                        post_transforms(i) for i in monai.data.decollate_batch(val_data)]
-
-                    val_outputs = val_data[0]["pred"]
-                    val_outputs = val_outputs[None, ...]
                     if softmax:
                         val_labels = val_labels.int()
                         value = torch.zeros(1, metric_dim).to(device)
