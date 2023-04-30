@@ -290,7 +290,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 hash_as_key=True,
                 num_workers=parser.get_parsed_content("num_cache_workers"),
                 progress=parser.get_parsed_content("show_cache_progress"))
-            
+
         if valid_at_raw_resolution_at_last or valid_at_raw_resolution_only:
             raw_val_ds = monai.data.Dataset(data=val_files, transform=infer_transforms)
 
@@ -309,14 +309,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             shuffle=False,
             persistent_workers=True,
             pin_memory=True)
-        
+
     if valid_at_raw_resolution_at_last or valid_at_raw_resolution_only:
         raw_val_loader = DataLoader(
             raw_val_ds,
             num_workers=4,
             batch_size=1,
             shuffle=False)
-        
+
     device = torch.device(
         f"cuda:{os.environ['LOCAL_RANK']}") if world_size > 1 else torch.device("cuda:0")
 
@@ -350,26 +350,26 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     else:
         post_pred = transforms.Compose([transforms.EnsureType(), transforms.Activations(
             sigmoid=True), transforms.AsDiscrete(threshold=0.5)])
-	
-    if valid_at_raw_resolution_at_last or valid_at_raw_resolution_only:	
-        post_transforms = [	
-            transforms.Invertd(	
-                keys="pred",	
-                transform=infer_transforms,	
-                orig_keys="image",	
-                meta_keys="pred_meta_dict",	
-                orig_meta_keys="image_meta_dict",	
-                meta_key_postfix="meta_dict",	
-                nearest_interp=False,	
-                to_tensor=True)]	
-        if softmax:	
-            post_transforms += [	
-                transforms.AsDiscreted(	
-                    keys="pred", argmax=True)]	
-        else:	
-            post_transforms += [	
-                transforms.AsDiscreted(	
-                    keys="pred", threshold=0.5)]	
+
+    if valid_at_raw_resolution_at_last or valid_at_raw_resolution_only:
+        post_transforms = [
+            transforms.Invertd(
+                keys="pred",
+                transform=infer_transforms,
+                orig_keys="image",
+                meta_keys="pred_meta_dict",
+                orig_meta_keys="image_meta_dict",
+                meta_key_postfix="meta_dict",
+                nearest_interp=False,
+                to_tensor=True)]
+        if softmax:
+            post_transforms += [
+                transforms.AsDiscreted(
+                    keys="pred", argmax=True)]
+        else:
+            post_transforms += [
+                transforms.AsDiscreted(
+                    keys="pred", threshold=0.5)]
         post_transforms = transforms.Compose(post_transforms)
 
     loss_function = parser.get_parsed_content("loss")
