@@ -593,6 +593,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                     mode="gaussian",
                                     overlap=overlap_ratio,
                                     sw_device=device)
+
+                            val_outputs = post_pred(val_outputs[0, ...])
+
                         except BaseException:
                             val_images = val_images.cpu()
                             val_labels = val_labels.cpu()
@@ -608,7 +611,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                     overlap=overlap_ratio,
                                     sw_device=device)
 
-                        val_outputs = post_pred(val_outputs[0, ...])
+                            val_outputs = post_pred(val_outputs[0, ...])
+
                         val_outputs = val_outputs[None, ...]
 
                         if softmax:
@@ -764,6 +768,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 mode="gaussian",
                                 overlap=overlap_ratio,
                                 sw_device=device)
+
+                        val_data = [
+                            post_transforms(i) for i in monai.data.decollate_batch(val_data)]
+
+                        val_outputs = post_pred(val_data[0]["pred"])
+
                     except BaseException:
                         val_data["image"] = val_data["image"].cpu()
                         val_labels = val_labels.cpu()
@@ -778,10 +788,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 overlap=overlap_ratio,
                                 sw_device=device)
 
-                    val_data = [
-                        post_transforms(i) for i in monai.data.decollate_batch(val_data)]
+                        val_data = [
+                            post_transforms(i) for i in monai.data.decollate_batch(val_data)]
 
-                    val_outputs = post_pred(val_data[0]["pred"])
+                        val_outputs = post_pred(val_data[0]["pred"])
+
                     val_outputs = val_outputs[None, ...]
 
                     if softmax:
