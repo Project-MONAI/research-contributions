@@ -594,6 +594,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                     overlap=overlap_ratio,
                                     sw_device=device)
                         except BaseException:
+                            val_images = val_images.cpu()
+                            val_labels = val_labels.cpu()
                             val_devices[val_filename] = "cpu"
 
                             with autocast(enabled=amp):
@@ -763,6 +765,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 overlap=overlap_ratio,
                                 sw_device=device)
                     except BaseException:
+                        val_data["image"] = val_data["image"].cpu()
+                        val_labels = val_labels.cpu()
+
                         with autocast(enabled=amp):
                             val_data["pred"] = sliding_window_inference(
                                 val_data["image"],
