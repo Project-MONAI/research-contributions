@@ -599,6 +599,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                     mode="gaussian",
                                     overlap=overlap_ratio,
                                     sw_device=device)
+                            val_outputs = post_pred(val_outputs[0, ...])
+                            val_outputs = val_outputs[None, ...]
+                            
                         except RuntimeError as e:
                             if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                 raise e
@@ -616,8 +619,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                     overlap=overlap_ratio,
                                     sw_device=device)
 
-                        val_outputs = post_pred(val_outputs[0, ...])
-                        val_outputs = val_outputs[None, ...]
+                            val_outputs = post_pred(val_outputs[0, ...])
+                            val_outputs = val_outputs[None, ...]
 
                         if softmax:
                             val_labels = val_labels.int()
