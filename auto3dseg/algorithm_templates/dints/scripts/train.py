@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import gc
 import io
 import logging
 import math
@@ -409,7 +410,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     best_metric_epoch = -1
     idx_iter = 0
     metric_dim = output_classes - 1 if softmax else output_classes
-    val_devices = {}
+    val_devices_input = {}
+    val_devices_output = {}
 
     if es:
         stop_train = torch.tensor(False).to(device)
@@ -539,6 +541,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 del inputs, labels, outputs
                 torch.cuda.empty_cache()
+                gc.collect()
 
                 if ad:
                     _percentage = float(_round) / float(num_rounds) * 100.0
@@ -563,55 +566,67 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         metric_dim * 2, dtype=torch.float, device=device)
                     metric_sum = 0.0
                     metric_mat = []
-                    val_images = None
-                    val_labels = None
-                    val_outputs = None
+                    # val_images = None
+                    # val_labels = None
+                    # val_outputs = None
+                    # finished = None
 
                     _index = 0
                     for val_data in val_loader:
-                        val_images = val_data["image"]
-                        val_labels = val_data["label"]
+                        val_images = None
+                        val_labels = None
+                        val_outputs = None
+                        finished = None
+                        device_list_input = None
+                        device_list_output = None
 
                         val_filename = val_data["image_meta_dict"]["filename_or_obj"][0]
                         if sw_input_on_cpu:
-                            val_devices[val_filename] = "cpu"
-                        elif val_filename not in val_devices:
-                            val_devices[val_filename] = device
+                            device_list_input = ["cpu"]
+                            device_list_output = ["cpu"]
+                        elif val_filename not in val_devices_input or val_filename not in val_devices_output:
+                            device_list_input = [device, device, "cpu"]
+                            device_list_output = [device, "cpu", "cpu"]
+                        elif val_filename in val_devices_input and val_filename in val_devices_output:
+                            device_list_input = [
+                                val_devices_input[val_filename],]
+                            device_list_output = [
+                                device_list_output[val_filename]]
 
-                        try:
-                            val_images = val_images.to(
-                                val_devices[val_filename])
-                            val_labels = val_labels.to(
-                                val_devices[val_filename])
+                        for _device_in, _device_out in zip(
+                                device_list_input, device_list_output):
+                            try:
+                                val_devices_input[val_filename] = _device_in
+                                val_devices_output[val_filename] = _device_out
 
-                            with autocast(enabled=amp):
-                                val_outputs = sliding_window_inference(
-                                    inputs=val_images,
-                                    roi_size=patch_size_valid,
-                                    sw_batch_size=num_sw_batch_size,
-                                    predictor=model,
-                                    mode="gaussian",
-                                    overlap=overlap_ratio,
-                                    sw_device=device)
+                                val_images = val_data["image"].to(_device_in)
+                                val_labels = val_data["label"].to(_device_out)
 
-                            val_outputs = post_pred(val_outputs[0, ...])
+                                if _device_in != device or _device_out != device:
+                                    model = model.cpu()
+                                    torch.cuda.empty_cache()
+                                    gc.collect()
+                                    model = model.to(device)
 
-                        except BaseException:
-                            val_images = val_images.cpu()
-                            val_labels = val_labels.cpu()
-                            val_devices[val_filename] = "cpu"
+                                with autocast(enabled=amp):
+                                    val_outputs = sliding_window_inference(
+                                        inputs=val_images,
+                                        roi_size=patch_size_valid,
+                                        sw_batch_size=num_sw_batch_size,
+                                        predictor=model,
+                                        mode="gaussian",
+                                        overlap=overlap_ratio,
+                                        sw_device=device,
+                                        device=_device_out)
+                                val_outputs = post_pred(val_outputs[0, ...])
 
-                            with autocast(enabled=amp):
-                                val_outputs = sliding_window_inference(
-                                    val_images,
-                                    patch_size_valid,
-                                    sw_batch_size=num_sw_batch_size,
-                                    predictor=model,
-                                    mode="gaussian",
-                                    overlap=overlap_ratio,
-                                    sw_device=device)
+                                finished = True
 
-                            val_outputs = post_pred(val_outputs[0, ...])
+                            except BaseException:
+                                finished = False
+
+                            if finished:
+                                break
 
                         val_outputs = val_outputs[None, ...]
 
@@ -635,6 +650,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         del val_images, val_labels, val_outputs
                         torch.cuda.empty_cache()
+                        gc.collect()
 
                         metric_sum += value.sum().item()
                         metric_vals = value.cpu().numpy()
@@ -726,6 +742,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             break
 
                 torch.cuda.empty_cache()
+                gc.collect()
 
         if valid_at_raw_resolution_at_last or valid_at_raw_resolution_only:
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
@@ -754,45 +771,64 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in raw_val_loader:
-                    val_labels = val_data["label"]
+                    val_images = None
+                    val_labels = None
+                    val_outputs = None
+                    finished = None
 
-                    try:
-                        val_labels = val_labels.to(device)
+                    device_list_input = None
+                    device_list_output = None
+                    if sw_input_on_cpu:
+                        device_list_input = ["cpu"]
+                        device_list_output = ["cpu"]
+                    else:
+                        device_list_input = [device, device, "cpu"]
+                        device_list_output = [device, "cpu", "cpu"]
 
-                        with autocast(enabled=amp):
-                            val_data["pred"] = sliding_window_inference(
-                                inputs=val_data["image"].to(device),
-                                roi_size=patch_size_valid,
-                                sw_batch_size=num_sw_batch_size,
-                                predictor=model,
-                                mode="gaussian",
-                                overlap=overlap_ratio,
-                                sw_device=device)
+                    for _device_in, _device_out in zip(
+                            device_list_input, device_list_output):
+                        try:
+                            val_images = val_data["image"].to(_device_in)
+                            val_labels = val_data["label"].to(_device_out)
 
-                        val_data = [
-                            post_transforms(i) for i in monai.data.decollate_batch(val_data)]
+                            if _device_in != device or _device_out != device:
+                                model = model.cpu()
+                                torch.cuda.empty_cache()
+                                gc.collect()
+                                model = model.to(device)
 
-                        val_outputs = post_pred(val_data[0]["pred"])
+                            with autocast(enabled=amp):
+                                val_data["pred"] = sliding_window_inference(
+                                    inputs=val_images,
+                                    roi_size=patch_size_valid,
+                                    sw_batch_size=num_sw_batch_size,
+                                    predictor=model,
+                                    mode="gaussian",
+                                    overlap=overlap_ratio,
+                                    sw_device=device,
+                                    device=_device_out)
 
-                    except BaseException:
-                        val_data["image"] = val_data["image"].cpu()
-                        val_labels = val_labels.cpu()
+                            finished = True
 
-                        with autocast(enabled=amp):
-                            val_data["pred"] = sliding_window_inference(
-                                val_data["image"],
-                                patch_size_valid,
-                                sw_batch_size=num_sw_batch_size,
-                                predictor=model,
-                                mode="gaussian",
-                                overlap=overlap_ratio,
-                                sw_device=device)
+                        except BaseException:
+                            finished = False
 
-                        val_data = [
-                            post_transforms(i) for i in monai.data.decollate_batch(val_data)]
+                        if finished:
+                            break
 
-                        val_outputs = post_pred(val_data[0]["pred"])
+                    del val_images
+                    val_data["image"] = val_data["image"].cpu()
+                    val_data["label"] = val_data["label"].cpu()
+                    val_data["pred"] = val_data["pred"].cpu()
+                    val_labels = val_labels.cpu()
+                    torch.cuda.empty_cache()
+                    gc.collect()
 
+                    val_data = [
+                        post_transforms(i) for i in
+                        monai.data.decollate_batch(val_data)]
+
+                    val_outputs = post_pred(val_data[0]["pred"])
                     val_outputs = val_outputs[None, ...]
 
                     if softmax:
