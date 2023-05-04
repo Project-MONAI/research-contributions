@@ -149,16 +149,16 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     random_seed = parser.get_parsed_content("training#random_seed")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     softmax = parser.get_parsed_content("training#softmax")
-    valid_at_raw_resolution_at_last = parser.get_parsed_content(
-        "training#valid_at_raw_resolution_at_last")
-    valid_at_raw_resolution_only = parser.get_parsed_content(
-        "training#valid_at_raw_resolution_only")
+    valid_at_orig_resolution_at_last = parser.get_parsed_content(
+        "training#valid_at_orig_resolution_at_last")
+    valid_at_orig_resolution_only = parser.get_parsed_content(
+        "training#valid_at_orig_resolution_only")
 
-    if not valid_at_raw_resolution_only:
+    if not valid_at_orig_resolution_only:
         train_transforms = parser.get_parsed_content("transforms_train")
         val_transforms = parser.get_parsed_content("transforms_validate")
 
-    if valid_at_raw_resolution_at_last or valid_at_raw_resolution_only:
+    if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
         infer_transforms = parser.get_parsed_content("transforms_infer")
         infer_transforms = transforms.Compose([
             infer_transforms,
@@ -282,7 +282,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         warnings.simplefilter(action="ignore", category=FutureWarning)
         warnings.simplefilter(action="ignore", category=Warning)
 
-        if not valid_at_raw_resolution_only:
+        if not valid_at_orig_resolution_only:
             train_ds = monai.data.CacheDataset(
                 data=train_files * num_epochs_per_validation,
                 transform=train_transforms,
@@ -298,11 +298,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 num_workers=parser.get_parsed_content("training#num_cache_workers"),
                 progress=parser.get_parsed_content("show_cache_progress"))
 
-        if valid_at_raw_resolution_at_last or valid_at_raw_resolution_only:
-            raw_val_ds = monai.data.Dataset(
+        if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
+            orig_val_ds = monai.data.Dataset(
                 data=val_files, transform=infer_transforms)
 
-    if not valid_at_raw_resolution_only:
+    if not valid_at_orig_resolution_only:
         train_loader = DataLoader(
             train_ds,
             num_workers=parser.get_parsed_content("training#num_workers"),
@@ -318,9 +318,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             persistent_workers=True,
             pin_memory=True)
 
-    if valid_at_raw_resolution_at_last or valid_at_raw_resolution_only:
-        raw_val_loader = DataLoader(
-            raw_val_ds,
+    if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
+        orig_val_loader = DataLoader(
+            orig_val_ds,
             num_workers=4,
             batch_size=1,
             shuffle=False)
@@ -342,7 +342,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         post_pred = transforms.Compose([transforms.EnsureType(), transforms.Activations(
             sigmoid=True), transforms.AsDiscrete(threshold=0.5)])
 
-    if valid_at_raw_resolution_at_last or valid_at_raw_resolution_only:
+    if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
         post_transforms = [
             transforms.Invertd(
                 keys="pred",
@@ -441,7 +441,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         warnings.simplefilter(action="ignore", category=FutureWarning)
         warnings.simplefilter(action="ignore", category=Warning)
 
-        if not valid_at_raw_resolution_only:
+        if not valid_at_orig_resolution_only:
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                 progress_bar = tqdm(
                     range(num_rounds),
@@ -741,11 +741,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 torch.cuda.empty_cache()
                 gc.collect()
 
-        if valid_at_raw_resolution_at_last or valid_at_raw_resolution_only:
+        if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                 print(
-                    f"{os.path.basename(bundle_root)} - validation at original/raw spacing/resolution")
-                logger.debug("validation at original/raw spacing/resolution")
+                    f"{os.path.basename(bundle_root)} - validation at original spacing/resolution")
+                logger.debug("validation at original spacing/resolution")
 
             if torch.cuda.device_count() > 1:
                 model.module.load_state_dict(
@@ -767,7 +767,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 metric_mat = []
 
                 _index = 0
-                for val_data in raw_val_loader:
+                for val_data in orig_val_loader:
                     val_images = None
                     val_labels = None
                     val_outputs = None
@@ -824,13 +824,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     val_data = [
                         post_transforms(i) for i in
                         monai.data.decollate_batch(val_data)]
-
-                    val_outputs = post_pred(val_data[0]["pred"])
-                    val_outputs = val_outputs[None, ...]
+                    val_outputs = val_data[0]["pred"][None, ...]
 
                     if softmax:
                         val_labels = val_labels.int()
-                        value = torch.zeros(1, metric_dim).to(device)
+                        value = torch.zeros(1, metric_dim)
                         for _k in range(1, metric_dim + 1):
                             value[0, _k - 1] = compute_dice(
                                 y_pred=(val_outputs == _k).float(),
@@ -841,10 +839,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             y_pred=val_outputs,
                             y=val_labels,
                             include_background=not softmax)
-                        value = value.to(device)
 
                     logger.debug(
-                        f"validation Dice score at original/raw spacing/resolution: {value}")
+                        f"validation Dice score at original spacing/resolution: {value}")
 
                     metric_sum += value.sum().item()
                     metric_vals = value.cpu().numpy()
@@ -870,14 +867,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     for _c in range(metric_dim):
                         logger.debug(
-                            f"evaluation metric at original/raw spacing/resolution - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
+                            f"evaluation metric at original spacing/resolution - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
 
                     avg_metric = 0
                     for _c in range(metric_dim):
                         avg_metric += metric[2 * _c] / metric[2 * _c + 1]
                     avg_metric = avg_metric / float(metric_dim)
                     logger.debug(
-                        f"avg_metric at original/raw spacing/resolution: {avg_metric}")
+                        f"avg_metric at original spacing/resolution: {avg_metric}")
 
                     with open(os.path.join(ckpt_path, "progress.yaml"), "r") as out_file:
                         progress = yaml.safe_load(out_file)

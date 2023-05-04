@@ -38,8 +38,8 @@ training:
   resample_to_spacing: null
   sw_input_on_cpu: false
   softmax: true
-  valid_at_raw_resolution_at_last: true
-  valid_at_raw_resolution_only: false
+  valid_at_orig_resolution_at_last: true
+  valid_at_orig_resolution_only: false
   
   adapt_valid_mode: true
   adapt_valid_progress_percentages: [10, 40, 70]
