@@ -226,7 +226,6 @@ class Segresnet2dAlgo(BundleAlgo):
 
             max_epochs = int(np.clip(np.ceil(80000.0 / n_cases), a_min=300, a_max=1250))
             config["num_epochs"] = max_epochs
-            config["warmup_epochs"] = int(np.ceil(0.01 * max_epochs))
 
             ###########################################
 
