@@ -144,6 +144,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         "training#num_patches_per_iter")
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
+    overlap_ratio_train = parser.get_parsed_content("training#overlap_ratio_train")
     patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
     random_seed = parser.get_parsed_content("training#random_seed")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
@@ -611,7 +612,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                         sw_batch_size=num_sw_batch_size,
                                         predictor=model,
                                         mode="gaussian",
-                                        overlap=overlap_ratio,
+                                        overlap=overlap_ratio_train,
                                         sw_device=device,
                                         device=_device_out)
                                 val_outputs = post_pred(val_outputs[0, ...])

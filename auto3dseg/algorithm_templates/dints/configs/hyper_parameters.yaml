@@ -30,6 +30,7 @@ training:
   num_workers_validation: 4
   num_cache_workers: 8
   output_classes: null
+  overlap_ratio_train: 0.125
   overlap_ratio: 0.625
   patch_size: null
   patch_size_valid: null
