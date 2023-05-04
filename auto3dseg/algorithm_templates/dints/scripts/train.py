@@ -566,10 +566,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         metric_dim * 2, dtype=torch.float, device=device)
                     metric_sum = 0.0
                     metric_mat = []
-                    # val_images = None
-                    # val_labels = None
-                    # val_outputs = None
-                    # finished = None
 
                     _index = 0
                     for val_data in val_loader:
@@ -713,7 +709,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 best_metric_epoch)
                             dict_file["best_avg_dice_score_iteration"] = int(
                                 idx_iter)
-                            dict_file["evaluate_at_orig_spacing"] = False
+                            dict_file["inverted_best_validation"] = False
                             with open(os.path.join(ckpt_path, "progress.yaml"), "a") as out_file:
                                 yaml.dump([dict_file], stream=out_file)
 
@@ -891,7 +887,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         progress[-1]["best_avg_dice_score_epoch"])
                     dict_file["best_avg_dice_score_iteration"] = int(
                         progress[-1]["best_avg_dice_score_iteration"])
-                    dict_file["evaluate_at_orig_spacing"] = True
+                    dict_file["inverted_best_validation"] = True
                     with open(os.path.join(ckpt_path, "progress.yaml"), "a") as out_file:
                         yaml.dump([dict_file], stream=out_file)
 

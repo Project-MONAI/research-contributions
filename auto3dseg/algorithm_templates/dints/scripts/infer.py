@@ -9,6 +9,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
 import logging
 import os
 import sys
@@ -19,10 +20,38 @@ import torch
 import monai
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
+from monai.apps.utils import DEFAULT_FMT
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch, list_data_collate
 from monai.inferers import sliding_window_inference
+
+
+CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"monai_default": {"format": DEFAULT_FMT}},
+    "loggers": {
+        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
+    },
+    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+    "handlers": {
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": "runner.log",
+            "mode": "a",  # append or overwrite
+            "level": "DEBUG",
+            "formatter": "monai_default",
+            "filters": ["rank_filter"],
+        },
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "INFO",
+            "formatter": "monai_default",
+            "filters": ["rank_filter"],
+        },
+    },
+}
 
 
 class InferClass:
@@ -39,9 +68,11 @@ class InferClass:
         parser.read_config(config_file_)
         parser.update(pairs=_args)
 
+        self.amp = parser.get_parsed_content("training#amp")
         data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
         data_list_file_path = parser.get_parsed_content("data_list_file_path")
         self.fast = parser.get_parsed_content("infer")["fast"]
+        log_output_file = parser.get_parsed_content("infer#log_output_file")
         self.num_sw_batch_size = parser.get_parsed_content(
             "training#num_sw_batch_size")
         self.overlap_ratio = parser.get_parsed_content(
@@ -56,6 +87,9 @@ class InferClass:
 
         if not os.path.exists(output_path):
             os.makedirs(output_path, exist_ok=True)
+
+        CONFIG["handlers"]["file"]["filename"] = log_output_file
+        logging.config.dictConfig(CONFIG)
 
         self.infer_transforms = parser.get_parsed_content("transforms_infer")
 
@@ -130,7 +164,8 @@ class InferClass:
                 output_dir=output_path,
                 output_postfix="seg",
                 resample=False,
-                print_log=False)]
+                print_log=False,
+                data_root_dir=data_file_base_dir)]
         self.post_transforms = transforms.Compose(post_transforms)
 
         return
@@ -141,28 +176,49 @@ class InferClass:
 
         batch_data = self.infer_transforms(image_file)
         batch_data = list_data_collate([batch_data])
-        infer_image = batch_data["image"]
 
-        try:
-            with torch.cuda.amp.autocast():
-                batch_data["pred"] = sliding_window_inference(
-                    inputs=infer_image.to(self.device),
-                    roi_size=self.patch_size_valid,
-                    sw_batch_size=self.num_sw_batch_size,
-                    predictor=self.model,
-                    mode="gaussian",
-                    overlap=self.overlap_ratio,
-                    sw_device=self.device)
-        except BaseException:
-            with torch.cuda.amp.autocast():
-                batch_data["pred"] = sliding_window_inference(
-                    inputs=infer_image,
-                    roi_size=self.patch_size_valid,
-                    sw_batch_size=self.num_sw_batch_size,
-                    predictor=self.model,
-                    mode="gaussian",
-                    overlap=self.overlap_ratio,
-                    sw_device=self.device)
+        infer_images = None
+        infer_outputs = None
+        finished = None
+
+        device_list_input = [self.device, self.device, "cpu"]
+        device_list_output = [self.device, "cpu", "cpu"]
+
+        for _device_in, _device_out in zip(
+                device_list_input, device_list_output):
+            try:
+                infer_images = batch_data["image"].to(_device_in)
+
+                if _device_in != self.device or _device_out != self.device:
+                    self.model = self.model.cpu()
+                    torch.cuda.empty_cache()
+                    gc.collect()
+                    self.model = self.model.to(self.device)
+
+                with torch.cuda.amp.autocast(enabled=self.amp):
+                    batch_data["pred"] = sliding_window_inference(
+                        inputs=infer_images,
+                        roi_size=self.patch_size_valid,
+                        sw_batch_size=self.num_sw_batch_size,
+                        predictor=self.model,
+                        mode="gaussian",
+                        overlap=self.overlap_ratio,
+                        sw_device=self.device,
+                        device=_device_out)
+
+                finished = True
+
+            except BaseException:
+                finished = False
+
+            if finished:
+                break
+
+        del infer_images
+        batch_data["image"] = batch_data["image"].cpu()
+        batch_data["pred"] = batch_data["pred"].cpu()
+        torch.cuda.empty_cache()
+        gc.collect()
 
         batch_data = [self.post_transforms(i)
                       for i in decollate_batch(batch_data)]
@@ -180,33 +236,57 @@ class InferClass:
     def batch_infer(self):
         self.model.eval()
         with torch.no_grad():
-            for d in self.infer_loader:
+            for infer_data in self.infer_loader:
                 torch.cuda.empty_cache()
 
-                infer_image = d["image"]
+                infer_images = None
+                infer_outputs = None
+                finished = None
 
-                try:
-                    with torch.cuda.amp.autocast():
-                        d["pred"] = sliding_window_inference(
-                            inputs=infer_image.to(self.device),
-                            roi_size=self.patch_size_valid,
-                            sw_batch_size=self.num_sw_batch_size,
-                            predictor=self.model,
-                            mode="gaussian",
-                            overlap=self.overlap_ratio,
-                            sw_device=self.device)
-                except BaseException:
-                    with torch.cuda.amp.autocast():
-                        d["pred"] = sliding_window_inference(
-                            inputs=infer_image,
-                            roi_size=self.patch_size_valid,
-                            sw_batch_size=self.num_sw_batch_size,
-                            predictor=self.model,
-                            mode="gaussian",
-                            overlap=self.overlap_ratio,
-                            sw_device=self.device)
+                device_list_input = [device, device, "cpu"]
+                device_list_output = [device, "cpu", "cpu"]
 
-                d = [self.post_transforms(i) for i in decollate_batch(d)]
+                for _device_in, _device_out in zip(
+                        device_list_input, device_list_output):
+                    try:
+                        infer_images = infer_data["image"].to(_device_in)
+
+                        if _device_in != self.device or _device_out != self.device:
+                            self.model = self.model.cpu()
+                            torch.cuda.empty_cache()
+                            gc.collect()
+                            self.model = self.model.to(self.device)
+
+                        with torch.cuda.amp.autocast(enabled=self.amp):
+                            infer_data["pred"] = sliding_window_inference(
+                                inputs=infer_images,
+                                roi_size=self.patch_size_valid,
+                                sw_batch_size=self.num_sw_batch_size,
+                                predictor=self.model,
+                                mode="gaussian",
+                                overlap=self.overlap_ratio,
+                                sw_device=self.device,
+                                device=_device_out)
+
+                        finished = True
+
+                    except BaseException:
+                        finished = False
+
+                    if finished:
+                        break
+
+                del infer_images
+                infer_data["image"] = infer_data["image"].cpu()
+                infer_data["pred"] = infer_data["pred"].cpu()
+                torch.cuda.empty_cache()
+                gc.collect()
+
+                infer_data = [self.post_transforms(i)
+                              for i in decollate_batch(infer_data)]
+                infer_data = [
+                    self.post_transforms(i) for i in
+                    monai.data.decollate_batch(infer_data)]
 
         return
 

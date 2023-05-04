@@ -77,6 +77,7 @@ finetune:
 # validation
 validate:
   ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
+  log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/validation.log'"
   save_mask: true
   output_path: "$@bundle_root + '/prediction_fold' + str(@fold)"
 
@@ -85,4 +86,5 @@ infer:
   ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
   fast: false
   data_list_key: testing
+  log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/inference.log'"
   output_path: "$@bundle_root + '/prediction_' + @infer#data_list_key"
