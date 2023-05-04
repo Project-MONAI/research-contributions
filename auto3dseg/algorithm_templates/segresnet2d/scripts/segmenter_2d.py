@@ -151,7 +151,7 @@ class DataTransformBuilder2D(DataTransformBuilder):
             )
 
             if resample_label:
-                ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True))
+                ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True, warn=self.debug))
 
 
         for extra_key in extra_keys:

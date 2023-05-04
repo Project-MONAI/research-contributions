@@ -223,7 +223,7 @@ class DataTransformBuilder:
         keys = [self.image_key, self.label_key] + list(self.extra_modalities)
         ts.append(LoadImaged(keys=keys, ensure_channel_first=True, dtype=None, allow_missing_keys=True, image_only=True))
         ts.append(EnsureTyped(keys=keys, data_type="tensor", dtype=torch.float, allow_missing_keys=True))
-        ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True))
+        ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True, warn=self.debug))
 
         ts.extend(self.get_custom("after_load_transforms"))
 
@@ -262,7 +262,7 @@ class DataTransformBuilder:
             )
 
             if resample_label:
-                ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True))
+                ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True, warn=self.debug))
 
 
         for extra_key in extra_keys:
@@ -352,8 +352,8 @@ class DataTransformBuilder:
                 indices_key = self.label_key+"_cls_indices"
 
             num_crops_per_image = self.crop_params.get("num_crops_per_image", 1)
-            if num_crops_per_image > 1:
-                print(f"Cropping with num_crops_per_image {num_crops_per_image}")
+            # if num_crops_per_image > 1:
+            #     print(f"Cropping with num_crops_per_image {num_crops_per_image}")
 
             ts.append(
                 RandCropByLabelClassesd(
@@ -634,10 +634,11 @@ class Segmenter:
                             "max_samples_per_class": config["max_samples_per_class"]
                             },
 
-                extra_modalities=config["extra_modalities"],
-                custom_transforms=custom_transforms,
+                extra_modalitie = config["extra_modalities"],
+                custom_transforms = custom_transforms,
                 lazy_verbose = config["lazy_verbose"],
                 crop_foreground =  config.get("crop_foreground" , True),
+                debug = config["debug"]
             )
 
         return self._data_transform_builder
@@ -648,7 +649,6 @@ class Segmenter:
         spatial_dims = config["network"].get("spatial_dims", 3)
         norm_name, norm_args = split_args(config["network"].get("norm", ""))
         norm_name = norm_name.upper()
-        sync_batch_norm = True
 
         if norm_name == "INSTANCE_NVFUSER":
             _, has_nvfuser = optional_import("apex.normalization", name="InstanceNorm3dNVFuser")
@@ -658,12 +658,6 @@ class Segmenter:
                     config["network"]["act"] = [act, {"inplace": False}]
             else:
                 norm_name = "INSTANCE"
-
-        elif norm_name == "INSTANCE_BATCH":
-            norm_name = "BATCH",
-            norm_args = norm_args.update({"track_running_stats": False})
-            sync_batch_norm = False
-
 
         if len(norm_name)>0:
             config["network"]["norm"] = norm_name if len(norm_args)==0 else [norm_name, norm_args]
@@ -690,8 +684,7 @@ class Segmenter:
             model=model.to(memory_format=memory_format)
 
         if self.distributed:
-            if sync_batch_norm:
-                model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+            model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
             model = DistributedDataParallel(
                 module=model, device_ids=[self.rank], output_device=self.rank, find_unused_parameters=False
             )
@@ -824,6 +817,8 @@ class Segmenter:
             config["auto_scale_roi"] = False
             config["auto_scale_filters"] = False
 
+        if config["max_samples_per_class"] is None:
+            config["max_samples_per_class"] = 10 * config["num_epochs"]
 
         if not torch.cuda.is_available() and config["cuda"]:
             print("No cuda is available.! Running on CPU!!!")
@@ -943,7 +938,7 @@ class Segmenter:
         else:
             train_ds = Dataset(data=data, transform=train_transform)
 
-        train_sampler = DistributedSampler(train_ds, shuffle=False) if distributed else None
+        train_sampler = DistributedSampler(train_ds, shuffle=True) if distributed else None
         train_loader = DataLoader(
             train_ds,
             batch_size=batch_size,
@@ -1023,54 +1018,48 @@ class Segmenter:
         if len(validation_files)==0:
             warnings.warn("No validation files found!")
 
-        cache_rate_train, cache_rate_val, cache_class_indices = self.get_cache_rate(train_cases=len(train_files),validation_cases=len(validation_files))
-
-        if config["max_samples_per_class"] is None:
-            config["max_samples_per_class"] = 10 * config["num_epochs"]
+        cache_rate_train, cache_rate_val = self.get_cache_rate(train_cases=len(train_files),validation_cases=len(validation_files))
 
         if config["cache_class_indices"] is None:
-            if cache_class_indices or (config["max_samples_per_class"] and cache_rate_train>0):
-                config["cache_class_indices"] = True
-            else:
-                config["cache_class_indices"] = False
-
+            config["cache_class_indices"] = cache_rate_train > 0 
+   
         if self.global_rank==0:
-            print(f"Auto setting max_samples_per_class :{config['max_samples_per_class']} cache_class_indices :{config['cache_class_indices']}")
+            print(f"Auto setting max_samples_per_class: {config['max_samples_per_class']} cache_class_indices: {config['cache_class_indices']}")
 
 
-        if cache_rate_train < 0.75 and config["num_steps_per_image"] is None and config["crop_mode"]=="ratio": #if low auto-detected cache rate
 
-            num_crops_per_image = max(1, 4 // config["batch_size"]) * config["batch_size"] #batch divisible
-            num_steps_per_image = max(1, num_crops_per_image // config["batch_size"])
-            config["num_crops_per_image"] = num_crops_per_image
-            config["batch_size"] = 1
+        num_steps_per_image = config["num_steps_per_image"]
+        if config["num_steps_per_image"] is None:
 
-            if self.global_rank==0:
-                print(f"Given the low cache_rate {cache_rate_train} adjusting \n "
-                    f"batch_size => {config['batch_size']} \n "
-                    f"num_crops_per_image => {config['num_crops_per_image']} \n "
-                    f"num_steps_per_image => {num_steps_per_image} \n "
-                    f"to disable this behaviour set num_steps_per_image=1 \n ")
+            be = config["batch_size"]
 
-        elif config["num_steps_per_image"] is None:
-            num_steps_per_image = 1
-            config["num_crops_per_image"] = 1
-        else:
-            num_steps_per_image = config["num_steps_per_image"]
+            if config["crop_mode"] == "ratio":
+                config["num_crops_per_image"] = config["batch_size"]
+                config["batch_size"] = 1
+            else:
+                config["num_crops_per_image"] = 1
+
+            if cache_rate_train < 0.75:
+                num_steps_per_image = max(1, 4 // be)
+            else:
+                num_steps_per_image = 1
+
 
 
         num_crops_per_image = int(config["num_crops_per_image"])
-        num_epochs = max(1, config["num_epochs"] // num_crops_per_image)
         num_epochs_per_saving = max(1, config["num_epochs_per_saving"] // num_crops_per_image)
+        num_warmup_epochs = max(3, config["num_warmup_epochs"] // num_crops_per_image)
         num_epochs_per_validation = config["num_epochs_per_validation"]
+        num_epochs = max(1, config["num_epochs"] // min(3, num_crops_per_image))
+        if self.global_rank==0:
+            print(f"Given num_crops_per_image {num_crops_per_image}, num_epochs was adjusted {config['num_epochs']} => {num_epochs}")
 
 
         if num_epochs_per_validation is not None:
             num_epochs_per_validation = max(1, num_epochs_per_validation // num_crops_per_image)
 
 
-        val_schedule_list = schedule_validation_epochs(num_epochs=num_epochs,
-                                                       num_epochs_per_validation=num_epochs_per_validation)
+        val_schedule_list = schedule_validation_epochs(num_epochs=num_epochs, num_epochs_per_validation=num_epochs_per_validation, fraction=min(0.3, 0.16 * num_crops_per_image))
         if self.global_rank==0:
             print(f"Scheduling validation loops at epochs: {val_schedule_list}")
 
@@ -1086,10 +1075,16 @@ class Segmenter:
 
         optim_name = config.get("optim_name", None) #experimental
         if optim_name is not None:
-            print(f"Using optimizer: {optim_name}")
+            if self.global_rank==0:
+                print(f"Using optimizer: {optim_name}")
             if optim_name=='fusednovograd':
                 import apex
                 optimizer = apex.optimizers.FusedNovoGrad(params=self.model.parameters(), lr = config["learning_rate"], weight_decay=1.e-5)
+            elif optim_name=='sgd':
+                momentum = config.get("sgd_momentum", 0.9)
+                optimizer = torch.optim.SGD(params=self.model.parameters(), lr = config["learning_rate"], weight_decay=1.e-5, momentum=momentum)
+                if self.global_rank==0:
+                    print(f"Using momentum: {momentum}")
             else:
                 raise ValueError("Unsupported optim_name"+str(optim_name))
 
@@ -1126,6 +1121,7 @@ class Segmenter:
                 ]
             )
 
+
         do_torch_save = (self.global_rank == 0) and ckpt_path is not None and config["ckpt_save"]
         best_ckpt_path = os.path.join(ckpt_path, "model.pt")
         intermediate_ckpt_path = os.path.join(ckpt_path, "model_final.pt")
@@ -1150,11 +1146,12 @@ class Segmenter:
                 f"Using start_epoch => {start_epoch}\n "
                 f"batch_size => {config['batch_size']} \n "
                 f"num_crops_per_image => {config['num_crops_per_image']} \n "
-                f"num_steps_per_image => {num_steps_per_image} \n ")
+                f"num_steps_per_image => {num_steps_per_image} \n "
+                f"num_warmup_epochs => {num_warmup_epochs} \n ")
 
 
         if self.lr_scheduler is None:
-            lr_scheduler = WarmupCosineSchedule(optimizer=optimizer, warmup_steps=config["num_warmup_epochs"], warmup_multiplier=0.1, t_total=num_epochs)
+            lr_scheduler = WarmupCosineSchedule(optimizer=optimizer, warmup_steps=num_warmup_epochs, warmup_multiplier=0.1, t_total=num_epochs)
         else:
             lr_scheduler = self.lr_scheduler
         if lr_scheduler is not None and start_epoch > 0:
@@ -1298,6 +1295,24 @@ class Segmenter:
                     raise ValueError(f"Accuracy seems very low at epoch {report_epoch}, acc {val_acc_mean}. "
                                     f"Most likely optimization diverged, try setting  a smaller learning_rate than {config['learning_rate']}")
 
+                 ## early stopping
+                if config["early_stopping_fraction"] > 0 and epoch > num_epochs/2 and len(val_acc_history)>10:
+
+                    check_interval = int(0.1 * num_epochs * num_crops_per_image)
+                    check_stats = [va[1] for va in val_acc_history if report_epoch-va[0] < check_interval] #at least 10% epochs
+                    if len(check_stats)<10:
+                        check_stats = [va[1] for va in val_acc_history[-10:]] #at least 10 sample points
+                    mac, mic = max(check_stats), min(check_stats)
+
+                    early_stopping_fraction = (mac-mic)/(abs(mac) + 1e-8)
+                    if mac > 0 and mic > 0 and early_stopping_fraction < config["early_stopping_fraction"]:
+                        if self.global_rank==0:
+                            print(f"Early stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} {check_stats[-50:]}")
+                        break
+                    else:
+                        if self.global_rank==0:
+                                print(f"No stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} {check_stats[-50:]}")
+
 
             # save intermediate checkpoint every num_epochs_per_saving epochs
             if do_torch_save and ((epoch + 1) % num_epochs_per_saving == 0 or (epoch + 1)  >= num_epochs):
@@ -1324,26 +1339,6 @@ class Segmenter:
                       f"running time {(time.time() - pre_loop_time)/3600:.2f} hr, "
                       f"est total time {(time.time() - pre_loop_time + time_remaining_estimate)/3600:.2f} hr \n")
 
-            if distributed:
-                dist.barrier()
-
-            ## early stopping
-            if config["early_stopping_fraction"] > 0 and epoch > num_epochs/2 and len(val_acc_history)>10:
-
-                check_interval = int(0.1 * num_epochs * num_crops_per_image)
-                check_stats = [va[1] for va in val_acc_history if report_epoch-va[0] < check_interval] #at least 10% epochs
-                if len(check_stats)<10:
-                    check_stats = [va[1] for va in val_acc_history[-10:]] #at least 10 sample points
-                mac, mic = max(check_stats), min(check_stats)
-
-                early_stopping_fraction = (mac-mic)/(abs(mac) + 1e-8)
-                if mac > 0 and mic > 0 and early_stopping_fraction < config["early_stopping_fraction"]:
-                    if self.global_rank==0:
-                        print(f"Early stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} {check_stats[-50:]}")
-                    break
-                else:
-                   if self.global_rank==0:
-                        print(f"No stopping at epoch {report_epoch} fraction {early_stopping_fraction} !!! max {mac} min {mic} samples count {len(check_stats)} {check_stats[-50:]}")
 
 
         #### end of main epoch loop
@@ -1801,7 +1796,6 @@ class Segmenter:
 
         config = self.config
         cache_rate = config["cache_rate"]
-        cache_class_indices = config["cache_class_indices"]
         avail_memory = None
 
         total_cases = train_cases + validation_cases
@@ -1854,22 +1848,8 @@ class Segmenter:
                 if self.global_rank == 0:
                     print(f"Prioritizing cache_rate training {cache_rate_train} validation {cache_rate_val}")
 
+        return cache_rate_train, cache_rate_val
 
-        if cache_class_indices is None and cache_rate > 0:
-            if avail_memory is None:
-                avail_memory = self.get_avail_cpu_memory()
-            approx_indices_cache_required = 4  * np.prod(image_size) * train_cases
-            cache_class_indices = bool(avail_memory > (approx_data_cache_required * cache_rate + approx_os_cache_required + approx_indices_cache_required))
-            if self.global_rank == 0:
-                print(f"Autosetting cache_class_indices to {cache_class_indices} since it fits {approx_indices_cache_required >> 30}Gb in RAM. "
-                    "Set cache_class_indices=True/False manually to override")
-        else:
-            if self.global_rank == 0:
-                print(f"Using user specified cache_class_indices={cache_class_indices} to cache label indices in RAM")
-
-
-
-        return cache_rate_train, cache_rate_val, cache_class_indices
 
     def save_history_csv(self, csv_path=None, header=None, **kwargs):
         if csv_path is not None:
@@ -1925,7 +1905,7 @@ def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]
             if rank == 0:
                 print(f"Distributed: initializing multi-gpu tcp:// process group {mgpu}")
 
-        elif dist_launched():
+        elif dist_launched() and torch.cuda.device_count() > 1:
 
             rank = int(os.getenv("LOCAL_RANK"))
             global_rank = int(os.getenv("RANK"))
