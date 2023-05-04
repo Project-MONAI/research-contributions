@@ -1021,8 +1021,8 @@ class Segmenter:
         cache_rate_train, cache_rate_val = self.get_cache_rate(train_cases=len(train_files),validation_cases=len(validation_files))
 
         if config["cache_class_indices"] is None:
-            config["cache_class_indices"] = cache_rate_train > 0 
-   
+            config["cache_class_indices"] = cache_rate_train > 0
+
         if self.global_rank==0:
             print(f"Auto setting max_samples_per_class: {config['max_samples_per_class']} cache_class_indices: {config['cache_class_indices']}")
 
