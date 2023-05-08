@@ -41,10 +41,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
+    amp = parser.get_parsed_content("amp")
     fold = parser.get_parsed_content("fold")
     num_sw_batch_size = parser.get_parsed_content("num_sw_batch_size")
     output_classes = parser.get_parsed_content("output_classes")
-    overlap_ratio = parser.get_parsed_content("overlap_ratio")
+    overlap_ratio_final = parser.get_parsed_content("overlap_ratio_final")
     patch_size_valid = parser.get_parsed_content("patch_size_valid")
     softmax = parser.get_parsed_content("softmax")
 
@@ -156,31 +157,34 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         _index = 0
         for d in val_loader:
             torch.cuda.empty_cache()
-
-            val_images = d["image"]
-            val_labels = d["label"]
-            try:
-                with torch.cuda.amp.autocast():
-                    d["pred"] = sliding_window_inference(
-                        val_images.to(device),
-                        patch_size_valid,
-                        num_sw_batch_size,
-                        model,
-                        mode="gaussian",
-                        overlap=overlap_ratio)
-            except RuntimeError as e:
-                if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
-                    raise e
-                with torch.cuda.amp.autocast():
-                    d["pred"] = sliding_window_inference(
-                        val_images,
-                        patch_size_valid,
-                        num_sw_batch_size,
-                        model,
-                        mode="gaussian",
-                        overlap=overlap_ratio)
-
-            d = [post_transforms(i) for i in decollate_batch(d)]
+            device_list_input = [device, device, "cpu"]	
+            device_list_output = [device, "cpu", "cpu"]	
+            for _device_in, _device_out in zip(	
+                    device_list_input, device_list_output):	
+                try:	
+                    val_images = d["image"].to(_device_in)
+                    val_labels = d["label"].to(_device_out)
+                    with torch.cuda.amp.autocast(enabled=amp):
+                        d["pred"] = sliding_window_inference(	
+                            inputs=val_images,	
+                            roi_size=patch_size_valid,	
+                            sw_batch_size=num_sw_batch_size,	
+                            predictor=model,	
+                            mode="gaussian",	
+                            overlap=overlap_ratio_final,	
+                            sw_device=device,	
+                            device=_device_out)	
+                    d = [post_transforms(i)
+                                for i in decollate_batch(d)]
+                    finished = True	
+                except RuntimeError as e:
+                    if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                        raise e
+                    finished = False	
+                if finished:	
+                    break
+            if not finished:
+                raise RuntimeError('Infer not finished due to OOM.')
 
             val_outputs = post_pred(d[0]["pred"])
             val_outputs = val_outputs[None, ...]

@@ -27,7 +27,8 @@ num_workers: 8
 num_workers_validation: 4
 num_cache_workers: 8
 output_classes: null
-overlap_ratio: 0.5
+overlap_ratio: 0.125
+overlap_ratio_final: 0.625
 patch_size: null
 patch_size_valid: null
 random_seed: 0
@@ -36,7 +37,7 @@ sw_input_on_cpu: false
 softmax: true
 valid_at_raw_resolution_at_last: true
 valid_at_raw_resolution_only: false
-use_pretrain: false
+use_pretrain: true
 pretrained_path: $@bundle_root + '/pretrained_model' + '/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt'
 adapt_valid_mode: true
 adapt_valid_progress_percentages: [10, 40, 70]

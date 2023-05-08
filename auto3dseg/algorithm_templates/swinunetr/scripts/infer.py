@@ -15,7 +15,7 @@ import sys
 from typing import Optional, Sequence, Union
 
 import torch
-
+import gc
 import monai
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
@@ -38,14 +38,15 @@ class InferClass:
         parser = ConfigParser()
         parser.read_config(config_file_)
         parser.update(pairs=_args)
-
+        
         data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
         data_list_file_path = parser.get_parsed_content("data_list_file_path")
+        self.amp = parser.get_parsed_content("amp")
         self.fast = parser.get_parsed_content("infer")["fast"]
         self.num_sw_batch_size = parser.get_parsed_content(
             "num_sw_batch_size")
-        self.overlap_ratio = parser.get_parsed_content(
-            "overlap_ratio")
+        self.overlap_ratio_final = parser.get_parsed_content(
+            "overlap_ratio_final")
         self.patch_size_valid = parser.get_parsed_content(
             "patch_size_valid")
         softmax = parser.get_parsed_content("softmax")
@@ -102,34 +103,27 @@ class InferClass:
                 orig_meta_keys="image_meta_dict",
                 meta_key_postfix="meta_dict",
                 nearest_interp=False,
-                to_tensor=True),
-            transforms.Activationsd(
-                keys="pred",
-                softmax=softmax,
-                sigmoid=not softmax),
-            transforms.CopyItemsd(
-                keys="pred",
-                times=1,
-                names="pred_final")]
+                to_tensor=True)]
 
         if softmax:
             post_transforms += [
                 transforms.AsDiscreted(
-                    keys="pred_final",
+                    keys="pred",
                     argmax=True)]
         else:
             post_transforms += [
                 transforms.AsDiscreted(
-                    keys="pred_final",
+                    keys="pred",
                     threshold=0.5)]
 
         post_transforms += [
             transforms.SaveImaged(
-                keys="pred_final",
+                keys="pred",
                 meta_keys="pred_meta_dict",
                 output_dir=output_path,
                 output_postfix="seg",
                 resample=False,
+                data_root_dir=data_file_base_dir,
                 print_log=False)]
         self.post_transforms = transforms.Compose(post_transforms)
 
@@ -141,34 +135,37 @@ class InferClass:
 
         batch_data = self.infer_transforms(image_file)
         batch_data = list_data_collate([batch_data])
-        infer_image = batch_data["image"]
 
-        try:
-            with torch.cuda.amp.autocast():
-                batch_data["pred"] = sliding_window_inference(
-                    inputs=infer_image.to(self.device),
-                    roi_size=self.patch_size_valid,
-                    sw_batch_size=self.num_sw_batch_size,
-                    predictor=self.model,
-                    mode="gaussian",
-                    overlap=self.overlap_ratio,
-                    sw_device=self.device)
-        except RuntimeError as e:
-            if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
-                raise e
-            with torch.cuda.amp.autocast():
-                batch_data["pred"] = sliding_window_inference(
-                    inputs=infer_image,
-                    roi_size=self.patch_size_valid,
-                    sw_batch_size=self.num_sw_batch_size,
-                    predictor=self.model,
-                    mode="gaussian",
-                    overlap=self.overlap_ratio,
-                    sw_device=self.device)
-
-        batch_data = [self.post_transforms(i)
-                      for i in decollate_batch(batch_data)]
-
+        device_list_input = [self.device, self.device, "cpu"]	
+        device_list_output = [self.device, "cpu", "cpu"]	
+        for _device_in, _device_out in zip(	
+                device_list_input, device_list_output):	
+            try:	
+                with torch.cuda.amp.autocast(enabled=self.amp):	
+                    batch_data["pred"] = sliding_window_inference(	
+                        inputs=batch_data["image"].to(_device_in),	
+                        roi_size=self.patch_size_valid,	
+                        sw_batch_size=self.num_sw_batch_size,	
+                        predictor=self.model,	
+                        mode="gaussian",	
+                        overlap=self.overlap_ratio_final,	
+                        sw_device=self.device,	
+                        device=_device_out)	
+                batch_data = [self.post_transforms(i)
+                            for i in decollate_batch(batch_data)]
+                finished = True	
+            except RuntimeError as e:
+                if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                    raise e
+                # if 'pred' in batch_data.keys():
+                #     del batch_data["pred"]
+                # batch_data["image"] = batch_data["image"].cpu()
+                # torch.cuda.empty_cache()
+                finished = False	
+            if finished:	
+                break
+        if not finished:
+            raise RuntimeError('Infer not finished due to OOM.')
         return batch_data[0]["pred"]
 
     def infer_all(self):
@@ -184,34 +181,37 @@ class InferClass:
         with torch.no_grad():
             for d in self.infer_loader:
                 torch.cuda.empty_cache()
-
-                infer_image = d["image"]
-
-                try:
-                    with torch.cuda.amp.autocast():
-                        d["pred"] = sliding_window_inference(
-                            inputs=infer_image.to(self.device),
-                            roi_size=self.patch_size_valid,
-                            sw_batch_size=self.num_sw_batch_size,
-                            predictor=self.model,
-                            mode="gaussian",
-                            overlap=self.overlap_ratio,
-                            sw_device=self.device)
-                except RuntimeError as e:
-                    if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
-                        raise e
-                    with torch.cuda.amp.autocast():
-                        d["pred"] = sliding_window_inference(
-                            inputs=infer_image,
-                            roi_size=self.patch_size_valid,
-                            sw_batch_size=self.num_sw_batch_size,
-                            predictor=self.model,
-                            mode="gaussian",
-                            overlap=self.overlap_ratio,
-                            sw_device=self.device)
-
-                d = [self.post_transforms(i) for i in decollate_batch(d)]
-
+                device_list_input = [self.device, self.device, "cpu"]	
+                device_list_output = [self.device, "cpu", "cpu"]	
+                for _device_in, _device_out in zip(	
+                        device_list_input, device_list_output):	
+                    try:	
+                        infer_images = d["image"].to(_device_in)	
+                        with torch.cuda.amp.autocast(enabled=self.amp):	
+                            d["pred"] = sliding_window_inference(	
+                                inputs=infer_images,	
+                                roi_size=self.patch_size_valid,	
+                                sw_batch_size=self.num_sw_batch_size,	
+                                predictor=self.model,	
+                                mode="gaussian",	
+                                overlap=self.overlap_ratio_final,	
+                                sw_device=self.device,	
+                                device=_device_out)	
+                        d = [self.post_transforms(i)
+                                    for i in decollate_batch(d)]
+                        finished = True	
+                    except RuntimeError as e:
+                        if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                            raise e
+                        # if 'pred' in d.keys():
+                        #     del d["pred"]
+                        # d["image"] = d["image"].cpu()
+                        # torch.cuda.empty_cache()
+                        finished = False	
+                    if finished:	
+                        break
+                if not finished:
+                    raise RuntimeError('Batch infer not finished due to OOM.')
         return
 
 
