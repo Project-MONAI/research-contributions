@@ -1,7 +1,11 @@
-modality: mri                               # main image modality, must be one of mri, ct, pet
+bundle_root: null                           # root folder of the fold
+ckpt_path: $@bundle_root + '/model'         # location to save checkpoints and logs
+
 data_file_base_dir: null                    # location of the dataset
 data_list_file_path: null                   # location of the file with a list of files image/label in the dataset
 
+modality: mri                               # main image modality, must be one of mri, ct, pet
+fold: 0
 input_channels: null
 output_classes: null
 
@@ -9,46 +13,44 @@ class_names: null
 class_index: null
 
 debug: false
+ckpt_save: true
+cache_rate: null
+roi_size: [448, 448, 32]
+
+
+auto_scale_allowed: true
+auto_scale_batch: true
+auto_scale_roi: false
+auto_scale_filters: false
+
+
 quick: false
 channels_last: true
 validate_final_original_res: true
 calc_val_loss: false
-
-auto_scale_roi: false
-auto_scale_batch: false
-auto_scale_filters: false
-
-roi_size: [448, 448, 32]
-
-crop_mode: ratio
-normalize_mode: meanstd
-
 amp: true
-bundle_root: null
-ckpt_path: "$@bundle_root + '/model'"
 log_output_file: null
-ckpt_save: true
-cache_rate: null
 cache_class_indices: null
 early_stopping_fraction: 0.001
-
 determ: false
-fold: 0
+
 learning_rate: 2.0e-4
-batch_size: $@num_images_per_batch
+batch_size: '@num_images_per_batch'
 num_images_per_batch: 1
 num_epochs: 300
 num_warmup_epochs: 3
 sigmoid: false
 resample: false
 resample_resolution: [1, 1, 1]
+crop_mode: ratio
+normalize_mode: meanstd
 intensity_bounds: null
 
 num_epochs_per_validation: null
 num_epochs_per_saving: 1
 num_workers: 4
 num_steps_per_image: null
-
+num_crops_per_image: 1
 
 loss:
   _target_: DiceCELoss
@@ -59,10 +61,11 @@ loss:
   softmax: $not @sigmoid
   sigmoid: $@sigmoid
   to_onehot_y: $not @sigmoid
+  batch: true
 
 optimizer:
   _target_: torch.optim.AdamW
-  lr: "@learning_rate"
+  lr: '@learning_rate'
   weight_decay: 1.e-5
 
 network:
@@ -78,17 +81,17 @@ network:
 
 finetune:
   enabled: false
-  ckpt_name: "$@bundle_root + '/model/model.pt'"
+  ckpt_name: $@bundle_root + '/model/model.pt'
 
 validate:
   enabled: false
-  ckpt_name: "$@bundle_root + '/model/model.pt'"
-  output_path: "$@bundle_root + '/prediction_validation'"
+  ckpt_name: $@bundle_root + '/model/model.pt'
+  output_path: $@bundle_root + '/prediction_validation'
   save_mask: false
   invert: true
 
 infer:
   enabled: false
-  ckpt_name: "$@bundle_root + '/model/model.pt'"
-  output_path: "$@bundle_root + '/prediction_' + @infer#data_list_key"
+  ckpt_name: $@bundle_root + '/model/model.pt'
+  output_path: $@bundle_root + '/prediction_' + @infer#data_list_key
   data_list_key: testing

@@ -69,6 +69,14 @@ class SegresnetAlgo(BundleAlgo):
             config["data_file_base_dir"] = os.path.abspath(input_config.pop("dataroot"))
             config["data_list_file_path"] = os.path.abspath(input_config.pop("datalist"))
 
+            # data_list_file_path = os.path.abspath(input_config.pop("datalist")) #TODO, consider relative path
+            # if output_path.startswith(os.path.dirname(data_list_file_path)):
+            #     config["data_list_file_path"] = os.path.relpath(data_list_file_path, output_path) #use relative path to json
+            #     # config["data_list_file_path"] = f"$@bundle_root + '/' + '{os.path.relpath(data_list_file_path, output_path)}'" #use relative path to json
+            # else:
+            #     config["data_list_file_path"] = data_list_file_path
+
+
             ##########
             if "modality" in input_config:
                 modality = input_config.pop("modality").lower().strip()
@@ -205,22 +213,15 @@ class SegresnetAlgo(BundleAlgo):
 
             ###########################################
 
-            config["auto_scale_batch"] = input_config.pop("auto_scale_batch", True)
-            config["auto_scale_roi"] = input_config.pop("auto_scale_roi", False)
-            config["auto_scale_filters"] = input_config.pop("auto_scale_filters", False)
-
-            if input_config.get("roi_size", None):
-                config["auto_scale_roi"] = False
-            if input_config.get("batch_size", None):
-                config["auto_scale_batch"] = False
 
             roi_size, levels, init_filters, batch_size = auto_adjust_network_settings(
-                                            auto_scale_batch = config["auto_scale_batch"],
-                                            auto_scale_roi = config["auto_scale_roi"],
-                                            auto_scale_filters = config["auto_scale_filters"],
+                                            auto_scale_batch = input_config.get("auto_scale_batch", False),
+                                            auto_scale_roi = input_config.get("auto_scale_roi", False),
+                                            auto_scale_filters = input_config.get("auto_scale_filters", False),
                                             image_size_mm=config["image_size_mm_median"],
                                             spacing=config["resample_resolution"],
-                                            anisotropic_scales=config["anisotropic_scales"]
+                                            anisotropic_scales=config["anisotropic_scales"],
+                                            output_classes = config["output_classes"]
                                         )
 
             if input_config.get("roi_size", None):
