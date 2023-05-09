@@ -18,14 +18,14 @@ jobs:
     - name: Algo name
       id: name
       run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-    - name: Build
+    - name: Build ${{ steps.name.outputs.sha_short }}
       env:
         release_version: ${{ steps.name.outputs.sha_short }}
       run: |
         echo $release_version
         cd auto3dseg/
         tar -cvzf "$release_version".tar.gz algorithm_templates
-    - name: Upload
+    - name: Upload ${{ steps.name.outputs.sha_short }}
       uses: svenstaro/upload-release-action@v2
       with:
         tag: algo_templates_test
