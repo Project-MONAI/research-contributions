@@ -9,6 +9,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import os
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:2048'
 
@@ -101,7 +103,7 @@ if __package__ in (None, ""):
 else:
     from .utils import auto_adjust_network_settings, logger_configure
 
-
+    
 class LabelEmbedClassIndex(MapTransform):
     """
     Label embedding according to class_index
@@ -133,11 +135,6 @@ class LabelEmbedClassIndex(MapTransform):
                 d[key] = self.label_mapping(d[key])
         return d
 
-def logits2pred(logits, sigmoid=False, dim=1, out=None):
-    if isinstance(logits, (list, tuple)):
-        logits = logits[0]
-
-    return torch.softmax(logits, dim=dim, out=out) if not sigmoid else torch.sigmoid(logits, out=out)
 
 def schedule_validation_epochs(num_epochs, num_epochs_per_validation=None, fraction=0.16) -> list:
     '''
@@ -426,8 +423,8 @@ class DataTransformBuilder:
 
         ts = []
         if invert and transform is not None:
-            if resample:
-                ts.append(ToDeviced(keys="pred", device=torch.device("cpu")))
+            # if resample:
+            #     ts.append(ToDeviced(keys="pred", device=torch.device("cpu")))
             ts.append(Invertd(keys="pred", orig_keys="image", transform=transform, nearest_interp=False))
 
         if save_mask and output_path is not None:
@@ -541,23 +538,24 @@ class Segmenter:
 
 
         ##auto adjust network settings
-        if config["auto_scale_batch"] or config["auto_scale_roi"] or config["auto_scale_filters"]:
-            roi_size, _, init_filters, batch_size = auto_adjust_network_settings(
-                                auto_scale_batch = config["auto_scale_batch"],
-                                auto_scale_roi = config["auto_scale_roi"],
-                                auto_scale_filters = config["auto_scale_filters"],
-                                image_size_mm=config["image_size_mm_median"],
-                                spacing=config["resample_resolution"],
-                                anisotropic_scales=config["anisotropic_scales"],
-                                levels=len(config["network"]["blocks_down"]),
-                            )
+        if config["auto_scale_allowed"]:
+            if config["auto_scale_batch"] or config["auto_scale_roi"] or config["auto_scale_filters"]:
+                roi_size, _, init_filters, batch_size = auto_adjust_network_settings(
+                                    auto_scale_batch = config["auto_scale_batch"],
+                                    auto_scale_roi = config["auto_scale_roi"],
+                                    auto_scale_filters = config["auto_scale_filters"],
+                                    image_size_mm=config["image_size_mm_median"],
+                                    spacing=config["resample_resolution"],
+                                    anisotropic_scales=config["anisotropic_scales"],
+                                    levels=len(config["network"]["blocks_down"]),
+                                    output_classes = config["output_classes"]
+                                )
 
-            if config["auto_scale_roi"]:
                 config["roi_size"] = roi_size
-            if config["auto_scale_batch"]:
-                config["batch_size"] = batch_size
-            if config["auto_scale_filters"] and config["pretrained_ckpt_name"] is None:
-                config["network"]["init_filters"] = init_filters
+                if config["auto_scale_batch"]:
+                    config["batch_size"] = batch_size
+                if config["auto_scale_filters"] and config["pretrained_ckpt_name"] is None:
+                    config["network"]["init_filters"] = init_filters
 
 
         self.model = self.setup_model(pretrained_ckpt_name=config["pretrained_ckpt_name"])
@@ -743,6 +741,7 @@ class Segmenter:
         # assign defaults
         config.setdefault("debug", False)
 
+
         config.setdefault("loss", None)
         config.setdefault("acc", None)
         config.setdefault("amp", True)
@@ -809,6 +808,8 @@ class Segmenter:
         config["pretrained_ckpt_name"] = pretrained_ckpt_name
 
 
+
+        config.setdefault("auto_scale_allowed", False)
         config.setdefault("auto_scale_batch", False)
         config.setdefault("auto_scale_roi", False)
         config.setdefault("auto_scale_filters", False)
@@ -865,14 +866,9 @@ class Segmenter:
             model.load_state_dict(checkpoint["state_dict"], strict=True)
             epoch = checkpoint.get("epoch", 0)
 
-            # print(f"config before {self.config}")
-
-
             best_metric = checkpoint.get("best_metric", 0)
             self.config["start_epoch"] =  epoch if self.config.pop("continue", False) else 0
             print(f"=> loaded checkpoint {ckpt} (epoch {epoch}) (best_metric {best_metric}) setting start_epoch {self.config['start_epoch']}")
-
-            print(f"continue flag is {self.config.get('continue', False)}")
             # print(f"config after {self.config}")
 
 
@@ -1004,11 +1000,15 @@ class Segmenter:
         channels_last = config["channels_last"]
         calc_val_loss = config["calc_val_loss"]
 
+        data_list_file_path = config["data_list_file_path"]
+        if not os.path.isabs(data_list_file_path):
+            data_list_file_path = os.path.abspath(os.path.join(config["bundle_root"], data_list_file_path))
+
         if config.get("validation_key", None) is not None:
-            train_files, _ = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=-1)
-            validation_files, _ = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=-1, key=config["validation_key"])
+            train_files, _ = datafold_read(datalist=data_list_file_path, basedir=config["data_file_base_dir"], fold=-1)
+            validation_files, _ = datafold_read(datalist=data_list_file_path, basedir=config["data_file_base_dir"], fold=-1, key=config["validation_key"])
         else:
-            train_files, validation_files = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=config["fold"])
+            train_files, validation_files = datafold_read(datalist=data_list_file_path, basedir=config["data_file_base_dir"], fold=config["fold"])
 
         if config["quick"]:  # quick run on a smaller subset of files
             train_files, validation_files = train_files[:8], validation_files[:8]
@@ -1029,20 +1029,23 @@ class Segmenter:
 
 
         num_steps_per_image = config["num_steps_per_image"]
-        if config["num_steps_per_image"] is None:
+        if config["auto_scale_allowed"] and num_steps_per_image is None:
 
-            be = config["batch_size"]
+                be = config["batch_size"]
 
-            if config["crop_mode"] == "ratio":
-                config["num_crops_per_image"] = config["batch_size"]
-                config["batch_size"] = 1
-            else:
-                config["num_crops_per_image"] = 1
+                if config["crop_mode"] == "ratio":
+                    config["num_crops_per_image"] = config["batch_size"]
+                    config["batch_size"] = 1
+                else:
+                    config["num_crops_per_image"] = 1
 
-            if cache_rate_train < 0.75:
-                num_steps_per_image = max(1, 4 // be)
-            else:
-                num_steps_per_image = 1
+                if cache_rate_train < 0.75:
+                    num_steps_per_image = max(1, 4 // be)
+                else:
+                    num_steps_per_image = 1
+                    
+        elif num_steps_per_image is None:
+            num_steps_per_image = 1
 
 
 
@@ -1418,11 +1421,15 @@ class Segmenter:
         save_mask = val_config.get("save_mask", False) and output_path is not None
         invert = val_config.get("invert", True)
 
+        data_list_file_path = config["data_list_file_path"]
+        if not os.path.isabs(data_list_file_path):
+            data_list_file_path = os.path.abspath(os.path.join(config["bundle_root"], data_list_file_path))
+
         if validation_files is None:
             if config.get("validation_key", None) is not None:
-                validation_files, _ = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=-1, key=config["validation_key"])
+                validation_files, _ = datafold_read(datalist=data_list_file_path, basedir=config["data_file_base_dir"], fold=-1, key=config["validation_key"])
             else:
-                _, validation_files = datafold_read(datalist=config["data_list_file_path"], basedir=config["data_file_base_dir"], fold=config["fold"])
+                _, validation_files = datafold_read(datalist=data_list_file_path, basedir=config["data_file_base_dir"], fold=config["fold"])
 
         if self.global_rank==0:
             print(f"validation files {len(validation_files)}")
@@ -1482,8 +1489,12 @@ class Segmenter:
             return
 
         if testing_files is None:
+            data_list_file_path = self.config["data_list_file_path"]
+            if not os.path.isabs(data_list_file_path):
+                data_list_file_path = os.path.abspath(os.path.join(self.config["bundle_root"], data_list_file_path))
+                
             testing_files, _ = datafold_read(
-                datalist=self.config["data_list_file_path"],
+                datalist=data_list_file_path,
                 basedir=self.config["data_file_base_dir"],
                 fold=-1,
                 key=testing_key,
@@ -1529,20 +1540,21 @@ class Segmenter:
         if self.global_rank == 0:
             print(f"Inference complete, time {time.time() - start_time:.2f}s")
 
+
     @torch.no_grad()
-    def infer_image(self, image_file, save_mask=False, channels_last=False):
+    def infer_image(self, image_file):
 
         self.model.eval()
 
-        output_path = self.config["infer"].get("output_path", None)
-        if output_path is None:
-            print("Inference output_path is not specified")
-            return
+        infer_config = self.config["infer"]
+        output_path = infer_config.get("output_path", None)
+        save_mask = infer_config.get("save_mask", False) and output_path is not None
+        invert_on_gpu = infer_config.get("invert_on_gpu", False)
 
         start_time = time.time()
         sigmoid = self.config["sigmoid"]
         resample = self.config["resample"]
-
+        channels_last = self.config["channels_last"]
 
         inf_transform = self.get_data_transform_builder()(augment=False, resample_label=False)
 
@@ -1556,9 +1568,13 @@ class Segmenter:
             logits = self.sliding_inferrer(inputs=data, network=self.model)
 
         data = None
-        logits=logits.float()
-        pred = logits2pred(logits=logits, sigmoid=sigmoid, out=logits)
+
+        logits = logits.float().contiguous()
+        pred = self.logits2pred(logits=logits, sigmoid=sigmoid, inplace=True)
         logits = None
+
+        if not invert_on_gpu:
+            pred = pred.cpu() # invert on cpu (default)
 
         post_transforms = DataTransformBuilder.get_postprocess_transform(
             save_mask=save_mask, invert=True, transform=inf_transform, sigmoid=sigmoid, output_path=output_path, resample=resample,
@@ -1621,14 +1637,14 @@ class Segmenter:
 
                 with autocast(enabled=use_amp):
                     logits = model(data)
-
+                
                 loss = loss_function(logits, target)
                 grad_scaler.scale(loss).backward()
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
 
                 with torch.no_grad():
-                    pred = logits2pred(logits, sigmoid=sigmoid)
+                    pred = self.logits2pred(logits, sigmoid=sigmoid, skip_softmax=True)
                     acc = acc_function(pred, target)
 
                 batch_size_adjusted = batch_size = data.shape[0]
@@ -1711,14 +1727,32 @@ class Segmenter:
                 logits = sliding_inferrer(inputs=data, network=model)
 
             data = None
-            pred = logits2pred(logits, sigmoid=sigmoid, out=logits if not calc_val_loss else None)
 
             if post_transforms:
-                batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[0]
-                pred  = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)])
+                
+                logits = logits.float().contiguous()
+                pred = self.logits2pred(logits, sigmoid=sigmoid, inplace=not calc_val_loss)
+                if not calc_val_loss:
+                    logits = None
 
+                batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[0]
+                pred = None
+
+                try:
+                    #inverting on gpu can OOM due inverse resampling or un-cropping
+                    pred  = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)]) 
+                except RuntimeError as e:
+                    if not batch_data["pred"].is_cuda:
+                        raise e
+                    print(f"post_transforms failed on GPU pred retrying on CPU {batch_data['pred'].shape}")
+                    batch_data["pred"] = batch_data["pred"].cpu()
+                    pred  = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)]) 
+
+                batch_data["pred"] = None
                 if logits is not None and pred.shape != logits.shape:
                     logits = None  # if shape has changed due to inverse resampling or un-cropping
+            else:
+                pred = self.logits2pred(logits, sigmoid=sigmoid, inplace = not calc_val_loss, skip_softmax=True)
 
             if "label" in batch_data and loss_function is not None and acc_function is not None:
 
@@ -1739,7 +1773,7 @@ class Segmenter:
                         except RuntimeError as e:
                             if "OutOfMemoryError" not in str(type(e).__name__):
                                 raise e
-                            print(f"Val acc failed on GPU pred: {pred.shape} / {pred.device}. retrying on CPU")
+                            print(f"acc_function val failed on GPU pred: {pred.shape} on {pred.device}, target: {target.shape} on {target.device}. retrying on CPU")
                             acc = acc_function(pred.cpu(), target.cpu())
 
                         batch_size_adjusted = batch_size
@@ -1778,6 +1812,19 @@ class Segmenter:
             warnings.warn('Avg dice accuracy is negative, something went wrong!!!!!')
 
         return avg_loss, avg_acc
+
+
+    def logits2pred(self, logits, sigmoid=False, dim=1, skip_softmax=False, inplace=False):
+
+        if isinstance(logits, (list, tuple)):
+            logits = logits[0]
+
+        if sigmoid:
+            pred = torch.sigmoid(logits, out=logits if inplace else None)
+        else:
+            pred = logits if skip_softmax else torch.softmax(logits, dim=dim, out=logits if inplace else None)
+
+        return pred
 
     def get_avail_cpu_memory(self):
 

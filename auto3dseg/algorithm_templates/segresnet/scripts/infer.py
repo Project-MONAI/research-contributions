@@ -36,7 +36,7 @@ class InferClass:
         self.segmenter = Segmenter(config_file=config_file, rank=rank, global_rank=global_rank, config_dict=override)
 
     def infer(self, image_file):
-        pred = self.segmenter.infer_image(image_file, save_mask=False)
+        pred = self.segmenter.infer_image(image_file)
         return pred
 
 
