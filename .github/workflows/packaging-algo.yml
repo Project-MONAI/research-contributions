@@ -3,6 +3,11 @@ name: release
 
 on:
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'The tag to upload this asset into'
+        required: true
+        default: 'algo_templates'
   push:
     branches:
       - auto-upload
@@ -28,7 +33,13 @@ jobs:
     - name: Upload ${{ steps.name.outputs.sha_short }}
       uses: svenstaro/upload-release-action@v2
       with:
+        # tag: ${{ github.event.inputs.tag_name }}
         tag: algo_templates_test
         file: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz
         asset_name: ${{ steps.name.outputs.sha_short }}.tar.gz
         overwrite: false
+    - name: Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ steps.name.outputs.sha_short }}
+        path: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz
