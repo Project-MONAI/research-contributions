@@ -96,8 +96,8 @@ def auto_adjust_network_settings(
         gpu_mem = get_gpu_mem_size()
     if global_rank==0:
         print(f"GPU device memory min: {gpu_mem}")
-        
-    # adapting 
+
+    # adapting
     if auto_scale_batch or auto_scale_roi or auto_scale_filters:
         gpu_factor_init =  gpu_factor =  max(1, gpu_mem/16)
         if anisotropic_scales:
@@ -121,11 +121,11 @@ def auto_adjust_network_settings(
             print(f"base_adjust {base_adjust} since output_classes {output_classes} > {output_classes_thresh}")
         if base_adjust < 1: #reduce roi
             base_numel *= base_adjust
-            r = int(base_numel**(1/3)  / 2**4) 
+            r = int(base_numel**(1/3)  / 2**4)
             if r == 0 and global_rank==0:
                 print(f"Warning: given output_classes {output_classes}, unable to fit any ROI on the gpu {gpu_mem} Gb!")
-            roi_size = np.array([max(1,r) * 2**4] * 3) 
-            gpu_factor = gpu_factor_init = 1 
+            roi_size = np.array([max(1,r) * 2**4] * 3)
+            gpu_factor = gpu_factor_init = 1
             auto_scale_roi = False
         else:
             gpu_factor_init =  gpu_factor =  base_adjust
@@ -136,7 +136,7 @@ def auto_adjust_network_settings(
 
 
     if image_size_mm is not None and spacing is not None:
-        image_size = np.floor(np.array(image_size_mm) / np.array(spacing)) 
+        image_size = np.floor(np.array(image_size_mm) / np.array(spacing))
         if global_rank==0:
             print(f"input roi {roi_size} image_size {image_size} numel  {roi_size.prod()}")
         roi_size = np.minimum(roi_size, image_size)

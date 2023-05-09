@@ -103,7 +103,7 @@ if __package__ in (None, ""):
 else:
     from .utils import auto_adjust_network_settings, logger_configure
 
-    
+
 class LabelEmbedClassIndex(MapTransform):
     """
     Label embedding according to class_index
@@ -1043,7 +1043,7 @@ class Segmenter:
                     num_steps_per_image = max(1, 4 // be)
                 else:
                     num_steps_per_image = 1
-                    
+
         elif num_steps_per_image is None:
             num_steps_per_image = 1
 
@@ -1492,7 +1492,7 @@ class Segmenter:
             data_list_file_path = self.config["data_list_file_path"]
             if not os.path.isabs(data_list_file_path):
                 data_list_file_path = os.path.abspath(os.path.join(self.config["bundle_root"], data_list_file_path))
-                
+
             testing_files, _ = datafold_read(
                 datalist=data_list_file_path,
                 basedir=self.config["data_file_base_dir"],
@@ -1637,7 +1637,7 @@ class Segmenter:
 
                 with autocast(enabled=use_amp):
                     logits = model(data)
-                
+
                 loss = loss_function(logits, target)
                 grad_scaler.scale(loss).backward()
                 grad_scaler.step(optimizer)
@@ -1729,7 +1729,7 @@ class Segmenter:
             data = None
 
             if post_transforms:
-                
+
                 logits = logits.float().contiguous()
                 pred = self.logits2pred(logits, sigmoid=sigmoid, inplace=not calc_val_loss)
                 if not calc_val_loss:
@@ -1740,13 +1740,13 @@ class Segmenter:
 
                 try:
                     #inverting on gpu can OOM due inverse resampling or un-cropping
-                    pred  = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)]) 
+                    pred  = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)])
                 except RuntimeError as e:
                     if not batch_data["pred"].is_cuda:
                         raise e
                     print(f"post_transforms failed on GPU pred retrying on CPU {batch_data['pred'].shape}")
                     batch_data["pred"] = batch_data["pred"].cpu()
-                    pred  = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)]) 
+                    pred  = torch.stack([post_transforms(x)["pred"] for x in decollate_batch(batch_data)])
 
                 batch_data["pred"] = None
                 if logits is not None and pred.shape != logits.shape:

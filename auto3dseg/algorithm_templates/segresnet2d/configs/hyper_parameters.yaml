@@ -18,7 +18,7 @@ cache_rate: null
 roi_size: [448, 448, 32]
 
 
-auto_scale_allowed: true 
+auto_scale_allowed: true
 auto_scale_batch: true
 auto_scale_roi: false
 auto_scale_filters: false
