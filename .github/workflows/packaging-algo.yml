@@ -1,5 +1,5 @@
 name: release
-# generating and testing package artefacts from the main branch
+# generating package artefacts from the main branch
 
 on:
   workflow_dispatch:
@@ -8,12 +8,10 @@ on:
         description: 'The tag to upload this asset into'
         required: true
         default: 'algo_templates'
-  push:
-    branches:
-      - auto-upload
 
 jobs:
   packaging-algo:
+    if: github.repository == 'Project-MONAI/research-contributions'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -33,8 +31,7 @@ jobs:
     - name: Upload ${{ steps.name.outputs.sha_short }}
       uses: svenstaro/upload-release-action@v2
       with:
-        # tag: ${{ github.event.inputs.tag_name }}
-        tag: algo_templates_test
+        tag: ${{ github.event.inputs.tag_name }}
         file: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz
         asset_name: ${{ steps.name.outputs.sha_short }}.tar.gz
         overwrite: false
