@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
-import gc
 import io
 import logging
 import math
@@ -591,7 +590,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 del inputs, labels, outputs
                 torch.cuda.empty_cache()
-                gc.collect()
 
                 if ad:
                     _percentage = float(_round) / float(num_rounds) * 100.0
@@ -648,12 +646,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 val_images = val_data["image"].to(_device_in)
                                 val_labels = val_data["label"].to(_device_out)
 
-                                if _device_in != device or _device_out != device:
-                                    model = model.cpu()
-                                    torch.cuda.empty_cache()
-                                    gc.collect()
-                                    model = model.to(device)
-
                                 with autocast(enabled=amp):
                                     val_outputs = sliding_window_inference(
                                         inputs=val_images,
@@ -696,7 +688,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         del val_images, val_labels, val_outputs
                         torch.cuda.empty_cache()
-                        gc.collect()
 
                         metric_sum += value.sum().item()
                         metric_vals = value.cpu().numpy()
@@ -788,7 +779,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             break
 
                 torch.cuda.empty_cache()
-                gc.collect()
 
         if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
@@ -837,12 +827,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             val_images = val_data["image"].to(_device_in)
                             val_labels = val_data["label"].to(_device_out)
 
-                            if _device_in != device or _device_out != device:
-                                model = model.cpu()
-                                torch.cuda.empty_cache()
-                                gc.collect()
-                                model = model.to(device)
-
                             with autocast(enabled=amp):
                                 val_data["pred"] = sliding_window_inference(
                                     inputs=val_images,
@@ -868,7 +852,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     val_data["pred"] = val_data["pred"].cpu()
                     val_labels = val_labels.cpu()
                     torch.cuda.empty_cache()
-                    gc.collect()
 
                     val_data = [
                         post_transforms(i) for i in
