@@ -65,7 +65,7 @@ def get_mem_from_visible_gpus():
     return available_mem_visible_gpus
 
 
-def pre_operation(config_file):
+def pre_operation(config_file, **override):
     # update hyper-parameter configuration
     rank = int(os.getenv("RANK", "0"))
     if rank == 0:
@@ -77,7 +77,11 @@ def pre_operation(config_file):
                 parser = ConfigParser(globals=False)
                 parser.read_config(_file)
 
-                if parser["training"]["auto_scale_allowed"]:
+                auto_scale_allowed = parser["training"]["auto_scale_allowed"]
+                if "training#auto_scale_allowed" in override:
+                    auto_scale_allowed = override["training#auto_scale_allowed"]
+
+                if auto_scale_allowed:
                     output_classes = parser["training"]["output_classes"]
                     mem = get_mem_from_visible_gpus()
                     mem = min(mem) if isinstance(mem, list) else mem
@@ -105,7 +109,7 @@ def pre_operation(config_file):
 
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
-    pre_operation(config_file)
+    pre_operation(config_file, **override)
 
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
