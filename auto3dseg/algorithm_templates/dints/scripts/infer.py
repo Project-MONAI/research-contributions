@@ -192,26 +192,23 @@ class InferClass:
             transforms.Activationsd(
                 keys="pred",
                 softmax=softmax,
-                sigmoid=not softmax),
-            transforms.CopyItemsd(
-                keys="pred",
-                times=1,
-                names="pred_final")]
+                sigmoid=not softmax)]        
+        self.post_transforms_prob = transforms.Compose(post_transforms)
 
         if softmax:
             post_transforms += [
                 transforms.AsDiscreted(
-                    keys="pred_final",
+                    keys="pred",
                     argmax=True)]
         else:
             post_transforms += [
                 transforms.AsDiscreted(
-                    keys="pred_final",
+                    keys="pred",
                     threshold=0.5)]
 
         post_transforms += [
             transforms.SaveImaged(
-                keys="pred_final",
+                keys="pred",
                 meta_keys="pred_meta_dict",
                 output_dir=output_path,
                 output_postfix="seg",
@@ -223,7 +220,7 @@ class InferClass:
         return
 
     @torch.no_grad()
-    def infer(self, image_file):
+    def infer(self, image_file, save_mask=False):
         self.model.eval()
 
         batch_data = self.infer_transforms(image_file)
@@ -270,15 +267,19 @@ class InferClass:
         batch_data["pred"] = batch_data["pred"].cpu()
         torch.cuda.empty_cache()
 
-        batch_data = [self.post_transforms(i)
-                      for i in decollate_batch(batch_data)]
+        if save_mask:
+            batch_data = [self.post_transforms(i)
+                        for i in decollate_batch(batch_data)]
+        else:
+            batch_data = [self.post_transforms_prob(i)
+                        for i in decollate_batch(batch_data)]
 
         return batch_data[0]["pred"]
 
     def infer_all(self):
         for _i in range(len(self.infer_files)):
             infer_filename = self.infer_files[_i]
-            _ = self.infer(infer_filename)
+            _ = self.infer(infer_filename, save_mask=True)
 
         return
 
