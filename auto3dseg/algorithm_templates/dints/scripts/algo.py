@@ -127,22 +127,6 @@ class DintsAlgo(BundleAlgo):
             hyper_parameters_search.update(
                 {"searching#resample_to_spacing": spacing})
 
-            mem = get_mem_from_visible_gpus()
-            mem = min(mem) if isinstance(mem, list) else mem
-            mem = float(mem) / (1024.0**3)
-            mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
-            mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
-            batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
-            batch_size = int(batch_size)
-            batch_size = max(batch_size, 1)
-
-            hyper_parameters.update(
-                {"training#num_patches_per_iter": batch_size})
-            hyper_parameters.update(
-                {"training#num_patches_per_image": 2 * batch_size})
-            hyper_parameters.update(
-                {"training#num_epochs": int(400.0 / float(batch_size))})
-
             intensity_upper_bound = float(
                 data_stats[
                     "stats_summary#image_foreground_stats#intensity#percentile_99_5"

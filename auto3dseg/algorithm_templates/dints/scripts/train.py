@@ -111,7 +111,55 @@ class EarlyStopping:
             self.counter = 0
 
 
+def get_mem_from_visible_gpus():
+    available_mem_visible_gpus = []
+    for d in range(torch.cuda.device_count()):
+        available_mem_visible_gpus.append(torch.cuda.mem_get_info(device=d)[0])
+    return available_mem_visible_gpus
+
+
+def pre_operation(config_file):
+    # update hyper-parameter configuration
+    rank = int(os.getenv("RANK", "0"))
+    if rank == 0:
+        if isinstance(config_file, str) and ',' in config_file:
+            config_file = config_file.split(',')
+
+        for _file in config_file:
+            if "hyper_parameters.yaml" in _file:
+                parser = ConfigParser(globals=False)
+                parser.read_config(_file)
+
+                if parser["training"]["auto_scale_allowed"]:
+                    output_classes = parser["training"]["output_classes"]
+                    mem = get_mem_from_visible_gpus()
+                    mem = min(mem) if isinstance(mem, list) else mem
+                    mem = float(mem) / (1024.0**3)
+                    mem_bs2 = 6.0 + (20.0 - 6.0) * \
+                        (output_classes - 2) / (105 - 2)
+                    mem_bs9 = 24.0 + (74.0 - 24.0) * \
+                        (output_classes - 2) / (105 - 2)
+                    batch_size = 2 + (9 - 2) * \
+                        (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+                    batch_size = int(batch_size)
+                    batch_size = max(batch_size, 1)
+
+                    parser["training"].update(
+                        {"num_patches_per_iter": batch_size})
+                    parser["training"].update(
+                        {"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update(
+                        {"num_epochs": int(400.0 / float(batch_size))})
+
+                    ConfigParser.export_config_file(
+                        parser.get(), _file, fmt="yaml", default_flow_style=None)
+
+    return
+
+
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
+    pre_operation(config_file)
+
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
     if isinstance(config_file, str) and ',' in config_file:
@@ -144,7 +192,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         "training#num_patches_per_iter")
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
-    overlap_ratio_train = parser.get_parsed_content("training#overlap_ratio_train")
+    overlap_ratio_train = parser.get_parsed_content(
+        "training#overlap_ratio_train")
     patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
     random_seed = parser.get_parsed_content("training#random_seed")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
@@ -550,7 +599,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     target_num_epochs_per_validation = -1
                     for _j in range(len(ad_progress_percentages)):
                         if _percentage <= ad_progress_percentages[-1 - _j]:
-                            if _j == (len(ad_progress_percentages) - \
+                            if _j == (len(ad_progress_percentages) -
                                       1) or _percentage > ad_progress_percentages[-2 - _j]:
                                 target_num_epochs_per_validation = ad_num_epochs_per_validation[-1 - _j]
                                 break
