@@ -640,7 +640,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             device_list_input = [
                                 val_devices_input[val_filename],]
                             device_list_output = [
-                                device_list_output[val_filename]]
+                                val_devices_output[val_filename],]
 
                         for _device_in, _device_out in zip(
                                 device_list_input, device_list_output):
