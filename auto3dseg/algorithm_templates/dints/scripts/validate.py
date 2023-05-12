@@ -10,7 +10,6 @@
 # limitations under the License.
 
 import csv
-import gc
 import logging
 import os
 import sys
@@ -86,6 +85,7 @@ def pre_operation(config_file, **override):
                     mem = get_mem_from_visible_gpus()
                     mem = min(mem) if isinstance(mem, list) else mem
                     mem = float(mem) / (1024.0**3)
+                    mem = max(1.0, mem - 1.0)
                     mem_bs2 = 6.0 + (20.0 - 6.0) * \
                         (output_classes - 2) / (105 - 2)
                     mem_bs9 = 24.0 + (74.0 - 24.0) * \
@@ -261,7 +261,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     if _device_in != device or _device_out != device:
                         model = model.cpu()
                         torch.cuda.empty_cache()
-                        gc.collect()
                         model = model.to(device)
 
                     with torch.cuda.amp.autocast(enabled=amp):
@@ -289,7 +288,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             val_data["pred"] = val_data["pred"].cpu()
             val_labels = val_labels.cpu()
             torch.cuda.empty_cache()
-            gc.collect()
 
             val_data = [
                 post_transforms(i) for i in

@@ -138,6 +138,7 @@ def pre_operation(config_file, **override):
                     mem = get_mem_from_visible_gpus()
                     mem = min(mem) if isinstance(mem, list) else mem
                     mem = float(mem) / (1024.0**3)
+                    mem = max(1.0, mem - 1.0)
                     mem_bs2 = 6.0 + (20.0 - 6.0) * \
                         (output_classes - 2) / (105 - 2)
                     mem_bs9 = 24.0 + (74.0 - 24.0) * \

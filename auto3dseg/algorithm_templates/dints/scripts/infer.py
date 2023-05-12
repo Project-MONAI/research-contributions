@@ -9,7 +9,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import gc
 import logging
 import os
 import sys
@@ -82,6 +81,7 @@ def pre_operation(config_file, **override):
                     mem = get_mem_from_visible_gpus()
                     mem = min(mem) if isinstance(mem, list) else mem
                     mem = float(mem) / (1024.0**3)
+                    mem = max(1.0, mem - 1.0)
                     mem_bs2 = 6.0 + (20.0 - 6.0) * \
                         (output_classes - 2) / (105 - 2)
                     mem_bs9 = 24.0 + (74.0 - 24.0) * \
@@ -244,7 +244,6 @@ class InferClass:
                 if _device_in != self.device or _device_out != self.device:
                     self.model = self.model.cpu()
                     torch.cuda.empty_cache()
-                    gc.collect()
                     self.model = self.model.to(self.device)
 
                 with torch.cuda.amp.autocast(enabled=self.amp):
@@ -270,7 +269,6 @@ class InferClass:
         batch_data["image"] = batch_data["image"].cpu()
         batch_data["pred"] = batch_data["pred"].cpu()
         torch.cuda.empty_cache()
-        gc.collect()
 
         batch_data = [self.post_transforms(i)
                       for i in decollate_batch(batch_data)]
@@ -306,7 +304,6 @@ class InferClass:
                         if _device_in != self.device or _device_out != self.device:
                             self.model = self.model.cpu()
                             torch.cuda.empty_cache()
-                            gc.collect()
                             self.model = self.model.to(self.device)
 
                         with torch.cuda.amp.autocast(enabled=self.amp):
@@ -332,7 +329,6 @@ class InferClass:
                 infer_data["image"] = infer_data["image"].cpu()
                 infer_data["pred"] = infer_data["pred"].cpu()
                 torch.cuda.empty_cache()
-                gc.collect()
 
                 infer_data = [self.post_transforms(i)
                               for i in decollate_batch(infer_data)]
