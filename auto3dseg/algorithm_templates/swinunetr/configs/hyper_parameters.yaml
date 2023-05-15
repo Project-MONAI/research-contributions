@@ -12,13 +12,12 @@ train_cache_rate: "$@cache_rate"
 validate_cache_rate: "$@cache_rate"
 show_cache_progress: false
 
-# hyper-parameters
 auto_scale_allowed: true
 amp: true
 input_channels: null
 learning_rate: 0.0004
 log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/training.log'"
-num_images_per_batch: null
+num_images_per_batch: 2
 num_epochs: null
 auto_scale_max_epochs: 1000
 num_epochs_per_validation: 5
