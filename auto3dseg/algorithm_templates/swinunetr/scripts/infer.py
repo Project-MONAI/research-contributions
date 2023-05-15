@@ -15,7 +15,6 @@ import sys
 from typing import Optional, Sequence, Union
 
 import torch
-import gc
 import monai
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
@@ -24,12 +23,18 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch, list_data_collate
 from monai.inferers import sliding_window_inference
 
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+if __package__ in (None, ""):
+    from train import pre_operation, CONFIG
+else:
+    from .train import pre_operation, CONFIG
 
 class InferClass:
     def __init__(self,
                  config_file: Optional[Union[str,
                                              Sequence[str]]] = None,
                  **override):
+        pre_operation(config_file, **override)
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
         _args = _update_args(config_file=config_file, **override)
@@ -57,7 +62,9 @@ class InferClass:
 
         if not os.path.exists(output_path):
             os.makedirs(output_path, exist_ok=True)
-
+	    
+        CONFIG["handlers"]["file"]["filename"] =parser.get_parsed_content("infer")["log_output_file"]	
+        logging.config.dictConfig(CONFIG)
         self.infer_transforms = parser.get_parsed_content("transforms_infer")
 
         datalist = ConfigParser.load_config_file(data_list_file_path)
@@ -93,18 +100,23 @@ class InferClass:
         pretrained_ckpt = torch.load(ckpt_name, map_location=self.device)
         self.model.load_state_dict(pretrained_ckpt)
         logger.debug(f"[debug] checkpoint {ckpt_name:s} loaded")
-
-        post_transforms = [
-            transforms.Invertd(
-                keys="pred",
-                transform=self.infer_transforms,
-                orig_keys="image",
-                meta_keys="pred_meta_dict",
-                orig_meta_keys="image_meta_dict",
-                meta_key_postfix="meta_dict",
-                nearest_interp=False,
-                to_tensor=True)]
-
+        
+        post_transforms = [	
+            transforms.Invertd(	
+                keys="pred",	
+                transform=self.infer_transforms,	
+                orig_keys="image",	
+                meta_keys="pred_meta_dict",	
+                orig_meta_keys="image_meta_dict",	
+                meta_key_postfix="meta_dict",	
+                nearest_interp=False,	
+                to_tensor=True),	
+            transforms.Activationsd(	
+                keys="pred",	
+                softmax=softmax,	
+                sigmoid=not softmax)]        	
+        # return pred probs
+        self.post_transforms_prob = transforms.Compose(post_transforms)        
         if softmax:
             post_transforms += [
                 transforms.AsDiscreted(
@@ -130,12 +142,13 @@ class InferClass:
         return
 
     @torch.no_grad()
-    def infer(self, image_file):
+    def infer(self, image_file, save_mask=False):
+        """ Infer a single image_file. If save_mask is true, save the argmax prediction to disk. If false,
+        do not save and return the probability maps (usually used by autorunner emsembler).
+        """
         self.model.eval()
-
         batch_data = self.infer_transforms(image_file)
         batch_data = list_data_collate([batch_data])
-
         device_list_input = [self.device, self.device, "cpu"]	
         device_list_output = [self.device, "cpu", "cpu"]	
         for _device_in, _device_out in zip(	
@@ -151,28 +164,28 @@ class InferClass:
                         overlap=self.overlap_ratio_final,	
                         sw_device=self.device,	
                         device=_device_out)	
-                batch_data = [self.post_transforms(i)
-                            for i in decollate_batch(batch_data)]
+                if save_mask:
+                    batch_data = [self.post_transforms(i)
+                                for i in decollate_batch(batch_data)]
+                else:
+                    batch_data = [self.post_transforms_prob(i)
+                                for i in decollate_batch(batch_data)]                    
                 finished = True	
             except RuntimeError as e:
                 if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                     raise e
-                # if 'pred' in batch_data.keys():
-                #     del batch_data["pred"]
-                # batch_data["image"] = batch_data["image"].cpu()
-                # torch.cuda.empty_cache()
                 finished = False	
             if finished:	
                 break
         if not finished:
             raise RuntimeError('Infer not finished due to OOM.')
         return batch_data[0]["pred"]
-
-    def infer_all(self):
+    
+    @torch.no_grad()
+    def infer_all(self, save_mask=True):
         for _i in range(len(self.infer_files)):
             infer_filename = self.infer_files[_i]
-            _ = self.infer(infer_filename)
-
+            _ = self.infer(infer_filename, save_mask)
         return
 
     @torch.no_grad()
@@ -203,10 +216,6 @@ class InferClass:
                     except RuntimeError as e:
                         if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                             raise e
-                        # if 'pred' in d.keys():
-                        #     del d["pred"]
-                        # d["image"] = d["image"].cpu()
-                        # torch.cuda.empty_cache()
                         finished = False	
                     if finished:	
                         break
@@ -223,7 +232,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     else:
         logger.debug("[debug] slow mode")
         infer_instance.infer_all()
-
     return
 
 

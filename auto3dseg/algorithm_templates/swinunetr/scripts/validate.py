@@ -28,8 +28,14 @@ from monai.data import ThreadDataLoader, decollate_batch
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
 
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+if __package__ in (None, ""):
+    from train import pre_operation, CONFIG
+else:
+    from .train import pre_operation, CONFIG
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
+    pre_operation(config_file, **override)
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
     _args = _update_args(config_file=config_file, **override)
@@ -52,9 +58,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     ckpt_name = parser.get_parsed_content("validate")["ckpt_name"]
     output_path = parser.get_parsed_content("validate")["output_path"]
     save_mask = parser.get_parsed_content("validate")["save_mask"]
-
+    
     if not os.path.exists(output_path):
         os.makedirs(output_path, exist_ok=True)
+
+    CONFIG["handlers"]["file"]["filename"] =parser.get_parsed_content("validate")["log_output_file"]
+    logging.config.dictConfig(CONFIG)
 
     infer_transforms = parser.get_parsed_content("transforms_infer")
     validate_transforms = transforms.Compose(
@@ -102,12 +111,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     model.load_state_dict(pretrained_ckpt)
     logger.debug(f"[debug] checkpoint {ckpt_name:s} loaded")
 
-    if softmax:
-        post_pred = transforms.Compose(
-            [transforms.EnsureType(), transforms.AsDiscrete(to_onehot=output_classes)])
-    else:
-        post_pred = transforms.Compose([transforms.EnsureType()])
-
     post_transforms = [
         transforms.Invertd(
             keys="pred",
@@ -133,6 +136,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 meta_keys="pred_meta_dict",
                 output_dir=output_path,
                 output_postfix="seg",
+                data_root_dir=data_file_base_dir,
                 resample=False)]
 
     post_transforms = transforms.Compose(post_transforms)
@@ -186,12 +190,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             if not finished:
                 raise RuntimeError('Infer not finished due to OOM.')
 
-            val_outputs = post_pred(d[0]["pred"])
-            val_outputs = val_outputs[None, ...]
-
-            if softmax:
-                val_labels = post_pred(val_labels[0, ...])
-                val_labels = val_labels[None, ...]
+            val_outputs = d[0]["pred"]
 
             value = compute_dice(
                 y_pred=val_outputs,
@@ -229,8 +228,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
             for _c in range(metric_dim):
                 val0 = torch.nan_to_num(value[0, _c], nan=0.0)
-                val1 = 1.0 - torch.isnan(value[0, 0]).float()
-                metric[2 * _c] += val0 * val1
+                val1 = 1.0 - torch.isnan(value[0, _c]).float()
+                metric[2 * _c] += val0
                 metric[2 * _c + 1] += val1
 
             _index += 1

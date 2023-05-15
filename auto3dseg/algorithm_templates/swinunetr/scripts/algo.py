@@ -28,6 +28,31 @@ def get_mem_from_visible_gpus():
         available_mem_visible_gpus.append(torch.cuda.mem_get_info(device=d)[0])
     return available_mem_visible_gpus
 
+def auto_scale(output_classes, n_cases, max_epoch=1000):
+    """ Scale batch size based on gpu memory and output class. Includes heuristics.
+    """
+    mem = get_mem_from_visible_gpus()
+    mem = min(mem) if isinstance(mem, list) else mem
+    mem = float(mem) / (1024.0**3)
+    mem = max(1.0, mem - 1.0)
+    # heuristics copied from dints template
+    mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
+    mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
+    # heuristic scaling for swinunetr
+    mem_bs2 = 12/6 * mem_bs2
+    mem_bs9 = 12/6 * mem_bs9
+    batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+    batch_size = max(int(batch_size), 1)
+    
+    # fixed two iters per whole image, each iter with num_patches_per_iter
+    num_patches_per_iter = batch_size
+    num_patches_per_image = batch_size * 2
+    # heuristics for 400k patch iteration. epoch * n_cases * num_patches_per_image = total 400k patch
+    num_epochs = min(max_epoch, int(400000 / n_cases / num_patches_per_image))
+    return {"num_patches_per_iter": num_patches_per_iter, 
+            "num_patches_per_image": num_patches_per_image, 
+            "num_epochs": num_epochs}
+
 class SwinunetrAlgo(BundleAlgo):
     def fill_template_config(self, data_stats_file, output_path, **kwargs):
         """
@@ -69,7 +94,8 @@ class SwinunetrAlgo(BundleAlgo):
 
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
-
+            n_cases =  data_stats["stats_summary#n_cases"]
+            
             hyper_parameters.update(
                 {"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])}
             )
@@ -81,6 +107,7 @@ class SwinunetrAlgo(BundleAlgo):
             hyper_parameters.update({"patch_size_valid": patch_size})
             hyper_parameters.update({"input_channels": input_channels})
             hyper_parameters.update({"output_classes": output_classes})
+            hyper_parameters.update({"n_cases": n_cases})
 
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
@@ -91,19 +118,10 @@ class SwinunetrAlgo(BundleAlgo):
 
             hyper_parameters.update({"resample_to_spacing": spacing})
 
-            mem = get_mem_from_visible_gpus()
-            mem = min(mem) if isinstance(mem, list) else mem
-            mem = float(mem) / (1024.0**3)
-            mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
-            mem_bs2 = 12/6 * mem_bs2
-            mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
-            mem_bs9 = 12/6 * mem_bs9
-            batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
-            batch_size = int(batch_size)
-            batch_size = max(batch_size, 1)
-            hyper_parameters.update({"num_patches_per_iter": batch_size})
-            hyper_parameters.update({"num_patches_per_image": batch_size * 2})
-            hyper_parameters.update({"num_epochs": int(400.0 / max(2., float(batch_size)))})
+            scaled = auto_scale(output_classes, n_cases, max_epoch=1000)
+            hyper_parameters.update({"num_patches_per_iter": scaled["num_patches_per_iter"]})
+            hyper_parameters.update({"num_patches_per_image": scaled["num_patches_per_image"]})
+            hyper_parameters.update({"num_epochs": scaled["num_epochs"]})
 
             intensity_upper_bound = float(
                 data_stats[
@@ -279,7 +297,6 @@ class SwinunetrAlgo(BundleAlgo):
                 "validation_data_device", ["cpu", "gpu"]
             )
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
-            ps_environ = os.environ.copy()  # ensure the CUDA_VISIBLE_DEVICES is copied when used.
 
             try:
                 cmd = "python {0:s}dummy_runner.py ".format(
