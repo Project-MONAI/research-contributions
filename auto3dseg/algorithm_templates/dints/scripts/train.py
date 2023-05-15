@@ -704,8 +704,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         for _c in range(metric_dim):
                             val0 = torch.nan_to_num(value[0, _c], nan=0.0)
-                            val1 = 1.0 - torch.isnan(value[0, 0]).float()
-                            metric[2 * _c] += val0 * val1
+                            val1 = 1.0 - torch.isnan(value[0, _c]).float()
+                            metric[2 * _c] += val0
                             metric[2 * _c + 1] += val1
 
                         _index += 1
@@ -890,8 +890,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     for _c in range(metric_dim):
                         val0 = torch.nan_to_num(value[0, _c], nan=0.0)
-                        val1 = 1.0 - torch.isnan(value[0, 0]).float()
-                        metric[2 * _c] += val0 * val1
+                        val1 = 1.0 - torch.isnan(value[0, _c]).float()
+                        metric[2 * _c] += val0
                         metric[2 * _c + 1] += val1
 
                     _index += 1
