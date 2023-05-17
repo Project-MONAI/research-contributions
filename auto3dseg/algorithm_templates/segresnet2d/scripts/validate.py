@@ -21,10 +21,7 @@ else:
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     override["validate#enabled"] = True
-    if "use_ckpt_config" not in override:
-        override["use_ckpt_config"] = True
     run_segmenter(config_file=config_file, **override)
-
 
 if __name__ == "__main__":
     fire.Fire()
