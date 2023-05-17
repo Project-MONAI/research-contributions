@@ -131,7 +131,16 @@ def pre_operation(config_file, **override):
     return
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
-    pre_operation(config_file, **override)
+    # Initialize distributed and scale parameters based on GPU memory
+    if torch.cuda.device_count() > 1:
+        dist.init_process_group(backend="nccl", init_method="env://")
+        world_size = dist.get_world_size()
+        pre_operation(config_file, **override)
+        dist.barrier()
+    else:
+        pre_operation(config_file, **override)
+        world_size = 1
+
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
     if isinstance(config_file, str) and ',' in config_file:
@@ -219,15 +228,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     CONFIG["handlers"]["file"]["filename"] = parser.get_parsed_content("log_output_file")
     logging.config.dictConfig(CONFIG)
-
+    logging.getLogger("torch.distributed.distributed_c10d").setLevel(
+        logging.WARNING)    
     logger.debug(f"[debug] number of GPUs: {torch.cuda.device_count()}")
-    if torch.cuda.device_count() > 1:
-        logging.getLogger("torch.distributed.distributed_c10d").setLevel(
-            logging.WARNING)
-        dist.init_process_group(backend="nccl", init_method="env://")
-        world_size = dist.get_world_size()
-    else:
-        world_size = 1
     logger.debug(f"[debug] world_size: {world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
@@ -462,6 +465,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     start_time = time.time()
 
+    # To increase speed, the training script is not based on epoch, but based on validation rounds. 
+    # In each batch, num_images_per_batch=2 whole 3D images are loaded into CPU for data transformation
+    # num_patches_per_image=2*num_patches_per_iter is extracted from each 3D image, in each iteration,
+    # num_patches_per_iter patches is used for training (real batch size on each GPU).
     num_rounds = int(
         np.ceil(
             float(num_epochs) //
@@ -600,7 +607,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         try:
                             val_filename = val_data["image_meta_dict"]["filename_or_obj"][0]
                         except:
-                            val_filename = val_data.meta["filename_or_obj"]
+                            val_filename = val_data["image"].meta["filename_or_obj"][0]
                         if sw_input_on_cpu:
                             device_list_input = ["cpu"]
                             device_list_output = ["cpu"]
@@ -618,13 +625,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             try:
                                 val_devices_input[val_filename] = _device_in
                                 val_devices_output[val_filename] = _device_out
-
-                                val_images = val_data["image"].to(_device_in)
-                                val_labels = val_data["label"].to(_device_out)
-
                                 with autocast(enabled=amp):
                                     val_outputs = sliding_window_inference(
-                                        inputs=val_images,
+                                        inputs=val_data["image"].to(_device_in),
                                         roi_size=patch_size_valid,
                                         sw_batch_size=num_sw_batch_size,
                                         predictor=model,
@@ -632,8 +635,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                         overlap=overlap_ratio,
                                         sw_device=device,
                                         device=_device_out)
-                                val_outputs = post_pred(val_outputs[0, ...])
-
+                                try:
+                                    val_outputs = post_pred(val_outputs[0, ...])
+                                except:
+                                    val_outputs = post_pred(val_outputs[0, ...].to("cpu"))
                                 finished = True
 
                             except RuntimeError as e:
@@ -645,9 +650,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 break
 
                         val_outputs = val_outputs[None, ...]
-                        value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax, num_classes=output_classes).to(device)
+                        value = compute_dice(y_pred=val_outputs, y=val_data["label"].to(val_outputs.device), include_background=not softmax, num_classes=output_classes).to(device)
 
-                        logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
+                        logger.debug(f"{_index + 1} / {len(val_loader)}/ {val_filename}: {value}")
 
                         for _c in range(metric_dim):
                             val0 = torch.nan_to_num(value[0, _c], nan=0.0)
@@ -748,11 +753,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             with torch.no_grad():
                 metric = torch.zeros(
                     metric_dim * 2, dtype=torch.float, device=device)
-                metric_sum = 0.0
-                metric_mat = []
 
                 _index = 0
                 for val_data in orig_val_loader:
+                    try:
+                        val_filename = val_data["image_meta_dict"]["filename_or_obj"][0]
+                    except:
+                        val_filename = val_data["image"].meta["filename_or_obj"][0]
                     if sw_input_on_cpu:
                         device_list_input = ["cpu"]
                         device_list_output = ["cpu"]
@@ -763,12 +770,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     for _device_in, _device_out in zip(
                             device_list_input, device_list_output):
                         try:
-                            val_images = val_data["image"].to(_device_in)
-                            val_labels = val_data["label"].to(_device_out)
-
                             with autocast(enabled=amp):
                                 val_data["pred"] = sliding_window_inference(
-                                    inputs=val_images,
+                                    inputs=val_data["image"].to(_device_in),
                                     roi_size=patch_size_valid,
                                     sw_batch_size=num_sw_batch_size,
                                     predictor=model,
@@ -776,28 +780,31 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                     overlap=overlap_ratio_final,
                                     sw_device=device,
                                     device=_device_out)
-                            val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
+                            try:
+                                val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
+                            except:
+                                val_data["pred"] = val_data["pred"].to("cpu")
+                                val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
+
                             finished = True
 
                         except RuntimeError as e:
                             if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                 raise e
                             finished = False
+                            torch.cuda.empty_cache()
 
                         if finished:
                             break
 
                     val_outputs = val_data[0]["pred"][None, ...]
-
-                    value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax, num_classes=output_classes).to(device)
-
-                    logger.debug(
-                        f"validation Dice score at original resolution: {value}")
+                    value = compute_dice(y_pred=val_outputs, y=val_data[0]["label"][None, ...].to(val_outputs.device), include_background=not softmax, num_classes=output_classes).to(device)
+                    logger.debug(f"validation Dice score at original resolution: {_index + 1} / {len(orig_val_loader)}/ {val_filename}: {value}")
 
                     for _c in range(metric_dim):
                         val0 = torch.nan_to_num(value[0, _c], nan=0.0)
                         val1 = 1.0 - torch.isnan(value[0, _c]).float()
-                        metric[2 * _c] += val0 * val1
+                        metric[2 * _c] += val0
                         metric[2 * _c + 1] += val1
 
                     _index += 1

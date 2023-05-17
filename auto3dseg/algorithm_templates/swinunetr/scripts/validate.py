@@ -127,7 +127,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if softmax:
         post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
     else:
-        post_transforms += [transforms.AsDiscreted(keys="pred", threshold=0.5)]
+        post_transforms += [transforms.Activations(sigmoid=True), transforms.AsDiscreted(keys="pred", threshold=0.5)]
 
     if save_mask:
         post_transforms += [
@@ -142,35 +142,26 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     post_transforms = transforms.Compose(post_transforms)
 
     metric_dim = output_classes - 1 if softmax else output_classes
-    metric_sum = 0.0
-    metric_count = 0
-    metric_mat = []
-
-    row = ["case_name"]
-    for _i in range(metric_dim):
-        row.append("class_" + str(_i + 1))
-
-    with open(os.path.join(output_path, "raw.csv"), "w", encoding="UTF8") as f:
-        writer = csv.writer(f)
-        writer.writerow(row)
 
     model.eval()
     with torch.no_grad():
         metric = torch.zeros(metric_dim * 2, dtype=torch.float)
 
         _index = 0
-        for d in val_loader:
+        for val_data in val_loader:
+            try:
+                val_filename = val_data["image_meta_dict"]["filename_or_obj"][0]
+            except:
+                val_filename = val_data["image"].meta["filename_or_obj"][0]
             torch.cuda.empty_cache()
             device_list_input = [device, device, "cpu"]	
             device_list_output = [device, "cpu", "cpu"]	
             for _device_in, _device_out in zip(	
                     device_list_input, device_list_output):	
                 try:	
-                    val_images = d["image"].to(_device_in)
-                    val_labels = d["label"].to(_device_out)
                     with torch.cuda.amp.autocast(enabled=amp):
-                        d["pred"] = sliding_window_inference(	
-                            inputs=val_images,	
+                        val_data["pred"] = sliding_window_inference(	
+                            inputs=val_data["image"].to(_device_in),	
                             roi_size=patch_size_valid,	
                             sw_batch_size=num_sw_batch_size,	
                             predictor=model,	
@@ -178,8 +169,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             overlap=overlap_ratio_final,	
                             sw_device=device,	
                             device=_device_out)	
-                    d = [post_transforms(i)
-                                for i in decollate_batch(d)]
+                    try:
+                        val_data = [post_transforms(i) for i in decollate_batch(val_data)]
+                    except:
+                        val_data["pred"] = val_data["pred"].to("cpu")
+                        val_data = [post_transforms(i) for i in decollate_batch(val_data)]
                     finished = True	
                 except RuntimeError as e:
                     if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
@@ -188,43 +182,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 if finished:	
                     break
             if not finished:
-                raise RuntimeError('Infer not finished due to OOM.')
-
-            val_outputs = d[0]["pred"]
+                raise RuntimeError('Validate not finishing due to OOM.')
 
             value = compute_dice(
-                y_pred=val_outputs,
-                y=val_labels,
-                include_background=not softmax)
-
-            metric_count += len(value)
-            metric_sum += value.sum().item()
-            metric_vals = value.cpu().numpy()
-            if len(metric_mat) == 0:
-                metric_mat = metric_vals
-            else:
-                metric_mat = np.concatenate((metric_mat, metric_vals), axis=0)
-
-            print_message = ""
-            print_message += str(_index + 1)
-            print_message += ", "
-            print_message += d[0]["pred"].meta["filename_or_obj"]
-            print_message += ", "
-            for _k in range(metric_dim):
-                if output_classes == 2:
-                    print_message += f"{metric_vals.squeeze():.5f}"
-                else:
-                    print_message += f"{metric_vals.squeeze()[_k]:.5f}"
-                print_message += ", "
-            logger.debug(print_message)
-
-            row = [d[0]["pred"].meta["filename_or_obj"]]
-            for _i in range(metric_dim):
-                row.append(metric_vals[0, _i])
-
-            with open(os.path.join(output_path, "raw.csv"), "a", encoding="UTF8") as f:
-                writer = csv.writer(f)
-                writer.writerow(row)
+                y_pred=val_data[0]["pred"],
+                y=val_data[0]['label'][None,...].to(val_data[0]["pred"].device),
+                include_background=not softmax, num_classes=output_classes).to("cpu")
+            logger.debug(f"{_index + 1} / {len(val_loader)}/ {val_filename}: {value}")
 
             for _c in range(metric_dim):
                 val0 = torch.nan_to_num(value[0, _c], nan=0.0)
@@ -237,7 +201,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         metric = metric.tolist()
         for _c in range(metric_dim):
             logger.debug(
-                f"evaluation metric - class {_c + 1:d}:", metric[2 * _c] / metric[2 * _c + 1])
+                f"evaluation metric - class {_c + 1:d}: {metric[2 * _c] / metric[2 * _c + 1]}")
         avg_metric = 0
         for _c in range(metric_dim):
             avg_metric += metric[2 * _c] / metric[2 * _c + 1]
