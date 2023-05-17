@@ -162,9 +162,24 @@ def pre_operation(config_file, **override):
 
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
-    pre_operation(config_file, **override)
 
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+
+    # pre-operations
+    logger.debug(f"[info] number of GPUs: {torch.cuda.device_count()}")
+    if torch.cuda.device_count() > 1:
+        logging.getLogger("torch.distributed.distributed_c10d").setLevel(
+            logging.WARNING)
+        dist.init_process_group(backend="nccl", init_method="env://")
+        world_size = dist.get_world_size()
+    else:
+        world_size = 1
+    logger.debug(f"[info] world_size: {world_size}")
+
+    pre_operation(config_file, **override)
+
+    if torch.cuda.device_count() > 1:
+        dist.barrier()
 
     if isinstance(config_file, str) and ',' in config_file:
         config_file = config_file.split(',')
@@ -257,16 +272,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     CONFIG["handlers"]["file"]["filename"] = log_output_file
     logging.config.dictConfig(CONFIG)
-
-    logger.debug(f"[info] number of GPUs: {torch.cuda.device_count()}")
-    if torch.cuda.device_count() > 1:
-        logging.getLogger("torch.distributed.distributed_c10d").setLevel(
-            logging.WARNING)
-        dist.init_process_group(backend="nccl", init_method="env://")
-        world_size = dist.get_world_size()
-    else:
-        world_size = 1
-    logger.debug(f"[info] world_size: {world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
 

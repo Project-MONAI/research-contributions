@@ -192,7 +192,7 @@ class InferClass:
             transforms.Activationsd(
                 keys="pred",
                 softmax=softmax,
-                sigmoid=not softmax)]        
+                sigmoid=not softmax)]
         self.post_transforms_prob = transforms.Compose(post_transforms)
 
         if softmax:
@@ -269,10 +269,10 @@ class InferClass:
 
         if save_mask:
             batch_data = [self.post_transforms(i)
-                        for i in decollate_batch(batch_data)]
+                          for i in decollate_batch(batch_data)]
         else:
             batch_data = [self.post_transforms_prob(i)
-                        for i in decollate_batch(batch_data)]
+                          for i in decollate_batch(batch_data)]
 
         return batch_data[0]["pred"]
 
