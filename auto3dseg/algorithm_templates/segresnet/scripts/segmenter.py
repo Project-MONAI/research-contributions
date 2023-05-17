@@ -496,9 +496,9 @@ class Segmenter:
         self.rank = rank
         self.global_rank = global_rank
         self.distributed = dist.is_initialized()
-
+        
         if self.global_rank == 0:
-            print(f"Segmenter started  config_file:{config_file}, config_dict: {config_dict}")
+            print(f"Segmenter started  config_file: {config_file}, config_dict: {config_dict}")
 
         np.set_printoptions(formatter={"float": "{: 0.3f}".format}, suppress=True)
         logging.getLogger("torch.nn.parallel.distributed").setLevel(logging.WARNING)
@@ -506,6 +506,8 @@ class Segmenter:
 
         config = self.parse_input_config(config_file=config_file, override=config_dict)
         self.config = config
+        self.config_file = config_file if not isinstance(config_file, (list, tuple)) else config_file[0]
+        self.override = config_dict
 
         if config["ckpt_path"] is not None and not os.path.exists(config["ckpt_path"]):
             os.makedirs(config["ckpt_path"], exist_ok=True)
@@ -839,6 +841,52 @@ class Segmenter:
                 config[k] = parser.get_parsed_content(k)
 
         return config
+    
+
+    def config_save_updated(self, save_path = None):
+
+        if self.config["auto_scale_allowed"]:
+            #reload input config
+            config = ConfigParser.load_config_files(self.config_file)
+            parser = ConfigParser(config=config)
+            parser.update(pairs=self.override)
+            config = parser.config
+
+            config["batch_size"] = self.config["batch_size"]
+            config["roi_size"] = self.config["roi_size"]
+            config["num_crops_per_image"] = self.config["num_crops_per_image"]
+
+            if "init_filters" in self.config["network"]:
+                config["network"]["init_filters"] = self.config["network"]["init_filters"]
+
+            if save_path is None:
+                save_path = self.config_file
+
+            if self.global_rank==0:
+                print(f"Re-saving main config to {save_path}.")
+                ConfigParser.export_config_file(config, save_path, fmt="yaml", default_flow_style=None, sort_keys=False)
+
+
+    def config_with_relpath(self, config = None):
+
+        if config is None:
+            config = self.config
+        config = copy.deepcopy(config)
+        bundle_root = config["bundle_root"]
+
+        def convert_rel_path(conf):
+            for k, v in conf.items():
+                if isinstance(v, str) and v.startswith(bundle_root):
+                    conf[k] = f"$@bundle_root + '/{os.path.relpath(v, bundle_root)}'" 
+            
+        convert_rel_path(config)
+        convert_rel_path(config["finetune"])
+        convert_rel_path(config["validate"])
+        convert_rel_path(config["infer"])
+        config["bundle_root"] = bundle_root
+
+        return config
+ 
 
     def checkpoint_save(self, ckpt : str, model : torch.nn.Module, **kwargs):
 
@@ -848,10 +896,11 @@ class Segmenter:
         else:
             state_dict = model.state_dict()
 
-        torch.save({"state_dict": state_dict, **kwargs}, ckpt)
+        config = self.config_with_relpath()
+
+        torch.save({"state_dict": state_dict, "config": config, **kwargs}, ckpt)
 
         save_time = time.time() - save_time
-        kwargs.pop("config")
         print(f"Saving checkpoint process: {ckpt}, {kwargs}, save_time {save_time:.2f}s")
 
         return save_time
@@ -865,9 +914,14 @@ class Segmenter:
             checkpoint = torch.load(ckpt, map_location="cpu")
             model.load_state_dict(checkpoint["state_dict"], strict=True)
             epoch = checkpoint.get("epoch", 0)
-
             best_metric = checkpoint.get("best_metric", 0)
-            self.config["start_epoch"] =  epoch if self.config.pop("continue", False) else 0
+
+            if self.config.pop("continue", False):
+                if "epoch" in checkpoint:
+                    self.config["start_epoch"] = checkpoint["epoch"]
+                if "best_metric" in checkpoint:
+                    self.config["best_metric"] = checkpoint["best_metric"]                   
+
             print(f"=> loaded checkpoint {ckpt} (epoch {epoch}) (best_metric {best_metric}) setting start_epoch {self.config['start_epoch']}")
             # print(f"config after {self.config}")
 
@@ -1047,6 +1101,8 @@ class Segmenter:
         elif num_steps_per_image is None:
             num_steps_per_image = 1
 
+        ## overwrting main input config with auto updates
+        self.config_save_updated(save_path=self.config_file)
 
 
         num_crops_per_image = int(config["num_crops_per_image"])
@@ -1137,6 +1193,9 @@ class Segmenter:
         val_acc_history = []
 
         start_epoch = config["start_epoch"]
+        if "best_metric" in config:
+            best_metric = float(config["best_metric"])
+
         start_epoch = start_epoch // num_crops_per_image
         if start_epoch > 0:
             val_schedule_list = [v for v in val_schedule_list if v >= start_epoch]
@@ -1270,7 +1329,7 @@ class Segmenter:
                         best_metric, best_metric_epoch = val_acc_mean, report_epoch
                         save_time = 0
                         if do_torch_save:
-                            save_time = self.checkpoint_save(ckpt=best_ckpt_path, model= self.model, config = config,
+                            save_time = self.checkpoint_save(ckpt=best_ckpt_path, model= self.model, 
                                                               epoch=best_metric_epoch, best_metric=best_metric)
 
                         if progress_path is not None:
@@ -1320,7 +1379,7 @@ class Segmenter:
             # save intermediate checkpoint every num_epochs_per_saving epochs
             if do_torch_save and ((epoch + 1) % num_epochs_per_saving == 0 or (epoch + 1)  >= num_epochs):
                 if report_epoch != best_metric_epoch:
-                    self.checkpoint_save(ckpt=intermediate_ckpt_path, model = self.model, config = config,
+                    self.checkpoint_save(ckpt=intermediate_ckpt_path, model = self.model, 
                                           epoch=report_epoch, best_metric=val_acc_mean)
                 else:
                     shutil.copyfile(best_ckpt_path, intermediate_ckpt_path) #if already saved once
