@@ -466,6 +466,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         np.ceil(
             float(num_epochs) //
             float(num_epochs_per_validation)))
+    if num_rounds == 0:
+        raise RuntimeError('num_epochs_per_validation > num_epochs, modify hyper_parameters.yaml')
 
     with warnings.catch_warnings():
         warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -592,8 +594,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 with torch.no_grad():
                     # for metric, index 2*c is the dice for class c, and 2*c + 1 is the not-nan counts for class c
                     metric = torch.zeros(metric_dim * 2, dtype=torch.float, device=device)
-                    metric_sum = 0.0
-                    metric_mat = []
 
                     _index = 0
                     for val_data in val_loader:
@@ -649,18 +649,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
-                        metric_sum += value.sum().item()
-                        metric_vals = value.cpu().numpy()
-                        if len(metric_mat) == 0:
-                            metric_mat = metric_vals
-                        else:
-                            metric_mat = np.concatenate(
-                                (metric_mat, metric_vals), axis=0)
-
                         for _c in range(metric_dim):
                             val0 = torch.nan_to_num(value[0, _c], nan=0.0)
                             val1 = 1.0 - torch.isnan(value[0, _c]).float()
-                            metric[2 * _c] += val0 * val1
+                            metric[2 * _c] += val0
                             metric[2 * _c + 1] += val1
 
                         _index += 1
@@ -737,8 +729,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-                logger.debug(f"{os.path.basename(bundle_root)} - validation at original/raw spacing/resolution")
-                logger.debug("validation at original/raw spacing/resolution")
+                logger.debug(f"{os.path.basename(bundle_root)} - validation at original resolution")
+                logger.debug("validation at original resolution")
 
             if torch.cuda.device_count() > 1:
                 model.module.load_state_dict(
@@ -800,15 +792,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax, num_classes=output_classes).to(device)
 
                     logger.debug(
-                        f"validation Dice score at original/raw spacing/resolution: {value}")
-
-                    metric_sum += value.sum().item()
-                    metric_vals = value.cpu().numpy()
-                    if len(metric_mat) == 0:
-                        metric_mat = metric_vals
-                    else:
-                        metric_mat = np.concatenate(
-                            (metric_mat, metric_vals), axis=0)
+                        f"validation Dice score at original resolution: {value}")
 
                     for _c in range(metric_dim):
                         val0 = torch.nan_to_num(value[0, _c], nan=0.0)
