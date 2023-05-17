@@ -496,7 +496,7 @@ class Segmenter:
         self.rank = rank
         self.global_rank = global_rank
         self.distributed = dist.is_initialized()
-        
+
         if self.global_rank == 0:
             print(f"Segmenter started  config_file: {config_file}, config_dict: {config_dict}")
 
@@ -841,7 +841,7 @@ class Segmenter:
                 config[k] = parser.get_parsed_content(k)
 
         return config
-    
+
 
     def config_save_updated(self, save_path = None):
 
@@ -877,8 +877,8 @@ class Segmenter:
         def convert_rel_path(conf):
             for k, v in conf.items():
                 if isinstance(v, str) and v.startswith(bundle_root):
-                    conf[k] = f"$@bundle_root + '/{os.path.relpath(v, bundle_root)}'" 
-            
+                    conf[k] = f"$@bundle_root + '/{os.path.relpath(v, bundle_root)}'"
+
         convert_rel_path(config)
         convert_rel_path(config["finetune"])
         convert_rel_path(config["validate"])
@@ -886,7 +886,7 @@ class Segmenter:
         config["bundle_root"] = bundle_root
 
         return config
- 
+
 
     def checkpoint_save(self, ckpt : str, model : torch.nn.Module, **kwargs):
 
@@ -920,7 +920,7 @@ class Segmenter:
                 if "epoch" in checkpoint:
                     self.config["start_epoch"] = checkpoint["epoch"]
                 if "best_metric" in checkpoint:
-                    self.config["best_metric"] = checkpoint["best_metric"]                   
+                    self.config["best_metric"] = checkpoint["best_metric"]
 
             print(f"=> loaded checkpoint {ckpt} (epoch {epoch}) (best_metric {best_metric}) setting start_epoch {self.config['start_epoch']}")
             # print(f"config after {self.config}")
@@ -1329,7 +1329,7 @@ class Segmenter:
                         best_metric, best_metric_epoch = val_acc_mean, report_epoch
                         save_time = 0
                         if do_torch_save:
-                            save_time = self.checkpoint_save(ckpt=best_ckpt_path, model= self.model, 
+                            save_time = self.checkpoint_save(ckpt=best_ckpt_path, model= self.model,
                                                               epoch=best_metric_epoch, best_metric=best_metric)
 
                         if progress_path is not None:
@@ -1379,7 +1379,7 @@ class Segmenter:
             # save intermediate checkpoint every num_epochs_per_saving epochs
             if do_torch_save and ((epoch + 1) % num_epochs_per_saving == 0 or (epoch + 1)  >= num_epochs):
                 if report_epoch != best_metric_epoch:
-                    self.checkpoint_save(ckpt=intermediate_ckpt_path, model = self.model, 
+                    self.checkpoint_save(ckpt=intermediate_ckpt_path, model = self.model,
                                           epoch=report_epoch, best_metric=val_acc_mean)
                 else:
                     shutil.copyfile(best_ckpt_path, intermediate_ckpt_path) #if already saved once

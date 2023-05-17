@@ -17,7 +17,7 @@ if __package__ in (None, ""):
     from segmenter_2d import run_segmenter
 else:
     from .segmenter_2d import run_segmenter
-    
+
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     override["validate#enabled"] = True
