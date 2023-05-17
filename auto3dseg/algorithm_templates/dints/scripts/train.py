@@ -617,8 +617,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 with torch.no_grad():
                     metric = torch.zeros(
                         metric_dim * 2, dtype=torch.float, device=device)
-                    metric_sum = 0.0
-                    metric_mat = []
 
                     _index = 0
                     for val_data in val_loader:
@@ -693,14 +691,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         del val_images, val_labels, val_outputs
                         torch.cuda.empty_cache()
-
-                        metric_sum += value.sum().item()
-                        metric_vals = value.cpu().numpy()
-                        if len(metric_mat) == 0:
-                            metric_mat = metric_vals
-                        else:
-                            metric_mat = np.concatenate(
-                                (metric_mat, metric_vals), axis=0)
 
                         for _c in range(metric_dim):
                             val0 = torch.nan_to_num(value[0, _c], nan=0.0)
@@ -807,8 +797,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             with torch.no_grad():
                 metric = torch.zeros(
                     metric_dim * 2, dtype=torch.float, device=device)
-                metric_sum = 0.0
-                metric_mat = []
 
                 _index = 0
                 for val_data in orig_val_loader:
@@ -879,14 +867,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     logger.debug(
                         f"validation Dice score at original spacing/resolution: {value}")
-
-                    metric_sum += value.sum().item()
-                    metric_vals = value.cpu().numpy()
-                    if len(metric_mat) == 0:
-                        metric_mat = metric_vals
-                    else:
-                        metric_mat = np.concatenate(
-                            (metric_mat, metric_vals), axis=0)
 
                     for _c in range(metric_dim):
                         val0 = torch.nan_to_num(value[0, _c], nan=0.0)

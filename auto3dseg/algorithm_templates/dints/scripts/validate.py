@@ -224,9 +224,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     post_transforms = transforms.Compose(post_transforms)
 
     metric_dim = output_classes - 1 if softmax else output_classes
-    metric_sum = 0.0
-    metric_count = 0
-    metric_mat = []
 
     row = ["case_name"]
     for _i in range(metric_dim):
@@ -311,14 +308,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     include_background=not softmax)
 
             logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
-
-            metric_count += len(value)
-            metric_sum += value.sum().item()
-            metric_vals = value.cpu().numpy()
-            if len(metric_mat) == 0:
-                metric_mat = metric_vals
-            else:
-                metric_mat = np.concatenate((metric_mat, metric_vals), axis=0)
 
             print_message = ""
             print_message += str(_index + 1)
