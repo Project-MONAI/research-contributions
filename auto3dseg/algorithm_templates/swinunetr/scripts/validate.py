@@ -58,7 +58,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     ckpt_name = parser.get_parsed_content("validate")["ckpt_name"]
     output_path = parser.get_parsed_content("validate")["output_path"]
     save_mask = parser.get_parsed_content("validate")["save_mask"]
-    
+
     if not os.path.exists(output_path):
         os.makedirs(output_path, exist_ok=True)
 
@@ -154,32 +154,32 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             except:
                 val_filename = val_data["image"].meta["filename_or_obj"][0]
             torch.cuda.empty_cache()
-            device_list_input = [device, device, "cpu"]	
-            device_list_output = [device, "cpu", "cpu"]	
-            for _device_in, _device_out in zip(	
-                    device_list_input, device_list_output):	
-                try:	
+            device_list_input = [device, device, "cpu"]
+            device_list_output = [device, "cpu", "cpu"]
+            for _device_in, _device_out in zip(
+                    device_list_input, device_list_output):
+                try:
                     with torch.cuda.amp.autocast(enabled=amp):
-                        val_data["pred"] = sliding_window_inference(	
-                            inputs=val_data["image"].to(_device_in),	
-                            roi_size=patch_size_valid,	
-                            sw_batch_size=num_sw_batch_size,	
-                            predictor=model,	
-                            mode="gaussian",	
-                            overlap=overlap_ratio_final,	
-                            sw_device=device,	
-                            device=_device_out)	
+                        val_data["pred"] = sliding_window_inference(
+                            inputs=val_data["image"].to(_device_in),
+                            roi_size=patch_size_valid,
+                            sw_batch_size=num_sw_batch_size,
+                            predictor=model,
+                            mode="gaussian",
+                            overlap=overlap_ratio_final,
+                            sw_device=device,
+                            device=_device_out)
                     try:
                         val_data = [post_transforms(i) for i in decollate_batch(val_data)]
                     except:
                         val_data["pred"] = val_data["pred"].to("cpu")
                         val_data = [post_transforms(i) for i in decollate_batch(val_data)]
-                    finished = True	
+                    finished = True
                 except RuntimeError as e:
                     if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                         raise e
-                    finished = False	
-                if finished:	
+                    finished = False
+                if finished:
                     break
             if not finished:
                 raise RuntimeError('Validate not finishing due to OOM.')

@@ -43,14 +43,14 @@ def auto_scale(output_classes, n_cases, max_epoch=1000):
     mem_bs9 = 12/6 * mem_bs9
     batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
     batch_size = max(int(batch_size), 1)
-    
+
     # fixed two iters per whole image, each iter with num_patches_per_iter
     num_patches_per_iter = batch_size
     num_patches_per_image = batch_size * 2
     # heuristics for 400k patch iteration. epoch * n_cases * num_patches_per_image = total 400k patch
     num_epochs = min(max_epoch, int(400000 / n_cases / num_patches_per_image))
-    return {"num_patches_per_iter": num_patches_per_iter, 
-            "num_patches_per_image": num_patches_per_image, 
+    return {"num_patches_per_iter": num_patches_per_iter,
+            "num_patches_per_image": num_patches_per_image,
             "num_epochs": num_epochs}
 
 class SwinunetrAlgo(BundleAlgo):
@@ -95,7 +95,7 @@ class SwinunetrAlgo(BundleAlgo):
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
             n_cases =  data_stats["stats_summary#n_cases"]
-            
+
             hyper_parameters.update(
                 {"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])}
             )

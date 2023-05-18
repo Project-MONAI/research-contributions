@@ -229,7 +229,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     CONFIG["handlers"]["file"]["filename"] = parser.get_parsed_content("log_output_file")
     logging.config.dictConfig(CONFIG)
     logging.getLogger("torch.distributed.distributed_c10d").setLevel(
-        logging.WARNING)    
+        logging.WARNING)
     logger.debug(f"Number of GPUs: {torch.cuda.device_count()}")
     logger.debug(f"World_size: {world_size}")
 
@@ -465,7 +465,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     start_time = time.time()
 
-    # To increase speed, the training script is not based on epoch, but based on validation rounds. 
+    # To increase speed, the training script is not based on epoch, but based on validation rounds.
     # In each batch, num_images_per_batch=2 whole 3D images are loaded into CPU for data transformation
     # num_patches_per_image=2*num_patches_per_iter is extracted from each 3D image, in each iteration,
     # num_patches_per_iter patches is used for training (real batch size on each GPU).

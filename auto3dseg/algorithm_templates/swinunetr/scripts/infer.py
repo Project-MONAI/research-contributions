@@ -43,7 +43,7 @@ class InferClass:
         parser = ConfigParser()
         parser.read_config(config_file_)
         parser.update(pairs=_args)
-        
+
         data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
         data_list_file_path = parser.get_parsed_content("data_list_file_path")
         self.amp = parser.get_parsed_content("amp")
@@ -62,8 +62,8 @@ class InferClass:
 
         if not os.path.exists(output_path):
             os.makedirs(output_path, exist_ok=True)
-	    
-        CONFIG["handlers"]["file"]["filename"] =parser.get_parsed_content("infer")["log_output_file"]	
+
+        CONFIG["handlers"]["file"]["filename"] =parser.get_parsed_content("infer")["log_output_file"]
         logging.config.dictConfig(CONFIG)
         self.infer_transforms = parser.get_parsed_content("transforms_infer")
 
@@ -100,23 +100,23 @@ class InferClass:
         pretrained_ckpt = torch.load(ckpt_name, map_location=self.device)
         self.model.load_state_dict(pretrained_ckpt)
         logger.debug(f"Checkpoint {ckpt_name:s} loaded.")
-        
-        post_transforms = [	
-            transforms.Invertd(	
-                keys="pred",	
-                transform=self.infer_transforms,	
-                orig_keys="image",	
-                meta_keys="pred_meta_dict",	
-                orig_meta_keys="image_meta_dict",	
-                meta_key_postfix="meta_dict",	
-                nearest_interp=False,	
-                to_tensor=True),	
-            transforms.Activationsd(	
-                keys="pred",	
-                softmax=softmax,	
-                sigmoid=not softmax)]        	
+
+        post_transforms = [
+            transforms.Invertd(
+                keys="pred",
+                transform=self.infer_transforms,
+                orig_keys="image",
+                meta_keys="pred_meta_dict",
+                orig_meta_keys="image_meta_dict",
+                meta_key_postfix="meta_dict",
+                nearest_interp=False,
+                to_tensor=True),
+            transforms.Activationsd(
+                keys="pred",
+                softmax=softmax,
+                sigmoid=not softmax)]
         # return pred probs
-        self.post_transforms_prob = transforms.Compose(post_transforms)        
+        self.post_transforms_prob = transforms.Compose(post_transforms)
         if softmax:
             post_transforms += [
                 transforms.AsDiscreted(
@@ -149,38 +149,38 @@ class InferClass:
         self.model.eval()
         batch_data = self.infer_transforms(image_file)
         batch_data = list_data_collate([batch_data])
-        device_list_input = [self.device, self.device, "cpu"]	
-        device_list_output = [self.device, "cpu", "cpu"]	
-        for _device_in, _device_out in zip(	
-                device_list_input, device_list_output):	
-            try:	
-                with torch.cuda.amp.autocast(enabled=self.amp):	
-                    batch_data["pred"] = sliding_window_inference(	
-                        inputs=batch_data["image"].to(_device_in),	
-                        roi_size=self.patch_size_valid,	
-                        sw_batch_size=self.num_sw_batch_size,	
-                        predictor=self.model,	
-                        mode="gaussian",	
-                        overlap=self.overlap_ratio_final,	
-                        sw_device=self.device,	
-                        device=_device_out)	
+        device_list_input = [self.device, self.device, "cpu"]
+        device_list_output = [self.device, "cpu", "cpu"]
+        for _device_in, _device_out in zip(
+                device_list_input, device_list_output):
+            try:
+                with torch.cuda.amp.autocast(enabled=self.amp):
+                    batch_data["pred"] = sliding_window_inference(
+                        inputs=batch_data["image"].to(_device_in),
+                        roi_size=self.patch_size_valid,
+                        sw_batch_size=self.num_sw_batch_size,
+                        predictor=self.model,
+                        mode="gaussian",
+                        overlap=self.overlap_ratio_final,
+                        sw_device=self.device,
+                        device=_device_out)
                 if save_mask:
                     batch_data = [self.post_transforms(i)
                                 for i in decollate_batch(batch_data)]
                 else:
                     batch_data = [self.post_transforms_prob(i)
-                                for i in decollate_batch(batch_data)]                    
-                finished = True	
+                                for i in decollate_batch(batch_data)]
+                finished = True
             except RuntimeError as e:
                 if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                     raise e
-                finished = False	
-            if finished:	
+                finished = False
+            if finished:
                 break
         if not finished:
             raise RuntimeError('Infer not finished due to OOM.')
         return batch_data[0]["pred"]
-    
+
     @torch.no_grad()
     def infer_all(self, save_mask=True):
         for _i in range(len(self.infer_files)):
@@ -194,30 +194,30 @@ class InferClass:
         with torch.no_grad():
             for d in self.infer_loader:
                 torch.cuda.empty_cache()
-                device_list_input = [self.device, self.device, "cpu"]	
-                device_list_output = [self.device, "cpu", "cpu"]	
-                for _device_in, _device_out in zip(	
-                        device_list_input, device_list_output):	
-                    try:	
-                        infer_images = d["image"].to(_device_in)	
-                        with torch.cuda.amp.autocast(enabled=self.amp):	
-                            d["pred"] = sliding_window_inference(	
-                                inputs=infer_images,	
-                                roi_size=self.patch_size_valid,	
-                                sw_batch_size=self.num_sw_batch_size,	
-                                predictor=self.model,	
-                                mode="gaussian",	
-                                overlap=self.overlap_ratio_final,	
-                                sw_device=self.device,	
-                                device=_device_out)	
+                device_list_input = [self.device, self.device, "cpu"]
+                device_list_output = [self.device, "cpu", "cpu"]
+                for _device_in, _device_out in zip(
+                        device_list_input, device_list_output):
+                    try:
+                        infer_images = d["image"].to(_device_in)
+                        with torch.cuda.amp.autocast(enabled=self.amp):
+                            d["pred"] = sliding_window_inference(
+                                inputs=infer_images,
+                                roi_size=self.patch_size_valid,
+                                sw_batch_size=self.num_sw_batch_size,
+                                predictor=self.model,
+                                mode="gaussian",
+                                overlap=self.overlap_ratio_final,
+                                sw_device=self.device,
+                                device=_device_out)
                         d = [self.post_transforms(i)
                                     for i in decollate_batch(d)]
-                        finished = True	
+                        finished = True
                     except RuntimeError as e:
                         if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                             raise e
-                        finished = False	
-                    if finished:	
+                        finished = False
+                    if finished:
                         break
                 if not finished:
                     raise RuntimeError('Batch infer not finished due to OOM.')
