@@ -36,6 +36,11 @@ from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
 from monai.utils import set_determinism
 
+try:
+    from apex.contrib.clip_grad import clip_grad_norm_
+except ModuleNotFoundError:
+    from torch.nn.utils import clip_grad_norm_
+
 
 def try_except(func, default=None, expected_exc=(Exception,)):
     try:
@@ -343,7 +348,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 scaler.scale(loss).backward()
                 scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+                clip_grad_norm_(model.parameters(), 0.5)
                 scaler.step(optimizer)
                 scaler.update()
             else:
@@ -433,8 +438,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 scaler.scale(loss).backward()
                 scaler.unscale_(arch_optimizer_a)
                 scaler.unscale_(arch_optimizer_c)
-                torch.nn.utils.clip_grad_norm_([dints_space.log_alpha_a], 0.5)
-                torch.nn.utils.clip_grad_norm_([dints_space.log_alpha_c], 0.5)
+                clip_grad_norm_([dints_space.log_alpha_a], 0.5)
+                clip_grad_norm_([dints_space.log_alpha_c], 0.5)
                 scaler.step(arch_optimizer_a)
                 scaler.step(arch_optimizer_c)
                 scaler.update()

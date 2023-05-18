@@ -33,7 +33,6 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
 
 import monai
-from apex.contrib.clip_grad import clip_grad_norm_
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
 from monai.apps.utils import DEFAULT_FMT
@@ -664,7 +663,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             loss = loss_function(outputs.float(), labels)
 
                             loss.backward()
-                            clip_grad_norm_(model.parameters(), 0.5)
+                            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
                             optimizer.step()
 
                         epoch_loss += loss.item()
