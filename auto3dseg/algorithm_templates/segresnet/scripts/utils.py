@@ -119,7 +119,7 @@ def auto_adjust_network_settings(
 
         if global_rank==0:
             print(f"base_adjust {base_adjust} since output_classes {output_classes} > {output_classes_thresh}")
-        if base_adjust < 1: #reduce roi
+        if base_adjust < 0.95: #reduce roi
             base_numel *= base_adjust
             r = int(base_numel**(1/3)  / 2**4)
             if r == 0 and global_rank==0:

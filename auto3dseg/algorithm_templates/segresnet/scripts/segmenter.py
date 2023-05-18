@@ -845,7 +845,7 @@ class Segmenter:
 
     def config_save_updated(self, save_path = None):
 
-        if self.config["auto_scale_allowed"]:
+        if self.global_rank==0 and self.config["auto_scale_allowed"]:
             #reload input config
             config = ConfigParser.load_config_files(self.config_file)
             parser = ConfigParser(config=config)
@@ -862,9 +862,8 @@ class Segmenter:
             if save_path is None:
                 save_path = self.config_file
 
-            if self.global_rank==0:
-                print(f"Re-saving main config to {save_path}.")
-                ConfigParser.export_config_file(config, save_path, fmt="yaml", default_flow_style=None, sort_keys=False)
+            print(f"Re-saving main config to {save_path}.")
+            ConfigParser.export_config_file(config, save_path, fmt="yaml", default_flow_style=None, sort_keys=False)
 
 
     def config_with_relpath(self, config = None):
@@ -1101,9 +1100,6 @@ class Segmenter:
         elif num_steps_per_image is None:
             num_steps_per_image = 1
 
-        ## overwrting main input config with auto updates
-        self.config_save_updated(save_path=self.config_file)
-
 
         num_crops_per_image = int(config["num_crops_per_image"])
         num_epochs_per_saving = max(1, config["num_epochs_per_saving"] // num_crops_per_image)
@@ -1225,6 +1221,11 @@ class Segmenter:
             range_num_epochs = tqdm(range(start_epoch, num_epochs),
                                 desc= str(os.path.basename(config["bundle_root"])) + " - training",
                                 unit="epoch")
+
+        if distributed:
+            dist.barrier()
+        self.config_save_updated(save_path=self.config_file) #overwriting main input config
+
 
         for epoch in range_num_epochs:
 
