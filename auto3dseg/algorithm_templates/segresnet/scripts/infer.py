@@ -26,8 +26,6 @@ else:
 class InferClass:
     def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, rank: int = 0, global_rank: int = 0, **override):
         override["infer#enabled"] = True
-        if "use_ckpt_config" not in override:
-            override["use_ckpt_config"] = True
 
         if dist_launched():
             rank = int(os.getenv("LOCAL_RANK"))
@@ -36,7 +34,7 @@ class InferClass:
         self.segmenter = Segmenter(config_file=config_file, rank=rank, global_rank=global_rank, config_dict=override)
 
     def infer(self, image_file):
-        pred = self.segmenter.infer_image(image_file, save_mask=False)
+        pred = self.segmenter.infer_image(image_file)
         return pred
 
 
