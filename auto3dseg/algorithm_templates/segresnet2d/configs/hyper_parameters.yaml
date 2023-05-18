@@ -75,7 +75,7 @@ network:
   norm: BATCH
   in_channels: "@input_channels"
   out_channels: "@output_classes"
-  dsdepth: 4
+  dsdepth: 2
   spatial_dims: 2
 
 
