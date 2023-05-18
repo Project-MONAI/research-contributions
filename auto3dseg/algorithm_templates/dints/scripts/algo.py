@@ -74,6 +74,17 @@ class DintsAlgo(BundleAlgo):
                 for p_k, shape_k in zip(patch_size, max_shape)
             ]
 
+            try:
+                if isinstance(data_src_cfg["class_names"], list):
+                    hyper_parameters.update(
+                        {"class_names": data_src_cfg["class_names"]}
+                    )
+                    hyper_parameters_search.update(
+                        {"class_names": data_src_cfg["class_names"]}
+                    )
+            except BaseException:
+                pass
+
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(
                 data_stats["stats_summary#label_stats#labels"])
@@ -115,17 +126,6 @@ class DintsAlgo(BundleAlgo):
             hyper_parameters.update({"training#resample_to_spacing": spacing})
             hyper_parameters_search.update(
                 {"searching#resample_to_spacing": spacing})
-
-            mem = get_mem_from_visible_gpus()
-            mem = min(mem) if isinstance(mem, list) else mem
-            mem = float(mem) / (1024.0**3)
-            mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
-            mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
-            batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
-            batch_size = int(batch_size)
-            batch_size = max(batch_size, 1)
-            hyper_parameters.update({"training#num_patches_per_iter": batch_size})
-            hyper_parameters.update({"training#num_patches_per_image": batch_size * 2})
 
             intensity_upper_bound = float(
                 data_stats[
@@ -286,7 +286,8 @@ class DintsAlgo(BundleAlgo):
 
         mem = get_mem_from_visible_gpus()
         device_id = np.argmin(mem)
-        print(f"[info] device {device_id} in visible GPU list has the minimum memory.")
+        print(
+            f"[info] device {device_id} in visible GPU list has the minimum memory.")
 
         mem = min(mem) if isinstance(mem, list) else mem
         mem = round(float(mem) / 1024.0)
@@ -401,7 +402,7 @@ class DintsAlgo(BundleAlgo):
 
         return fill_records
 
-    def train(self, train_params=None, search=False):
+    def train(self, train_params=None, device_setting=None, search=False):
         """
         Load the run function in the training script of each model. Training parameter is predefined by the
         algo_config.yaml file, which is pre-filled by the fill_template_config function in the same instance.
@@ -409,6 +410,14 @@ class DintsAlgo(BundleAlgo):
         Args:
             train_params:  to specify the devices using a list of integers: ``{"CUDA_VISIBLE_DEVICES": [1,2,3]}``.
         """
+        if device_setting is not None:
+            self.device_setting.update(device_setting)
+            self.device_setting["n_devices"] = len(str(self.device_setting["CUDA_VISIBLE_DEVICES"]).split(","))
+
+        if train_params is not None and "CUDA_VISIBLE_DEVICES" in train_params:
+            warnings.warn("CUDA_VISIBLE_DEVICES is deprecated from train_params!")
+            train_params.pop("CUDA_VISIBLE_DEVICES")
+
         # searching
         dints_search_params = {}
         params = {}
