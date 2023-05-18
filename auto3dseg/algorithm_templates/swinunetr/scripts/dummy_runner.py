@@ -56,6 +56,7 @@ class DummyRunnerSwinUNETR(object):
         self.model = self.model.to(self.device)
 
         self.loss_function = parser.get_parsed_content("loss")
+
         optimizer_part = parser.get_parsed_content("optimizer", instantiate=False)
         self.optimizer = optimizer_part.instantiate(params=self.model.parameters())
 
