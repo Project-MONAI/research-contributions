@@ -297,6 +297,7 @@ class SwinunetrAlgo(BundleAlgo):
                 "validation_data_device", ["cpu", "gpu"]
             )
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
+            ps_environ = os.environ.copy()
 
             try:
                 cmd = "python {0:s}dummy_runner.py ".format(
@@ -309,7 +310,7 @@ class SwinunetrAlgo(BundleAlgo):
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
                 cmd += f"--validation_data_device {validation_data_device}"
-                _ = subprocess.run(cmd.split(), check=True)
+                _ = subprocess.run(cmd.split(), check=True, environ=ps_environ)
             except RuntimeError as e:
                 if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                     raise e

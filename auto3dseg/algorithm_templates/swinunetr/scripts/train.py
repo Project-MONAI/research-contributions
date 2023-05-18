@@ -230,8 +230,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logging.config.dictConfig(CONFIG)
     logging.getLogger("torch.distributed.distributed_c10d").setLevel(
         logging.WARNING)    
-    logger.debug(f"[debug] number of GPUs: {torch.cuda.device_count()}")
-    logger.debug(f"[debug] world_size: {world_size}")
+    logger.debug(f"Number of GPUs: {torch.cuda.device_count()}")
+    logger.debug(f"World_size: {world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
 
@@ -265,7 +265,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=True)[
             dist.get_rank()]
-    logger.debug(f"train_files: {len(train_files)}")
+    logger.debug(f"Train_files: {len(train_files)}")
 
     files = []
     for _i in range(len(list_valid)):
@@ -290,7 +290,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_partitions=world_size,
             even_divisible=False)[
             dist.get_rank()]
-    logger.debug(f"val_files: {len(val_files)}")
+    logger.debug(f"Val_files: {len(val_files)}")
 
     train_cache_rate = float(parser.get_parsed_content("train_cache_rate"))
     validate_cache_rate = float(
@@ -362,7 +362,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             if "out" not in key:
                 store_dict[key].copy_(model_dict[key])
         model.load_state_dict(store_dict)
-        logger.debug("[debug] use pretrained weights")
+        logger.debug("Using pretrained weights")
 
 
     if torch.cuda.device_count() > 1:
@@ -418,7 +418,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if finetune["activate"] and os.path.isfile(
             finetune["pretrained_ckpt_name"]):
         logger.debug(
-            "[debug] fine-tuning pre-trained checkpoint {:s}".format(finetune["pretrained_ckpt_name"]))
+            "Fine-tuning pre-trained checkpoint {:s}".format(finetune["pretrained_ckpt_name"]))
         if torch.cuda.device_count() > 1:
             model.module.load_state_dict(
                 torch.load(
@@ -431,14 +431,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     map_location=device))
     else:
         if not use_pretrain:
-            logger.debug("[debug] training from scratch")
+            logger.debug("Training from scratch")
 
     if amp:
         from torch.cuda.amp import GradScaler, autocast
 
         scaler = GradScaler()
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-            logger.debug("[debug] amp enabled")
+            logger.debug("Amp enabled")
 
     best_metric = -1
     best_metric_epoch = -1
@@ -494,7 +494,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     logger.debug("----------")
                     logger.debug(
                         f"epoch {_round * num_epochs_per_validation + 1}/{num_epochs}")
-                    logger.debug(f"learning rate is set to {lr}")
+                    logger.debug(f"Learning rate is set to {lr}")
 
                 model.train()
                 epoch_loss = 0
@@ -574,7 +574,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     loss_torch_epoch = loss_torch[0] / loss_torch[1]
                     logger.debug(
-                        f"epoch {epoch} average loss: {loss_torch_epoch:.4f}, "
+                        f"Epoch {epoch} average loss: {loss_torch_epoch:.4f}, "
                         f"best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}")
 
                 del inputs, labels, outputs
@@ -670,7 +670,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                         for _c in range(metric_dim):
                             logger.debug(
-                                f"evaluation metric - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
+                                f"Evaluation metric - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
                             try:
                                 writer.add_scalar(f"val_class/acc_{class_names[_c]}", metric[2 * _c] / metric[2 * _c + 1], epoch)
                             except BaseException:
@@ -680,7 +680,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         for _c in range(metric_dim):
                             avg_metric += metric[2 * _c] / metric[2 * _c + 1]
                         avg_metric = avg_metric / float(metric_dim)
-                        logger.debug(f"avg_metric: {avg_metric}")
+                        logger.debug(f"Avg_metric: {avg_metric}")
 
                         writer.add_scalar("val/acc", avg_metric, epoch)
 
@@ -695,7 +695,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 torch.save(
                                     model.state_dict(), os.path.join(
                                         ckpt_path, "best_metric_model.pt"))
-                            logger.debug("saved new best metric model")
+                            logger.debug("Saved new best metric model")
 
                             dict_file = {}
                             dict_file["best_avg_dice_score"] = float(best_metric)
@@ -707,7 +707,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 yaml.dump([dict_file], stream=out_file)
 
                         logger.debug(
-                            "current epoch: {} current mean dice: {:.4f} best mean dice: {:.4f} at epoch {}".format(
+                            "Current epoch: {} current mean dice: {:.4f} best mean dice: {:.4f} at epoch {}".format(
                                 epoch, avg_metric, best_metric, best_metric_epoch))
 
                         current_time = time.time()
@@ -735,7 +735,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                 logger.debug(f"{os.path.basename(bundle_root)} - validation at original resolution")
-                logger.debug("validation at original resolution")
+                logger.debug("Validation at original resolution")
 
             if torch.cuda.device_count() > 1:
                 model.module.load_state_dict(
@@ -747,7 +747,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     torch.load(
                         os.path.join(ckpt_path, "best_metric_model.pt"),
                         map_location=device))
-            logger.debug("checkpoints loaded")
+            logger.debug("Checkpoints loaded")
 
             model.eval()
             with torch.no_grad():
@@ -799,7 +799,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     val_outputs = val_data[0]["pred"][None, ...]
                     value = compute_dice(y_pred=val_outputs, y=val_data[0]["label"][None, ...].to(val_outputs.device), include_background=not softmax, num_classes=output_classes).to(device)
-                    logger.debug(f"validation Dice score at original resolution: {_index + 1} / {len(orig_val_loader)}/ {val_filename}: {value}")
+                    logger.debug(f"Validation Dice score at original resolution: {_index + 1} / {len(orig_val_loader)}/ {val_filename}: {value}")
 
                     for _c in range(metric_dim):
                         val0 = torch.nan_to_num(value[0, _c], nan=0.0)
@@ -817,14 +817,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     for _c in range(metric_dim):
                         logger.debug(
-                            f"evaluation metric at original resolution - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
+                            f"Evaluation metric at original resolution - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
 
                     avg_metric = 0
                     for _c in range(metric_dim):
                         avg_metric += metric[2 * _c] / metric[2 * _c + 1]
                     avg_metric = avg_metric / float(metric_dim)
                     logger.debug(
-                        f"avg_metric at original resolution: {avg_metric}")
+                        f"Avg_metric at original resolution: {avg_metric}")
 
                     with open(os.path.join(ckpt_path, "progress.yaml"), "r") as out_file:
                         progress = yaml.safe_load(out_file)
@@ -844,7 +844,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         logger.debug(
-            f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
+            f"Training completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}.")
 
         writer.flush()
         writer.close()
