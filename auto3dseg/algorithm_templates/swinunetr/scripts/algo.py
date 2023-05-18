@@ -310,7 +310,7 @@ class SwinunetrAlgo(BundleAlgo):
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
                 cmd += f"--validation_data_device {validation_data_device}"
-                _ = subprocess.run(cmd.split(), check=True, environ=ps_environ)
+                _ = subprocess.run(cmd.split(), check=True, env=ps_environ)
             except RuntimeError as e:
                 if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                     raise e
