@@ -36,6 +36,11 @@ from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
 from monai.utils import set_determinism
 
+try:
+    from apex.contrib.clip_grad import clip_grad_norm_
+except ModuleNotFoundError:
+    from torch.nn.utils import clip_grad_norm_
+
 
 def try_except(func, default=None, expected_exc=(Exception,)):
     try:
@@ -89,13 +94,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if determ:
         set_determinism(seed=0)
 
-    logger.debug(f"[info] number of GPUs:, {torch.cuda.device_count()}")
+    logger.debug(f"number of GPUs:, {torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
         dist.init_process_group(backend="nccl", init_method="env://")
         world_size = dist.get_world_size()
     else:
         world_size = 1
-    logger.debug(f"[info] world_size:, {world_size}")
+    logger.debug(f"world_size:, {world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
 
@@ -217,6 +222,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         else torch.device("cuda:0")
     )
 
+    if world_size > 1:
+        parser["searching_network"]["dints_space"]["device"] = device
+
     dints_space = parser.get_parsed_content("searching_network#dints_space")
     model = parser.get_parsed_content("searching_network#network")
     model = model.to(device)
@@ -283,7 +291,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         scaler = GradScaler()
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-            logger.debug("[info] amp enabled")
+            logger.debug("amp enabled")
 
     val_interval = num_epochs_per_validation
     best_metric = -1
@@ -340,7 +348,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 scaler.scale(loss).backward()
                 scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+                clip_grad_norm_(model.parameters(), 0.5)
                 scaler.step(optimizer)
                 scaler.update()
             else:
@@ -430,8 +438,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 scaler.scale(loss).backward()
                 scaler.unscale_(arch_optimizer_a)
                 scaler.unscale_(arch_optimizer_c)
-                torch.nn.utils.clip_grad_norm_([dints_space.log_alpha_a], 0.5)
-                torch.nn.utils.clip_grad_norm_([dints_space.log_alpha_c], 0.5)
+                clip_grad_norm_([dints_space.log_alpha_a], 0.5)
+                clip_grad_norm_([dints_space.log_alpha_c], 0.5)
                 scaler.step(arch_optimizer_a)
                 scaler.step(arch_optimizer_c)
                 scaler.update()
@@ -489,9 +497,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             with torch.no_grad():
                 metric = torch.zeros(
                     metric_dim * 2, dtype=torch.float, device=device)
-                metric_sum = 0.0
-                metric_count = 0
-                metric_mat = []
                 val_images = None
                 val_labels = None
                 val_outputs = None
@@ -523,6 +528,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     except RuntimeError as e:
                         if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                             raise e
+
                         val_devices[val_filename] = "cpu"
 
                         with torch.cuda.amp.autocast(enabled=amp):
@@ -548,15 +554,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         include_background=not softmax)
 
                     logger.debug(f"{_index + 1}, /, {len(val_loader)}, {value}")
-
-                    metric_count += len(value)
-                    metric_sum += value.sum().item()
-                    metric_vals = value.cpu().numpy()
-                    if len(metric_mat) == 0:
-                        metric_mat = metric_vals
-                    else:
-                        metric_mat = np.concatenate(
-                            (metric_mat, metric_vals), axis=0)
 
                     for _c in range(metric_dim):
                         val0 = torch.nan_to_num(value[0, _c], nan=0.0)

@@ -22,6 +22,7 @@ import yaml
 import monai
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
+from monai.apps.utils import DEFAULT_FMT
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch
@@ -29,7 +30,87 @@ from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
 
 
+CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"monai_default": {"format": DEFAULT_FMT}},
+    "loggers": {
+        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
+    },
+    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+    "handlers": {
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": "runner.log",
+            "mode": "a",  # append or overwrite
+            "level": "DEBUG",
+            "formatter": "monai_default",
+            "filters": ["rank_filter"],
+        },
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "INFO",
+            "formatter": "monai_default",
+            "filters": ["rank_filter"],
+        },
+    },
+}
+
+
+def get_mem_from_visible_gpus():
+    available_mem_visible_gpus = []
+    for d in range(torch.cuda.device_count()):
+        available_mem_visible_gpus.append(torch.cuda.mem_get_info(device=d)[0])
+    return available_mem_visible_gpus
+
+
+def pre_operation(config_file, **override):
+    # update hyper-parameter configuration
+    rank = int(os.getenv("RANK", "0"))
+    if rank == 0:
+        if isinstance(config_file, str) and ',' in config_file:
+            config_file = config_file.split(',')
+
+        for _file in config_file:
+            if "hyper_parameters.yaml" in _file:
+                parser = ConfigParser(globals=False)
+                parser.read_config(_file)
+
+                auto_scale_allowed = parser["training"]["auto_scale_allowed"]
+                if "training#auto_scale_allowed" in override:
+                    auto_scale_allowed = override["training#auto_scale_allowed"]
+
+                if auto_scale_allowed:
+                    output_classes = parser["training"]["output_classes"]
+                    mem = get_mem_from_visible_gpus()
+                    mem = min(mem) if isinstance(mem, list) else mem
+                    mem = float(mem) / (1024.0**3)
+                    mem = max(1.0, mem - 1.0)
+                    mem_bs2 = 6.0 + (20.0 - 6.0) * \
+                        (output_classes - 2) / (105 - 2)
+                    mem_bs9 = 24.0 + (74.0 - 24.0) * \
+                        (output_classes - 2) / (105 - 2)
+                    batch_size = 2 + (9 - 2) * \
+                        (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+                    batch_size = int(batch_size)
+                    batch_size = max(batch_size, 1)
+
+                    parser["training"].update(
+                        {"num_patches_per_iter": batch_size})
+                    parser["training"].update(
+                        {"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update(
+                        {"num_epochs": int(400.0 / float(batch_size))})
+
+                    ConfigParser.export_config_file(
+                        parser.get(), _file, fmt="yaml", default_flow_style=None)
+
+    return
+
+
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
+    pre_operation(config_file, **override)
+
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
     _args = _update_args(config_file=config_file, **override)
@@ -39,9 +120,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     parser.read_config(config_file_)
     parser.update(pairs=_args)
 
+    amp = parser.get_parsed_content("training#amp")
     data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
     fold = parser.get_parsed_content("fold")
+    log_output_file = parser.get_parsed_content("validate#log_output_file")
     num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
@@ -54,6 +137,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if not os.path.exists(output_path):
         os.makedirs(output_path, exist_ok=True)
+
+    CONFIG["handlers"]["file"]["filename"] = log_output_file
+    logging.config.dictConfig(CONFIG)
 
     infer_transforms = parser.get_parsed_content("transforms_infer")
     validate_transforms = transforms.Compose(
@@ -99,11 +185,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     pretrained_ckpt = torch.load(ckpt_name, map_location=device)
     model.load_state_dict(pretrained_ckpt)
-    logger.debug(f"[info] checkpoint {ckpt_name:s} loaded")
+    logger.debug(f"checkpoint {ckpt_name:s} loaded")
 
     if softmax:
         post_pred = transforms.Compose(
-            [transforms.EnsureType(), transforms.AsDiscrete(to_onehot=output_classes)])
+            [transforms.EnsureType(), transforms.AsDiscrete(to_onehot=None)])
     else:
         post_pred = transforms.Compose([transforms.EnsureType()])
 
@@ -132,14 +218,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 meta_keys="pred_meta_dict",
                 output_dir=output_path,
                 output_postfix="seg",
-                resample=False)]
+                resample=False,
+                data_root_dir=data_file_base_dir)]
 
     post_transforms = transforms.Compose(post_transforms)
 
     metric_dim = output_classes - 1 if softmax else output_classes
-    metric_sum = 0.0
-    metric_count = 0
-    metric_mat = []
 
     row = ["case_name"]
     for _i in range(metric_dim):
@@ -154,59 +238,81 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         metric = torch.zeros(metric_dim * 2, dtype=torch.float)
 
         _index = 0
-        for d in val_loader:
+        for val_data in val_loader:
             torch.cuda.empty_cache()
 
-            val_images = d["image"]
-            val_labels = d["label"]
+            val_images = None
+            val_labels = None
+            val_outputs = None
+            finished = None
 
-            try:
-                with torch.cuda.amp.autocast():
-                    d["pred"] = sliding_window_inference(
-                        val_images.to(device),
-                        patch_size_valid,
-                        num_sw_batch_size,
-                        model,
-                        mode="gaussian",
-                        overlap=overlap_ratio)
-            except RuntimeError as e:
-                if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
-                    raise e
-                with torch.cuda.amp.autocast():
-                    d["pred"] = sliding_window_inference(
-                        val_images,
-                        patch_size_valid,
-                        num_sw_batch_size,
-                        model,
-                        mode="gaussian",
-                        overlap=overlap_ratio)
+            device_list_input = [device, device, "cpu"]
+            device_list_output = [device, "cpu", "cpu"]
 
-            d = [post_transforms(i) for i in decollate_batch(d)]
+            for _device_in, _device_out in zip(
+                    device_list_input, device_list_output):
+                try:
+                    val_images = val_data["image"].to(_device_in)
+                    val_labels = val_data["label"].to(_device_out)
 
-            val_outputs = post_pred(d[0]["pred"])
+                    if _device_in != device or _device_out != device:
+                        model = model.cpu()
+                        torch.cuda.empty_cache()
+                        model = model.to(device)
+
+                    with torch.cuda.amp.autocast(enabled=amp):
+                        val_data["pred"] = sliding_window_inference(
+                            inputs=val_images,
+                            roi_size=patch_size_valid,
+                            sw_batch_size=num_sw_batch_size,
+                            predictor=model,
+                            mode="gaussian",
+                            overlap=overlap_ratio,
+                            sw_device=device,
+                            device=_device_out)
+
+                    finished = True
+
+                except BaseException:
+                    finished = False
+
+                if finished:
+                    break
+
+            del val_images
+            val_data["image"] = val_data["image"].cpu()
+            val_data["label"] = val_data["label"].cpu()
+            val_data["pred"] = val_data["pred"].cpu()
+            val_labels = val_labels.cpu()
+            torch.cuda.empty_cache()
+
+            val_data = [
+                post_transforms(i) for i in
+                monai.data.decollate_batch(val_data)]
+
+            val_outputs = post_pred(val_data[0]["pred"])
             val_outputs = val_outputs[None, ...]
 
             if softmax:
-                val_labels = post_pred(val_labels[0, ...])
-                val_labels = val_labels[None, ...]
-
-            value = compute_dice(
-                y_pred=val_outputs,
-                y=val_labels,
-                include_background=not softmax)
-
-            metric_count += len(value)
-            metric_sum += value.sum().item()
-            metric_vals = value.cpu().numpy()
-            if len(metric_mat) == 0:
-                metric_mat = metric_vals
+                val_labels = val_labels.int()
+                value = torch.zeros(1, metric_dim)
+                for _k in range(1, metric_dim + 1):
+                    value[0, _k - 1] = compute_dice(
+                        y_pred=(val_outputs == _k).float(),
+                        y=(val_labels == _k).float(),
+                        include_background=not softmax)
             else:
-                metric_mat = np.concatenate((metric_mat, metric_vals), axis=0)
+                value = compute_dice(
+                    y_pred=val_outputs,
+                    y=val_labels,
+                    include_background=not softmax)
+
+            logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
             print_message = ""
             print_message += str(_index + 1)
             print_message += ", "
-            print_message += d[0]["pred"].meta["filename_or_obj"]
+            print_message += val_data[0]["pred"].meta["filename_or_obj"]
             print_message += ", "
             for _k in range(metric_dim):
                 if output_classes == 2:
@@ -216,7 +322,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 print_message += ", "
             logger.debug(print_message)
 
-            row = [d[0]["pred"].meta["filename_or_obj"]]
+            row = [val_data[0]["pred"].meta["filename_or_obj"]]
             for _i in range(metric_dim):
                 row.append(metric_vals[0, _i])
 
@@ -226,8 +332,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
             for _c in range(metric_dim):
                 val0 = torch.nan_to_num(value[0, _c], nan=0.0)
-                val1 = 1.0 - torch.isnan(value[0, 0]).float()
-                metric[2 * _c] += val0 * val1
+                val1 = 1.0 - torch.isnan(value[0, _c]).float()
+                metric[2 * _c] += val0
                 metric[2 * _c + 1] += val1
 
             _index += 1
