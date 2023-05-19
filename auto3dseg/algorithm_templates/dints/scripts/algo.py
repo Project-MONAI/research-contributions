@@ -321,7 +321,8 @@ class DintsAlgo(BundleAlgo):
                 cmd += f"--validation_data_device {validation_data_device}"
                 _ = subprocess.run(cmd.split(), check=True)
             except RuntimeError as e:
-                if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                if not any(x in str(e).lower()
+                           for x in ("memory", "cuda", "cudnn")):
                     raise e
                 print("[error] OOM")
                 return (
@@ -412,10 +413,12 @@ class DintsAlgo(BundleAlgo):
         """
         if device_setting is not None:
             self.device_setting.update(device_setting)
-            self.device_setting["n_devices"] = len(str(self.device_setting["CUDA_VISIBLE_DEVICES"]).split(","))
+            self.device_setting["n_devices"] = len(
+                str(self.device_setting["CUDA_VISIBLE_DEVICES"]).split(","))
 
         if train_params is not None and "CUDA_VISIBLE_DEVICES" in train_params:
-            warnings.warn("CUDA_VISIBLE_DEVICES is deprecated from train_params!")
+            warnings.warn(
+                "CUDA_VISIBLE_DEVICES is deprecated from train_params!")
             train_params.pop("CUDA_VISIBLE_DEVICES")
 
         # searching
