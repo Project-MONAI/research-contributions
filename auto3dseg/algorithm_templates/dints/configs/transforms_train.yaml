@@ -3,7 +3,7 @@ image_key: image
 label_key: label
 transforms_train:
   _target_: Compose
-  lazy_evaluation: "$@transforms#lazy_resampling"
+  lazy_evaluation: "$@training#transforms#lazy_resampling"
   override_keys: ["@image_key", "@label_key"]
   overrides:
     mode: [bilinear, nearest]

@@ -354,9 +354,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             dist.get_rank()]
     logger.debug(f"val_files: {len(val_files)}")
 
-    train_cache_rate = float(parser.get_parsed_content("train_cache_rate"))
+    train_cache_rate = float(parser.get_parsed_content("training#train_cache_rate"))
     validate_cache_rate = float(
-        parser.get_parsed_content("validate_cache_rate"))
+        parser.get_parsed_content("training#validate_cache_rate"))
 
     with warnings.catch_warnings():
         warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -701,7 +701,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                                 finished = True
 
-                            except BaseException:
+                            except RuntimeError as e:
+                                if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                                    raise e
+                                    
                                 finished = False
 
                             if finished:
@@ -871,7 +874,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                             finished = True
 
-                        except BaseException:
+                        except RuntimeError as e:
+                            if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                                raise e
+                                
                             finished = False
 
                         if finished:

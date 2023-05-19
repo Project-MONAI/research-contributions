@@ -172,9 +172,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         )[dist.get_rank()]
     logger.debug(f"val_files:, {len(val_files)}")
 
-    train_cache_rate = float(parser.get_parsed_content("train_cache_rate"))
+    train_cache_rate = float(parser.get_parsed_content("searching#train_cache_rate"))
     validate_cache_rate = float(
-        parser.get_parsed_content("validate_cache_rate"))
+        parser.get_parsed_content("searching#validate_cache_rate"))
 
     train_ds_a = monai.data.CacheDataset(
         data=train_files_a,
@@ -525,7 +525,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 mode="gaussian",
                                 overlap=overlap_ratio,
                                 sw_device=device)
-                    except BaseException:
+                    except RuntimeError as e:
+                        if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                            raise e
+
                         val_devices[val_filename] = "cpu"
 
                         with torch.cuda.amp.autocast(enabled=amp):
