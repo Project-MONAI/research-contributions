@@ -55,77 +55,9 @@ _libcudart = ctypes.CDLL("libcudart.so")
 p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
 _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
 _libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
-if p_value.contents.value != 128:
-    warnings.warn(f"p_value.contents.value: {p_value.contents.value} != 128")
-
-torch.backends.cudnn.benchmark = True
-if hasattr(torch, "set_float32_matmul_precision"):
-    torch.set_float32_matmul_precision("high")
-
-
-CONFIG = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {"monai_default": {"format": DEFAULT_FMT}},
-    "loggers": {
-        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
-    },
-    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
-    "handlers": {
-        "file": {
-            "class": "logging.FileHandler",
-            "filename": "runner.log",
-            "mode": "a",  # append or overwrite
-            "level": "DEBUG",
-            "formatter": "monai_default",
-            "filters": ["rank_filter"],
-        },
-        "console": {
-            "class": "logging.StreamHandler",
-            "level": "INFO",
-            "formatter": "monai_default",
-            "filters": ["rank_filter"],
-        },
-    },
-}
-
-
-class EarlyStopping:
-    def __init__(self, patience=5, delta=0, verbose=False):
-        self.patience = patience
-        self.delta = delta
-        self.verbose = verbose
-        self.counter = 0
-        self.best_score = None
-        self.early_stop = False
-        self.val_acc_max = -1
-
-    def __call__(self, val_acc):
-        if self.best_score is None:
-            self.best_score = val_acc
-        elif val_acc + self.delta < self.best_score:
-            self.counter += 1
-            if self.verbose:
-                logger.debug(
-                    f"EarlyStopping counter: {self.counter} out of {self.patience}"
-                )
-            if self.counter >= self.patience:
-                self.early_stop = True
-        else:
-            self.best_score = val_acc
-            self.counter = 0
-
-
-_libcudart = ctypes.CDLL("libcudart.so")
-# Set device limit on the current device
-# cudaLimitMaxL2FetchGranularity = 0x05
-p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
-_libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
-_libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
 assert p_value.contents.value == 128
 
 torch.backends.cudnn.benchmark = True
-torch.set_float32_matmul_precision("high")
 
 
 CONFIG = {
@@ -527,7 +459,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         logger.debug(f"num_epochs_per_validation: {num_epochs_per_validation}")
 
     # patch fix to support PolynomialLR use in PyTorch <= 1.12
-    if "PolynomialLR" in parser.get("training#lr_scheduler#_target_") and not pytorch_after(1, 13):
+    if "PolynomialLR" in parser.get(
+            "training#lr_scheduler#_target_") and not pytorch_after(1, 13):
         dints_dir = os.path.dirname(os.path.dirname(__file__))
         sys.path.insert(0, dints_dir)
         parser["training#lr_scheduler#_target_"] = "scripts.utils.PolynomialLR"
@@ -663,7 +596,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             loss = loss_function(outputs.float(), labels)
 
                             loss.backward()
-                            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+                            torch.nn.utils.clip_grad_norm_(
+                                model.parameters(), 0.5)
                             optimizer.step()
 
                         epoch_loss += loss.item()
@@ -1027,7 +961,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             logger.warning(
                 f"{os.path.basename(bundle_root)} - training: finished with early stop")
         else:
-            logger.warning(f"{os.path.basename(bundle_root)} - training: finished")
+            logger.warning(
+                f"{os.path.basename(bundle_root)} - training: finished")
 
     if torch.cuda.device_count() > 1:
         dist.destroy_process_group()
