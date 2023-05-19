@@ -704,7 +704,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             except RuntimeError as e:
                                 if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                     raise e
-                                    
+
                                 finished = False
 
                             if finished:
@@ -877,7 +877,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         except RuntimeError as e:
                             if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                 raise e
-                                
+
                             finished = False
 
                         if finished:
