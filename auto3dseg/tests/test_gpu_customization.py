@@ -10,14 +10,14 @@
 # limitations under the License.
 
 import os
+import shutil
 import sys
 import unittest
 
-import torch
 import nibabel as nib
 import numpy as np
+import torch
 from parameterized import parameterized
-import shutil
 
 from monai.apps.auto3dseg import AlgoEnsembleBestByFold, AlgoEnsembleBestN, AlgoEnsembleBuilder, BundleGen, DataAnalyzer
 from monai.bundle.config_parser import ConfigParser
@@ -70,9 +70,8 @@ gpu_customization_specs = {
     "universal": {"num_trials": 1, "range_num_images_per_batch": [1, 2], "range_num_sw_batch_size": [1, 2]}
 }
 
-SIM_TEST_CASES = [
-    [{"sim_dim": (320, 320, 15), "modality": "MRI"}],
-]
+SIM_TEST_CASES = [[{"sim_dim": (320, 320, 15), "modality": "MRI"}]]
+
 
 def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
     """
@@ -97,6 +96,7 @@ def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
             nib_image = nib.Nifti1Image(seg, affine=np.eye(4))
             label_fpath = os.path.join(dataroot, d["label"])
             nib.save(nib_image, label_fpath)
+
 
 def auto_run(work_dir, data_src_cfg, algos):
     """
@@ -124,7 +124,7 @@ def auto_run(work_dir, data_src_cfg, algos):
         templates_path_or_url=algo_templates,
         algos=algos,
         data_stats_filename=datastats_file,
-        data_src_cfg_name=data_src_cfg_file
+        data_src_cfg_name=data_src_cfg_file,
     )
     bundle_generator.generate(
         work_dir, num_fold=1, gpu_customization=True, gpu_customization_specs=gpu_customization_specs
@@ -140,10 +140,11 @@ def auto_run(work_dir, data_src_cfg, algos):
     preds = builder.get_ensemble()(pred_param)
     return preds
 
+
 class TestGpuCustomization(unittest.TestCase):
     @parameterized.expand(SIM_TEST_CASES)
     def test_sim(self, input_params) -> None:
-        work_dir = os.path.join('./tmp_sim_work_dir')
+        work_dir = os.path.join("./tmp_sim_work_dir")
         if not os.path.isdir(work_dir):
             os.makedirs(work_dir)
 
@@ -161,6 +162,7 @@ class TestGpuCustomization(unittest.TestCase):
         self.assertTupleEqual(preds[0].shape, (2, sim_dim[0], sim_dim[1], sim_dim[2]))
 
         shutil.rmtree(work_dir)
+
 
 if __name__ == "__main__":
     unittest.main()

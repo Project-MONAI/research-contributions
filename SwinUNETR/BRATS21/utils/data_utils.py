@@ -67,7 +67,6 @@ class Sampler(torch.utils.data.Sampler):
 
 
 def datafold_read(datalist, basedir, fold=0, key="training"):
-
     with open(datalist) as f:
         json_data = json.load(f)
 
@@ -133,7 +132,6 @@ def get_loader(args):
     )
 
     if args.test_mode:
-
         val_ds = data.Dataset(data=validation_files, transform=test_transform)
         val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
         test_loader = data.DataLoader(

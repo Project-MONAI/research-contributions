@@ -18,13 +18,15 @@ import fire
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 if __package__ in (None, ""):
-    from segmenter import Segmenter, run_segmenter, dist_launched
+    from segmenter import Segmenter, dist_launched, run_segmenter
 else:
-    from .segmenter import Segmenter, run_segmenter, dist_launched
+    from .segmenter import Segmenter, dist_launched, run_segmenter
 
 
 class InferClass:
-    def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, rank: int = 0, global_rank: int = 0, **override):
+    def __init__(
+        self, config_file: Optional[Union[str, Sequence[str]]] = None, rank: int = 0, global_rank: int = 0, **override
+    ):
         override["infer#enabled"] = True
 
         if dist_launched():
