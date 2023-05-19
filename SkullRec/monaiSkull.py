@@ -164,7 +164,6 @@ if __name__ == "__main__":
     parser.add_argument("--phase")
     args = parser.parse_args()
     if args.phase == "train":
-
         print("**********************start traininig*************************")
 
         for epoch in range(max_epochs):

@@ -51,7 +51,6 @@ class AverageMeter(object):
 def distributed_all_gather(
     tensor_list, valid_batch_size=None, out_numpy=False, world_size=None, no_barrier=False, is_valid=None
 ):
-
     if world_size is None:
         world_size = torch.distributed.get_world_size()
     if valid_batch_size is not None:

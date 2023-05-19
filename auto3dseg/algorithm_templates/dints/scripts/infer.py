@@ -25,7 +25,6 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch, list_data_collate
 from monai.inferers import sliding_window_inference
 
-
 CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -64,8 +63,8 @@ def pre_operation(config_file, **override):
     # update hyper-parameter configuration
     rank = int(os.getenv("RANK", "0"))
     if rank == 0:
-        if isinstance(config_file, str) and ',' in config_file:
-            config_file = config_file.split(',')
+        if isinstance(config_file, str) and "," in config_file:
+            config_file = config_file.split(",")
 
         for _file in config_file:
             if "hyper_parameters.yaml" in _file:
@@ -82,33 +81,23 @@ def pre_operation(config_file, **override):
                     mem = min(mem) if isinstance(mem, list) else mem
                     mem = float(mem) / (1024.0**3)
                     mem = max(1.0, mem - 1.0)
-                    mem_bs2 = 6.0 + (20.0 - 6.0) * \
-                        (output_classes - 2) / (105 - 2)
-                    mem_bs9 = 24.0 + (74.0 - 24.0) * \
-                        (output_classes - 2) / (105 - 2)
-                    batch_size = 2 + (9 - 2) * \
-                        (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+                    mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
+                    mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
+                    batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
                     batch_size = int(batch_size)
                     batch_size = max(batch_size, 1)
 
-                    parser["training"].update(
-                        {"num_patches_per_iter": batch_size})
-                    parser["training"].update(
-                        {"num_patches_per_image": 2 * batch_size})
-                    parser["training"].update(
-                        {"num_epochs": int(400.0 / float(batch_size))})
+                    parser["training"].update({"num_patches_per_iter": batch_size})
+                    parser["training"].update({"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update({"num_epochs": int(400.0 / float(batch_size))})
 
-                    ConfigParser.export_config_file(
-                        parser.get(), _file, fmt="yaml", default_flow_style=None)
+                    ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
 
     return
 
 
 class InferClass:
-    def __init__(self,
-                 config_file: Optional[Union[str,
-                                             Sequence[str]]] = None,
-                 **override):
+    def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         pre_operation(config_file, **override)
 
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -125,12 +114,9 @@ class InferClass:
         data_list_file_path = parser.get_parsed_content("data_list_file_path")
         self.fast = parser.get_parsed_content("infer")["fast"]
         log_output_file = parser.get_parsed_content("infer#log_output_file")
-        self.num_sw_batch_size = parser.get_parsed_content(
-            "training#num_sw_batch_size")
-        self.overlap_ratio = parser.get_parsed_content(
-            "training#overlap_ratio")
-        self.patch_size_valid = parser.get_parsed_content(
-            "training#patch_size_valid")
+        self.num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
+        self.overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
+        self.patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
         softmax = parser.get_parsed_content("training#softmax")
 
         ckpt_name = parser.get_parsed_content("infer")["ckpt_name"]
@@ -164,11 +150,8 @@ class InferClass:
 
         self.infer_loader = None
         if self.fast:
-            infer_ds = monai.data.Dataset(
-                data=self.infer_files,
-                transform=self.infer_transforms)
-            self.infer_loader = ThreadDataLoader(
-                infer_ds, num_workers=8, batch_size=1, shuffle=False)
+            infer_ds = monai.data.Dataset(data=self.infer_files, transform=self.infer_transforms)
+            self.infer_loader = ThreadDataLoader(infer_ds, num_workers=8, batch_size=1, shuffle=False)
 
         self.device = torch.device("cuda:0")
 
@@ -188,23 +171,16 @@ class InferClass:
                 orig_meta_keys="image_meta_dict",
                 meta_key_postfix="meta_dict",
                 nearest_interp=False,
-                to_tensor=True),
-            transforms.Activationsd(
-                keys="pred",
-                softmax=softmax,
-                sigmoid=not softmax)]
+                to_tensor=True,
+            ),
+            transforms.Activationsd(keys="pred", softmax=softmax, sigmoid=not softmax),
+        ]
         self.post_transforms_prob = transforms.Compose(post_transforms)
 
         if softmax:
-            post_transforms += [
-                transforms.AsDiscreted(
-                    keys="pred",
-                    argmax=True)]
+            post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
         else:
-            post_transforms += [
-                transforms.AsDiscreted(
-                    keys="pred",
-                    threshold=0.5)]
+            post_transforms += [transforms.AsDiscreted(keys="pred", threshold=0.5)]
 
         post_transforms += [
             transforms.SaveImaged(
@@ -214,7 +190,9 @@ class InferClass:
                 output_postfix="seg",
                 resample=False,
                 print_log=False,
-                data_root_dir=data_file_base_dir)]
+                data_root_dir=data_file_base_dir,
+            )
+        ]
         self.post_transforms = transforms.Compose(post_transforms)
 
         return
@@ -233,8 +211,7 @@ class InferClass:
         device_list_input = [self.device, self.device, "cpu"]
         device_list_output = [self.device, "cpu", "cpu"]
 
-        for _device_in, _device_out in zip(
-                device_list_input, device_list_output):
+        for _device_in, _device_out in zip(device_list_input, device_list_output):
             try:
                 infer_images = batch_data["image"].to(_device_in)
 
@@ -252,7 +229,8 @@ class InferClass:
                         mode="gaussian",
                         overlap=self.overlap_ratio,
                         sw_device=self.device,
-                        device=_device_out)
+                        device=_device_out,
+                    )
 
                 finished = True
 
@@ -268,11 +246,9 @@ class InferClass:
         torch.cuda.empty_cache()
 
         if save_mask:
-            batch_data = [self.post_transforms(i)
-                          for i in decollate_batch(batch_data)]
+            batch_data = [self.post_transforms(i) for i in decollate_batch(batch_data)]
         else:
-            batch_data = [self.post_transforms_prob(i)
-                          for i in decollate_batch(batch_data)]
+            batch_data = [self.post_transforms_prob(i) for i in decollate_batch(batch_data)]
 
         return batch_data[0]["pred"]
 
@@ -297,8 +273,7 @@ class InferClass:
                 device_list_input = [device, device, "cpu"]
                 device_list_output = [device, "cpu", "cpu"]
 
-                for _device_in, _device_out in zip(
-                        device_list_input, device_list_output):
+                for _device_in, _device_out in zip(device_list_input, device_list_output):
                     try:
                         infer_images = infer_data["image"].to(_device_in)
 
@@ -316,7 +291,8 @@ class InferClass:
                                 mode="gaussian",
                                 overlap=self.overlap_ratio,
                                 sw_device=self.device,
-                                device=_device_out)
+                                device=_device_out,
+                            )
 
                         finished = True
 
@@ -331,11 +307,8 @@ class InferClass:
                 infer_data["pred"] = infer_data["pred"].cpu()
                 torch.cuda.empty_cache()
 
-                infer_data = [self.post_transforms(i)
-                              for i in decollate_batch(infer_data)]
-                infer_data = [
-                    self.post_transforms(i) for i in
-                    monai.data.decollate_batch(infer_data)]
+                infer_data = [self.post_transforms(i) for i in decollate_batch(infer_data)]
+                infer_data = [self.post_transforms(i) for i in monai.data.decollate_batch(infer_data)]
 
         return
 
