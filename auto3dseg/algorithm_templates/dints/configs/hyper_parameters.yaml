@@ -48,7 +48,6 @@ training:
   validate_cache_rate: "$@training#cache_rate"
   transforms:
     resample_to_spacing: "$@training#resample_to_spacing"
-    lazy_resampling: false
 
   loss:
     _target_: DiceFocalLoss
