@@ -9,27 +9,51 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
+import copy
 import os
-import subprocess
+import warnings
+from typing import Optional
 import yaml
 
-from copy import deepcopy
+import fire
+import numpy as np
+import shutil
+
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
 
+from monai.apps.auto3dseg.auto_runner import logger
+print = logger.debug
 
-def get_gpu_available_memory():
-    command = "nvidia-smi --query-gpu=memory.free --format=csv"
-    memory_free_info = (
-        subprocess.check_output(command.split()).decode("ascii").split("\n")[:-1][1:]
-    )
-    memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
-    return memory_free_values
-
+if __package__ in (None, ""):
+    from utils import auto_adjust_network_settings, logger_configure
+else:
+    from .utils import auto_adjust_network_settings, logger_configure
 
 class Segresnet2dAlgo(BundleAlgo):
-    def fill_template_config(self, data_stats_file, output_path, **kwargs):
+    def pre_check_skip_algo(self, skip_bundlegen: bool=False, skip_info: str=''):
+        """
+        Precheck if the algorithm needs to be skipped.
+        If the median spacing of the dataset is not highly anisotropic (res_z < 3*(res_x + rex_y)/2),
+        the 2D segresnet will be skipped by setting self.skip_bundlegen=True.
+        """
+        if self.data_stats_files is None or bool(os.environ.get("SEGRESNET2D_ALWAYS", False)):
+            return skip_bundlegen, skip_info
+
+        data_stats = ConfigParser(globals=False)
+        if os.path.exists(str(self.data_stats_files)):
+            data_stats.read_config(str(self.data_stats_files))
+        else:
+            data_stats.update(self.data_stats_files)
+        spacing = data_stats["stats_summary#image_stats#spacing#median"]
+        if len(spacing) > 2:
+            if spacing[-1] < 3 * (spacing[0] + spacing[1]) / 2:
+                skip_bundlegen = True
+                skip_info = f"SegresNet2D is skipped due to median spacing of {spacing},  which means the dataset is not highly anisotropic, e.g. spacing[2] < 3*(spacing[0] + spacing[1])/2) ."
+
+        return skip_bundlegen, skip_info
+
+    def fill_template_config(self, data_stats_file: Optional[str] = None, output_path: Optional[str] = None, **kwargs):
         """
         Fill the freshly copied config templates
 
@@ -40,141 +64,226 @@ class Segresnet2dAlgo(BundleAlgo):
                 a on/off switch to either use the data_stats_file to fill the template or
                 load it directly from the self.fill_records
         """
+
+        if output_path is None:
+            raise ValueError("output_path is not provided")
+
+        os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:2048'
+
         if kwargs.pop("fill_with_datastats", True):
-            if data_stats_file is None:
-                return
+
+            config = {"bundle_root": output_path}
+
+            if self.data_list_file is None or not os.path.exists(str(self.data_list_file)):
+                raise ValueError(f"Unable to load self.data_list_file {self.data_list_file}")
+
+            if data_stats_file is None or not os.path.exists(data_stats_file):
+                raise ValueError("data_stats_file unable to read: " + str(data_stats_file))
+
+            input_config = ConfigParser.load_config_file(self.data_list_file)
+            logger_configure(debug=input_config.get("debug", False))
+            print(f"Loaded self.data_list_file {self.data_list_file}")
+
             data_stats = ConfigParser(globals=False)
-            if os.path.exists(str(data_stats_file)):
-                data_stats.read_config(str(data_stats_file))
+            data_stats.read_config(data_stats_file)
+
+            config["data_file_base_dir"] = os.path.abspath(input_config.pop("dataroot"))
+            config["data_list_file_path"] = os.path.abspath(input_config.pop("datalist"))
+
+            # data_list_file_path = os.path.abspath(input_config.pop("datalist")) #TODO, consider relative path
+            # if output_path.startswith(os.path.dirname(data_list_file_path)):
+            #     config["data_list_file_path"] = os.path.relpath(data_list_file_path, output_path) #use relative path to json
+            #     # config["data_list_file_path"] = f"$@bundle_root + '/' + '{os.path.relpath(data_list_file_path, output_path)}'" #use relative path to json
+            # else:
+            #     config["data_list_file_path"] = data_list_file_path
+
+
+            ##########
+            if "modality" in input_config:
+                modality = input_config.pop("modality").lower().strip()
             else:
-                data_stats.update(data_stats_file)
+                warnings.warn("Config modality is not specified, assuming CT image")
+                modality = "ct"
 
-            data_src_cfg = ConfigParser(globals=False)
-            if self.data_list_file is not None and os.path.exists(
-                str(self.data_list_file)
-            ):
-                data_src_cfg.read_config(self.data_list_file)
+            if modality not in ["ct", "mri"]:
+                raise ValueError("Modality must be either CT or MRI, but got" + str(modality))
+            config["modality"] = modality
 
-            hyper_parameters = {"bundle_root": output_path}
-            network = {}
-            transforms_train = {}
-            transforms_validate = {}
-            transforms_infer = {}
-
-            patch_size = [320, 320]
-            max_shape = data_stats["stats_summary#image_stats#shape#max"]
-            patch_size = [
-                max(32, shape_k // 32 * 32) if shape_k < p_k else p_k
-                for p_k, shape_k in zip(patch_size, max_shape)
-            ]
-
-            input_channels = data_stats["stats_summary#image_stats#channels#max"]
+            input_channels = int(data_stats["stats_summary#image_stats#channels#max"]) + len(input_config.get("extra_modalities", {}))
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
 
-            hyper_parameters.update({"patch_size#0": patch_size[0]})
-            hyper_parameters.update({"patch_size#1": patch_size[1]})
-            hyper_parameters.update({"patch_size_valid#0": patch_size[0]})
-            hyper_parameters.update({"patch_size_valid#1": patch_size[1]})
-            hyper_parameters.update(
-                {"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])}
-            )
-            hyper_parameters.update(
-                {"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])}
-            )
-            hyper_parameters.update({"input_channels": input_channels})
-            hyper_parameters.update({"output_classes": output_classes})
+            config["input_channels"] = input_channels
+            config["output_classes"] = output_classes
 
-            modality = data_src_cfg.get("modality", "ct").lower()
-            spacing = data_stats["stats_summary#image_stats#spacing#median"]
-            spacing[-1] = -1.0
-            hyper_parameters.update({"resample_to_spacing": spacing})
 
-            intensity_upper_bound = float(
-                data_stats[
-                    "stats_summary#image_foreground_stats#intensity#percentile_99_5"
-                ]
-            )
-            intensity_lower_bound = float(
-                data_stats[
-                    "stats_summary#image_foreground_stats#intensity#percentile_00_5"
-                ]
-            )
+            ###########################################
+            sigmoid = input_config.pop("sigmoid", False)
+            class_names = input_config.pop("class_names", None)
+            class_index = input_config.pop("class_index", None)
 
-            ct_intensity_xform_train_valid = {
-                "_target_": "Compose",
-                "transforms": [
-                    {
-                        "_target_": "ScaleIntensityRanged",
-                        "keys": "@image_key",
-                        "a_min": intensity_lower_bound,
-                        "a_max": intensity_upper_bound,
-                        "b_min": 0.0,
-                        "b_max": 1.0,
-                        "clip": True,
-                    },
-                    {
-                        "_target_": "CropForegroundd",
-                        "keys": ["@image_key", "@label_key"],
-                        "source_key": "@image_key",
-                    },
-                ],
-            }
+            if class_names is None:
+                class_names = class_index = None
+            elif not isinstance(class_names, list):
+                warnings.warn("class_names must be a list")
+                class_names = class_index = None
+            elif isinstance(class_names, list) and isinstance(class_names[0], dict):
+                class_index = [x["index"] for x in class_names]
+                class_names = [x["name"] for x in class_names]
 
-            ct_intensity_xform_infer = {
-                "_target_": "Compose",
-                "transforms": [
-                    {
-                        "_target_": "ScaleIntensityRanged",
-                        "keys": "@image_key",
-                        "a_min": intensity_lower_bound,
-                        "a_max": intensity_upper_bound,
-                        "b_min": 0.0,
-                        "b_max": 1.0,
-                        "clip": True,
-                    },
-                    {
-                        "_target_": "CropForegroundd",
-                        "keys": "@image_key",
-                        "source_key": "@image_key",
-                    },
-                ],
-            }
+                # check for overlap
+                all_ind = []
+                for a in class_index:
+                    if bool(set(all_ind) & set(a)):  # overlap found
+                        sigmoid = True
+                        break
+                    all_ind = all_ind + a
 
-            mr_intensity_transform = {
-                "_target_": "NormalizeIntensityd",
-                "keys": "@image_key",
-                "nonzero": True,
-                "channel_wise": True,
-            }
+            config["class_names"] = class_names
+            config["class_index"] = class_index
+            config["sigmoid"] = sigmoid
 
-            if modality.startswith("ct"):
-                transforms_train.update(
-                    {"transforms_train#transforms#5": ct_intensity_xform_train_valid}
-                )
-                transforms_validate.update(
-                    {"transforms_validate#transforms#5": ct_intensity_xform_train_valid}
-                )
-                transforms_infer.update(
-                    {"transforms_infer#transforms#5": ct_intensity_xform_infer}
-                )
+            if sigmoid and class_index is not None:
+                config["output_classes"] = len(class_index)
+
+            ###########################################
+
+            intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
+            intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
+            config["intensity_bounds"] = [intensity_lower_bound, intensity_upper_bound]
+
+            spacing_median = copy.deepcopy(data_stats["stats_summary#image_stats#spacing#median"])
+            spacing_10 = copy.deepcopy(data_stats["stats_summary#image_stats#spacing#percentile_10_0"])
+
+            if "ct" in modality:
+                config["normalize_mode"] = "range"
+            elif "mr" in modality:
+                config["normalize_mode"] = "meanstd"
+
+
+            spacing = input_config.pop("resample_resolution", None)
+            resample_mode = input_config.pop("resample_mode", None)
+            if resample_mode is None:
+                resample_mode = 'auto'
+
+            if spacing is not None:
+                #if working resolution is provided manually
+                pass
+            elif resample_mode=='median':
+                spacing = spacing_median
+            elif resample_mode=='median10':
+                spacing = [spacing_median[0], spacing_median[1], spacing_10[2]]
+            elif resample_mode=='ones':
+                spacing=[1., 1., 1.]
+            elif resample_mode=='auto' or resample_mode is None:
+                spacing = [spacing_median[0], spacing_median[1], max(0.5*(spacing_median[0]+spacing_median[1]), float(spacing_10[2])) ]
             else:
-                transforms_train.update(
-                    {"transforms_train#transforms#5": mr_intensity_transform}
-                )
-                transforms_validate.update(
-                    {"transforms_validate#transforms#5": mr_intensity_transform}
-                )
-                transforms_infer.update(
-                    {"transforms_infer#transforms#5": mr_intensity_transform}
-                )
+                raise ValueError('Unsupported resample_mode'+str(resample_mode))
 
-            fill_records = {
-                "hyper_parameters.yaml": hyper_parameters,
-                "network.yaml": network,
-                "transforms_train.yaml": transforms_train,
-                "transforms_validate.yaml": transforms_validate,
-                "transforms_infer.yaml": transforms_infer,
-            }
+            config["resample_resolution"] = spacing
+
+            config["anisotropic_scales"]  = input_config.pop("anisotropic_scales", None)
+            # if config["anisotropic_scales"]  is None:
+            #     config["anisotropic_scales"] =  not (0.75 <= (0.5*(spacing[0]+spacing[1]) / spacing[2]) <= 1.25)
+            config["anisotropic_scales"] = False
+
+            ###########################################
+            spacing_lower_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_00_5"])
+            spacing_upper_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_99_5"])
+            config["spacing_median"] = list(data_stats["stats_summary#image_stats#spacing#median"])
+            config["spacing_lower"] = spacing_lower_bound.tolist()
+            config["spacing_upper"] = spacing_upper_bound.tolist()
+
+
+            ###########################################
+            resample = input_config.pop("resample", None)
+            # if resample is None:
+            #     if np.any(spacing_lower_bound / np.array(spacing) < 0.5) or np.any(
+            #         spacing_upper_bound / np.array(spacing) > 1.5
+            #     ):
+            #         resample = True
+            #     else:
+            #         resample = False
+            # config["resample"] = resample
+
+            config["resample"] = False
+
+            print(f"Resampling params: \n"
+                f"resample {config['resample']} \n"
+                f"resolution {config['resample_resolution']} \n"
+                f"resample_mode {resample_mode} \n"
+                f"anisotropic_scales {config['anisotropic_scales']} \n"
+                f"res bounds {config['spacing_lower']} {config['spacing_upper']} \n"
+                f"modality {modality} \n")
+
+            ###########################################
+
+            n_cases = data_stats["stats_summary#n_cases"]
+
+            image_size_mm_90 = data_stats["stats_summary#image_stats#sizemm#percentile_90_0"]
+            image_size_mm_median = data_stats["stats_summary#image_stats#sizemm#median"]
+            image_size_90 = (np.array(image_size_mm_90) / np.array(spacing)).astype(np.int32).tolist()
+
+            print(f"Found sizemm in new datastats median {image_size_mm_median} per90 {image_size_mm_90} n_cases  {n_cases}")
+            print(f"Using avg image size 90 {image_size_90} for resample res {spacing} n_cases {n_cases}")
+
+            config["image_size_mm_median"] = image_size_mm_median
+            config["image_size_mm_90"] = image_size_mm_90
+
+            image_size = input_config.pop("image_size", image_size_90)
+            config["image_size"] = image_size
+
+            max_epochs = int(np.clip(np.ceil(80000.0 / n_cases), a_min=300, a_max=1250))
+            config["num_epochs"] = max_epochs
+
+            ###########################################
+
+            roi_size, levels, init_filters, batch_size = auto_adjust_network_settings(
+                                            auto_scale_batch = input_config.get("auto_scale_batch", False),
+                                            auto_scale_roi = input_config.get("auto_scale_roi", False),
+                                            auto_scale_filters = input_config.get("auto_scale_filters", False),
+                                            image_size_mm=config["image_size_mm_median"],
+                                            spacing=config["resample_resolution"],
+                                            anisotropic_scales=config["anisotropic_scales"],
+                                            output_classes = config["output_classes"]
+                                        )
+
+            if input_config.get("roi_size", None):
+                roi_size = input_config.get("roi_size", None)
+            if input_config.get("batch_size", None):
+                batch_size = input_config.get("batch_size", None)
+
+            config["roi_size"] = roi_size
+            config["batch_size"] = batch_size
+
+
+            print(f"Updating roi_size (divisible) final {roi_size} levels {levels}")
+
+            ###########################################
+            # update network config
+            blocks_down = [1, 2, 2, 4, 4]
+            if levels >= 5:  # default
+                blocks_down = [1, 2, 2, 4, 4]
+            elif levels == 4:
+                blocks_down = [1, 2, 2, 4]
+            elif levels == 3:
+                blocks_down = [1, 2, 4]
+            elif levels == 2:
+                blocks_down = [1, 3]
+            elif levels == 1:
+                blocks_down = [2]
+
+            config["network#blocks_down"] = blocks_down
+            config["network#init_filters"] = init_filters
+
+            ###########################################
+            # cropping mode, if any roi_size less than 0.7*image size
+            if any([r < 0.8 * i for r, i in zip(roi_size, image_size)]):
+                config["crop_mode"] = "ratio"
+            else:
+                config["crop_mode"] = "rand"
+
+            config.update(input_config)  # override if any additional inputs provided
+            fill_records = {"hyper_parameters.yaml": config}
         else:
             fill_records = self.fill_records
 
@@ -187,179 +296,34 @@ class Segresnet2dAlgo(BundleAlgo):
                 if k in kwargs:
                     parser[k] = kwargs.pop(k)
                 else:
-                    parser[k] = deepcopy(v)  # some values are dicts
-                yaml_contents[k] = deepcopy(parser[k])
+                    parser[k] = copy.deepcopy(v)  # some values are dicts
+                yaml_contents[k] = copy.deepcopy(parser[k])
 
-            for (
-                k,
-                v,
-            ) in kwargs.items():  # override new params that is not in fill_records
+            for k, v in kwargs.items():  # override new params not in fill_records
                 if parser.get(k, None) is not None:
-                    parser[k] = deepcopy(v)
+                    parser[k] = copy.deepcopy(v)
                     yaml_contents.update({k: parser[k]})
 
             ConfigParser.export_config_file(
-                parser.get(), file_path, fmt="yaml", default_flow_style=None
-            )
-
-        # customize parameters for gpu
-        if kwargs.pop("gpu_customization", False):
-            gpu_customization_specs = kwargs.pop("gpu_customization_specs", {})
-            fill_records = self.customize_param_for_gpu(
-                output_path,
-                data_stats_file,
-                fill_records,
-                gpu_customization_specs,
+                parser.get(), file_path, fmt="yaml", default_flow_style=None, sort_keys=False
             )
 
         return fill_records
 
-    def customize_param_for_gpu(
-        self, output_path, data_stats_file, fill_records, gpu_customization_specs
-    ):
-        # optimize batch size for model training
-        import optuna
+    def export_to_disk(self, output_path: str, algo_name: str, **kwargs):
+        super().export_to_disk(output_path=output_path, algo_name=algo_name, **kwargs)
 
-        # default range
-        num_trials = 60
-        range_num_images_per_batch = [1, 160]
-        range_num_sw_batch_size = [1, 40]
+        output_path =os.path.join(output_path, algo_name)
+        config = ConfigParser.load_config_file(os.path.join(output_path, "configs/hyper_parameters.yaml"))
 
-        # load customized range
-        if (
-            "segresnet2d" in gpu_customization_specs
-            or "universal" in gpu_customization_specs
-        ):
-            specs_section = (
-                "segresnet2d"
-                if "segresnet2d" in gpu_customization_specs
-                else "universal"
-            )
-            specs = gpu_customization_specs[specs_section]
-
-            if "num_trials" in specs:
-                num_trials = specs["num_trials"]
-
-            if "range_num_images_per_batch" in specs:
-                range_num_images_per_batch = specs["range_num_images_per_batch"]
-
-            if "range_num_sw_batch_size" in specs:
-                range_num_sw_batch_size = specs["range_num_sw_batch_size"]
-
-        mem = get_gpu_available_memory()
-        device_id = np.argmin(mem) if type(mem) is list else 0
-        print(f"[info] gpu device {device_id} with minimum memory")
-
-        mem = min(mem) if type(mem) is list else mem
-        mem = round(float(mem) / 1024.0)
-
-        def objective(trial):
-            num_images_per_batch = trial.suggest_int(
-                "num_images_per_batch",
-                range_num_images_per_batch[0],
-                range_num_images_per_batch[1],
-            )
-            num_sw_batch_size = trial.suggest_int(
-                "num_sw_batch_size",
-                range_num_sw_batch_size[0],
-                range_num_sw_batch_size[1],
-            )
-            validation_data_device = trial.suggest_categorical(
-                "validation_data_device", ["cpu", "gpu"]
-            )
-            device_factor = 2.0 if validation_data_device == "gpu" else 1.0
-
-            try:
-                cmd = "python {0:s}dummy_runner.py ".format(
-                    os.path.join(output_path, "scripts") + os.sep
-                )
-                cmd += "--output_path {0:s} ".format(output_path)
-                cmd += "--data_stats_file {0:s} ".format(data_stats_file)
-                cmd += "--device_id {0:d} ".format(device_id)
-                cmd += "run "
-                cmd += f"--num_images_per_batch {num_images_per_batch} "
-                cmd += f"--num_sw_batch_size {num_sw_batch_size} "
-                cmd += f"--validation_data_device {validation_data_device}"
-                _ = subprocess.run(cmd.split(), check=True)
-            except RuntimeError as e:
-                if "out of memory" in str(e):
-                    return (
-                        float(num_images_per_batch)
-                        * float(num_sw_batch_size)
-                        * device_factor
-                    )
-                else:
-                    raise(e)
-
-            value = (
-                -1.0
-                * float(num_images_per_batch)
-                * float(num_sw_batch_size)
-                * device_factor
-            )
-
-            return value
-
-        opt_result_file = os.path.join(output_path, "..", f"gpu_opt_{mem}gb.yaml")
-        if os.path.exists(opt_result_file):
-            with open(opt_result_file) as in_file:
-                best_trial = yaml.full_load(in_file)
-
-        if not os.path.exists(opt_result_file) or "segresnet2d" not in best_trial:
-            study = optuna.create_study()
-            study.optimize(objective, n_trials=num_trials)
-            trial = study.best_trial
-            best_trial = {}
-            best_trial["num_images_per_batch"] = max(
-                int(trial.params["num_images_per_batch"]) - 1, 1
-            )
-            best_trial["num_sw_batch_size"] = max(
-                int(trial.params["num_sw_batch_size"]) - 1, 1
-            )
-            best_trial["validation_data_device"] = trial.params[
-                "validation_data_device"
-            ]
-            best_trial["value"] = int(trial.value)
-            with open(opt_result_file, "a") as out_file:
-                yaml.dump({"segresnet2d": best_trial}, stream=out_file)
-
-            print("\n-----  Finished Optimization  -----")
-            print("Optimal value: {}".format(best_trial["value"]))
-            print("Best hyperparameters: {}".format(best_trial))
-        else:
-            best_trial = best_trial["segresnet2d"]
-
-        if best_trial["value"] < 0:
-            fill_records["hyper_parameters.yaml"].update(
-                {"num_images_per_batch": best_trial["num_images_per_batch"]}
-            )
-            fill_records["hyper_parameters.yaml"].update(
-                {"num_sw_batch_size": best_trial["num_sw_batch_size"]}
-            )
-            if best_trial["validation_data_device"] == "cpu":
-                fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": True})
+        for c in config.get('custom_data_transforms',[]):
+            if "transform" in c and "_target_" in c["transform"]:
+                target = c["transform"]["_target_"]
+                target = "/".join(target.split(".")[:-1]) + ".py"
+                print(f"Copying custom transform file {target} into {output_path}")
+                shutil.copy(target, output_path)
             else:
-                fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": False})
-
-            for yaml_file, yaml_contents in fill_records.items():
-                if "hyper_parameters" in yaml_file:
-                    file_path = os.path.join(output_path, "configs", yaml_file)
-
-                    parser = ConfigParser(globals=False)
-                    parser.read_config(file_path)
-                    for k, v in yaml_contents.items():
-                        parser[k] = deepcopy(v)
-                        yaml_contents[k] = deepcopy(parser[k])
-
-                    ConfigParser.export_config_file(
-                        parser.get(), file_path, fmt="yaml", default_flow_style=None
-                    )
-
-        return fill_records
-
+                raise ValueError("Malformed custom_data_transforms parameter!"+str(c))
 
 if __name__ == "__main__":
-    from monai.utils import optional_import
-
-    fire, _ = optional_import("fire")
     fire.Fire({"Segresnet2dAlgo": Segresnet2dAlgo})

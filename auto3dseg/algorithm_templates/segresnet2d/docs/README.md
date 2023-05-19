@@ -4,7 +4,7 @@ A 2D neural network based algorithm for volumetric segmentation of 3D medical im
 
 # Model Overview
 
-This model is trained using the state-of-the-art algorithm [1] of the "Brain Tumor Segmentation (BraTS) Challenge 2018".
+This is a template for training the 2D version of the state-of-the-art algorithm [1] of the "Brain Tumor Segmentation (BraTS) Challenge 2018".
 
 ## Training configuration
 
@@ -15,30 +15,26 @@ The training was performed with at least 16GB-memory GPUs.
 Execute model training:
 
 ```
-python -m scripts.train run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml','configs/transforms_train.yaml','configs/transforms_validate.yaml']"
+CUDA_VISIBLE_DEVICES=0 python scripts/train.py run --config_file=configs/hyper_parameters.yaml
 ```
 
 Execute multi-GPU model training (recommended):
 
 ```
-torchrun --nnodes=1 --nproc_per_node=8 -m scripts.train run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml','configs/transforms_train.yaml','configs/transforms_validate.yaml']"
+torchrun --nproc_per_node=gpu scripts/train.py run --config_file=configs/hyper_parameters.yaml
 ```
 
 Execute validation:
 
 ```
-python -m scripts.validate run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml','configs/transforms_infer.yaml']"
+python scripts/validate.py run --config_file=configs/hyper_parameters.yaml
 ```
 
 Execute inference:
 
 ```
-python -m scripts.infer run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml','configs/transforms_infer.yaml']"
+python scripts/infer.py run --config_file=configs/hyper_parameters.yaml
 ```
-
-# Disclaimer
-
-This is an example, not to be used for diagnostic purposes.
 
 # References
 

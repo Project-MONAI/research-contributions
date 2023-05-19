@@ -38,7 +38,6 @@ class DummyRunnerSwinUNETR(object):
         parser.read_config(config_file)
 
         self.device = torch.device("cuda:{0:d}".format(device_id))
-        torch.cuda.set_device(self.device)
 
         self.input_channels = parser.get_parsed_content("input_channels")
         self.patch_size = parser.get_parsed_content("patch_size")
@@ -57,6 +56,7 @@ class DummyRunnerSwinUNETR(object):
         self.model = self.model.to(self.device)
 
         self.loss_function = parser.get_parsed_content("loss")
+
         optimizer_part = parser.get_parsed_content("optimizer", instantiate=False)
         self.optimizer = optimizer_part.instantiate(params=self.model.parameters())
 
@@ -65,7 +65,7 @@ class DummyRunnerSwinUNETR(object):
         with open(data_stats_file) as f_data_stat:
             data_stat = yaml.full_load(f_data_stat)
 
-        pixdim = parser.get_parsed_content("transforms_train#transforms#3#pixdim")
+        pixdim = parser.get_parsed_content("transforms_train#transforms#4#pixdim")
         pixdim = [np.abs(pixdim[_i]) for _i in range(3)]
 
         if "sizemm" not in data_stat["stats_summary"]["image_stats"]:

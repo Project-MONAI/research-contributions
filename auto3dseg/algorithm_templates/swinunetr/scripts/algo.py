@@ -13,21 +13,45 @@ import numpy as np
 import os
 import subprocess
 import sys
+import torch
 import yaml
 
 from copy import deepcopy
 from monai.apps.auto3dseg import BundleAlgo
 from monai.bundle import ConfigParser
+from monai.apps.utils import get_logger
+logger = get_logger(module_name=__name__)
 
+def get_mem_from_visible_gpus():
+    available_mem_visible_gpus = []
+    for d in range(torch.cuda.device_count()):
+        available_mem_visible_gpus.append(torch.cuda.mem_get_info(device=d)[0])
+    return available_mem_visible_gpus
 
-def get_gpu_available_memory():
-    command = "nvidia-smi --query-gpu=memory.free --format=csv"
-    memory_free_info = (
-        subprocess.check_output(command.split()).decode("ascii").split("\n")[:-1][1:]
-    )
-    memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
-    return memory_free_values
+def auto_scale(output_classes, n_cases, max_epoch=1000):
+    """ Scale batch size based on gpu memory and output class. Includes heuristics.
+    """
+    mem = get_mem_from_visible_gpus()
+    mem = min(mem) if isinstance(mem, list) else mem
+    mem = float(mem) / (1024.0**3)
+    mem = max(1.0, mem - 1.0)
+    # heuristics copied from dints template
+    mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
+    mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
+    # heuristic scaling for swinunetr
+    mem_bs2 = 12/6 * mem_bs2
+    mem_bs9 = 12/6 * mem_bs9
+    batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+    batch_size = max(int(batch_size), 1)
 
+    # fixed two iters per whole image, each iter with num_patches_per_iter
+    num_patches_per_iter = batch_size
+    num_patches_per_image = batch_size * 2
+    # heuristics for 400k patch iteration. epoch * n_cases * num_patches_per_image = total 400k patch
+    num_epochs = min(max_epoch, int(400000 / n_cases / num_patches_per_image))
+    return {"num_patches_per_iter": num_patches_per_iter,
+            "num_patches_per_image": num_patches_per_image,
+            "num_epochs": num_epochs}
 
 class SwinunetrAlgo(BundleAlgo):
     def fill_template_config(self, data_stats_file, output_path, **kwargs):
@@ -70,17 +94,20 @@ class SwinunetrAlgo(BundleAlgo):
 
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
+            n_cases =  data_stats["stats_summary#n_cases"]
 
-            hyper_parameters.update({"patch_size": patch_size})
-            hyper_parameters.update({"patch_size_valid": patch_size})
             hyper_parameters.update(
                 {"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])}
             )
             hyper_parameters.update(
                 {"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])}
             )
+
+            hyper_parameters.update({"patch_size": patch_size})
+            hyper_parameters.update({"patch_size_valid": patch_size})
             hyper_parameters.update({"input_channels": input_channels})
             hyper_parameters.update({"output_classes": output_classes})
+            hyper_parameters.update({"n_cases": n_cases})
 
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
@@ -89,14 +116,12 @@ class SwinunetrAlgo(BundleAlgo):
             if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
                 spacing = [1.0, 1.0, 1.0]
 
-            min_shape = data_stats["stats_summary#image_stats#shape#min"]
-            # reflection-mode padding requires a minimum image for a given patch size
-            spacing = [
-                min(s / int(patch_size[i] / 3 + 1), spacing[i])
-                for i, s in enumerate(min_shape)
-            ]
-
             hyper_parameters.update({"resample_to_spacing": spacing})
+
+            scaled = auto_scale(output_classes, n_cases, max_epoch=1000)
+            hyper_parameters.update({"num_patches_per_iter": scaled["num_patches_per_iter"]})
+            hyper_parameters.update({"num_patches_per_image": scaled["num_patches_per_image"]})
+            hyper_parameters.update({"num_epochs": scaled["num_epochs"]})
 
             intensity_upper_bound = float(
                 data_stats[
@@ -108,17 +133,46 @@ class SwinunetrAlgo(BundleAlgo):
                     "stats_summary#image_foreground_stats#intensity#percentile_00_5"
                 ]
             )
-
-            ct_intensity_xform = {
-                "_target_": "ScaleIntensityRanged",
-                "keys": "@image_key",
-                "a_min": intensity_lower_bound,
-                "a_max": intensity_upper_bound,
-                "b_min": 0.0,
-                "b_max": 1.0,
-                "clip": True,
+            ct_intensity_xform_train_valid = {
+                "_target_": "Compose",
+                "transforms": [
+                    {
+                        "_target_": "ScaleIntensityRanged",
+                        "keys": "@image_key",
+                        "a_min": intensity_lower_bound,
+                        "a_max": intensity_upper_bound,
+                        "b_min": 0.0,
+                        "b_max": 1.0,
+                        "clip": True,
+                    },
+                    {
+                        "_target_": "CropForegroundd",
+                        "keys": ["@image_key", "@label_key"],
+                        "source_key": "@image_key",
+                        "start_coord_key": None,
+                        "end_coord_key": None,
+                    },
+                ],
             }
-
+            ct_intensity_xform_infer = {
+                "_target_": "Compose",
+                "transforms": [
+                    {
+                        "_target_": "ScaleIntensityRanged",
+                        "keys": "@image_key",
+                        "a_min": intensity_lower_bound,
+                        "a_max": intensity_upper_bound,
+                        "b_min": 0.0,
+                        "b_max": 1.0,
+                        "clip": True,
+                    },
+                    {
+                        "_target_": "CropForegroundd",
+                        "keys": "@image_key",
+                        "source_key": "@image_key",
+                    },
+                ],
+            }
             mr_intensity_transform = {
                 "_target_": "NormalizeIntensityd",
                 "keys": "@image_key",
@@ -128,23 +182,23 @@ class SwinunetrAlgo(BundleAlgo):
 
             if modality.startswith("ct"):
                 transforms_train.update(
-                    {"transforms_train#transforms#5": ct_intensity_xform}
+                    {"transforms_train#transforms#2": ct_intensity_xform_train_valid}
                 )
                 transforms_validate.update(
-                    {"transforms_validate#transforms#5": ct_intensity_xform}
+                    {"transforms_validate#transforms#2": ct_intensity_xform_train_valid}
                 )
                 transforms_infer.update(
-                    {"transforms_infer#transforms#5": ct_intensity_xform}
+                    {"transforms_infer#transforms#2": ct_intensity_xform_infer}
                 )
             else:
                 transforms_train.update(
-                    {"transforms_train#transforms#5": mr_intensity_transform}
+                    {"transforms_train#transforms#2": mr_intensity_transform}
                 )
                 transforms_validate.update(
-                    {"transforms_validate#transforms#5": mr_intensity_transform}
+                    {"transforms_validate#transforms#2": mr_intensity_transform}
                 )
                 transforms_infer.update(
-                    {"transforms_infer#transforms#5": mr_intensity_transform}
+                    {"transforms_infer#transforms#2": mr_intensity_transform}
                 )
 
             fill_records = {
@@ -221,11 +275,11 @@ class SwinunetrAlgo(BundleAlgo):
             if "range_num_sw_batch_size" in specs:
                 range_num_sw_batch_size = specs["range_num_sw_batch_size"]
 
-        mem = get_gpu_available_memory()
-        device_id = np.argmin(mem) if type(mem) is list else 0
-        print(f"[info] gpu device {device_id} with minimum memory")
+        mem = get_mem_from_visible_gpus()
+        device_id = np.argmin(mem)
+        print(f"[debug] device {device_id} in visible GPU list has the minimum memory.")
 
-        mem = min(mem) if type(mem) is list else mem
+        mem = min(mem) if isinstance(mem, list) else mem
         mem = round(float(mem) / 1024.0)
 
         def objective(trial):
@@ -243,6 +297,7 @@ class SwinunetrAlgo(BundleAlgo):
                 "validation_data_device", ["cpu", "gpu"]
             )
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
+            ps_environ = os.environ.copy()
 
             try:
                 cmd = "python {0:s}dummy_runner.py ".format(
@@ -255,16 +310,16 @@ class SwinunetrAlgo(BundleAlgo):
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
                 cmd += f"--validation_data_device {validation_data_device}"
-                _ = subprocess.run(cmd.split(), check=True)
+                _ = subprocess.run(cmd.split(), check=True, env=ps_environ)
             except RuntimeError as e:
-                if "out of memory" in str(e):
-                    return (
-                        float(num_images_per_batch)
-                        * float(num_sw_batch_size)
-                        * device_factor
-                    )
-                else:
-                    raise(e)
+                if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                    raise e
+                print("[error] OOM")
+                return (
+                    float(num_images_per_batch)
+                    * float(num_sw_batch_size)
+                    * device_factor
+                )
 
             value = (
                 -1.0
