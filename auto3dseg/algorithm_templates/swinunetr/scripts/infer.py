@@ -15,6 +15,7 @@ import sys
 from typing import Optional, Sequence, Union
 
 import torch
+
 import monai
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
@@ -25,15 +26,13 @@ from monai.inferers import sliding_window_inference
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 if __package__ in (None, ""):
-    from train import pre_operation, CONFIG
+    from train import CONFIG, pre_operation
 else:
-    from .train import pre_operation, CONFIG
+    from .train import CONFIG, pre_operation
+
 
 class InferClass:
-    def __init__(self,
-                 config_file: Optional[Union[str,
-                                             Sequence[str]]] = None,
-                 **override):
+    def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         pre_operation(config_file, **override)
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -48,12 +47,9 @@ class InferClass:
         data_list_file_path = parser.get_parsed_content("data_list_file_path")
         self.amp = parser.get_parsed_content("amp")
         self.fast = parser.get_parsed_content("infer")["fast"]
-        self.num_sw_batch_size = parser.get_parsed_content(
-            "num_sw_batch_size")
-        self.overlap_ratio_final = parser.get_parsed_content(
-            "overlap_ratio_final")
-        self.patch_size_valid = parser.get_parsed_content(
-            "patch_size_valid")
+        self.num_sw_batch_size = parser.get_parsed_content("num_sw_batch_size")
+        self.overlap_ratio_final = parser.get_parsed_content("overlap_ratio_final")
+        self.patch_size_valid = parser.get_parsed_content("patch_size_valid")
         softmax = parser.get_parsed_content("softmax")
 
         ckpt_name = parser.get_parsed_content("infer")["ckpt_name"]
@@ -63,7 +59,7 @@ class InferClass:
         if not os.path.exists(output_path):
             os.makedirs(output_path, exist_ok=True)
 
-        CONFIG["handlers"]["file"]["filename"] =parser.get_parsed_content("infer")["log_output_file"]
+        CONFIG["handlers"]["file"]["filename"] = parser.get_parsed_content("infer")["log_output_file"]
         logging.config.dictConfig(CONFIG)
         self.infer_transforms = parser.get_parsed_content("transforms_infer")
 
@@ -86,11 +82,8 @@ class InferClass:
 
         self.infer_loader = None
         if self.fast:
-            infer_ds = monai.data.Dataset(
-                data=self.infer_files,
-                transform=self.infer_transforms)
-            self.infer_loader = ThreadDataLoader(
-                infer_ds, num_workers=8, batch_size=1, shuffle=False)
+            infer_ds = monai.data.Dataset(data=self.infer_files, transform=self.infer_transforms)
+            self.infer_loader = ThreadDataLoader(infer_ds, num_workers=8, batch_size=1, shuffle=False)
 
         self.device = torch.device("cuda:0")
 
@@ -110,23 +103,16 @@ class InferClass:
                 orig_meta_keys="image_meta_dict",
                 meta_key_postfix="meta_dict",
                 nearest_interp=False,
-                to_tensor=True),
-            transforms.Activationsd(
-                keys="pred",
-                softmax=softmax,
-                sigmoid=not softmax)]
+                to_tensor=True,
+            ),
+            transforms.Activationsd(keys="pred", softmax=softmax, sigmoid=not softmax),
+        ]
         # return pred probs
         self.post_transforms_prob = transforms.Compose(post_transforms)
         if softmax:
-            post_transforms += [
-                transforms.AsDiscreted(
-                    keys="pred",
-                    argmax=True)]
+            post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
         else:
-            post_transforms += [
-                transforms.AsDiscreted(
-                    keys="pred",
-                    threshold=0.5)]
+            post_transforms += [transforms.AsDiscreted(keys="pred", threshold=0.5)]
 
         post_transforms += [
             transforms.SaveImaged(
@@ -136,14 +122,16 @@ class InferClass:
                 output_postfix="seg",
                 resample=False,
                 data_root_dir=data_file_base_dir,
-                print_log=False)]
+                print_log=False,
+            )
+        ]
         self.post_transforms = transforms.Compose(post_transforms)
 
         return
 
     @torch.no_grad()
     def infer(self, image_file, save_mask=False):
-        """ Infer a single image_file. If save_mask is true, save the argmax prediction to disk. If false,
+        """Infer a single image_file. If save_mask is true, save the argmax prediction to disk. If false,
         do not save and return the probability maps (usually used by autorunner emsembler).
         """
         self.model.eval()
@@ -151,8 +139,7 @@ class InferClass:
         batch_data = list_data_collate([batch_data])
         device_list_input = [self.device, self.device, "cpu"]
         device_list_output = [self.device, "cpu", "cpu"]
-        for _device_in, _device_out in zip(
-                device_list_input, device_list_output):
+        for _device_in, _device_out in zip(device_list_input, device_list_output):
             try:
                 with torch.cuda.amp.autocast(enabled=self.amp):
                     batch_data["pred"] = sliding_window_inference(
@@ -163,13 +150,12 @@ class InferClass:
                         mode="gaussian",
                         overlap=self.overlap_ratio_final,
                         sw_device=self.device,
-                        device=_device_out)
+                        device=_device_out,
+                    )
                 if save_mask:
-                    batch_data = [self.post_transforms(i)
-                                for i in decollate_batch(batch_data)]
+                    batch_data = [self.post_transforms(i) for i in decollate_batch(batch_data)]
                 else:
-                    batch_data = [self.post_transforms_prob(i)
-                                for i in decollate_batch(batch_data)]
+                    batch_data = [self.post_transforms_prob(i) for i in decollate_batch(batch_data)]
                 finished = True
             except RuntimeError as e:
                 if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
@@ -178,7 +164,7 @@ class InferClass:
             if finished:
                 break
         if not finished:
-            raise RuntimeError('Infer not finished due to OOM.')
+            raise RuntimeError("Infer not finished due to OOM.")
         return batch_data[0]["pred"]
 
     @torch.no_grad()
@@ -196,8 +182,7 @@ class InferClass:
                 torch.cuda.empty_cache()
                 device_list_input = [self.device, self.device, "cpu"]
                 device_list_output = [self.device, "cpu", "cpu"]
-                for _device_in, _device_out in zip(
-                        device_list_input, device_list_output):
+                for _device_in, _device_out in zip(device_list_input, device_list_output):
                     try:
                         infer_images = d["image"].to(_device_in)
                         with torch.cuda.amp.autocast(enabled=self.amp):
@@ -209,9 +194,9 @@ class InferClass:
                                 mode="gaussian",
                                 overlap=self.overlap_ratio_final,
                                 sw_device=self.device,
-                                device=_device_out)
-                        d = [self.post_transforms(i)
-                                    for i in decollate_batch(d)]
+                                device=_device_out,
+                            )
+                        d = [self.post_transforms(i) for i in decollate_batch(d)]
                         finished = True
                     except RuntimeError as e:
                         if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
@@ -220,7 +205,7 @@ class InferClass:
                     if finished:
                         break
                 if not finished:
-                    raise RuntimeError('Batch infer not finished due to OOM.')
+                    raise RuntimeError("Batch infer not finished due to OOM.")
         return
 
 

@@ -10,14 +10,14 @@
 # limitations under the License.
 
 import os
+import shutil
 import sys
 import unittest
 
-import torch
 import nibabel as nib
 import numpy as np
+import torch
 from parameterized import parameterized
-import shutil
 
 from monai.apps.auto3dseg import AlgoEnsembleBestN, AlgoEnsembleBuilder, BundleGen, DataAnalyzer
 from monai.bundle.config_parser import ConfigParser
@@ -72,6 +72,7 @@ SIM_TEST_CASES = [
     [{"sim_dim": (32, 32, 32), "modality": "CT", "dints_search": True}],
 ]
 
+
 def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
     """
     Create simulated data using create_test_image_3d.
@@ -95,6 +96,7 @@ def create_sim_data(dataroot, sim_datalist, sim_dim, **kwargs):
             nib_image = nib.Nifti1Image(seg, affine=np.eye(4))
             label_fpath = os.path.join(dataroot, d["label"])
             nib.save(nib_image, label_fpath)
+
 
 def auto_run(work_dir, data_src_cfg, algos, search=False):
     """
@@ -123,7 +125,7 @@ def auto_run(work_dir, data_src_cfg, algos, search=False):
         templates_path_or_url=algo_templates,
         algos=algos,
         data_stats_filename=datastats_file,
-        data_src_cfg_name=data_src_cfg_file
+        data_src_cfg_name=data_src_cfg_file,
     )
     bundle_generator.generate(work_dir, num_fold=1)
     history = bundle_generator.get_history()
@@ -141,10 +143,11 @@ def auto_run(work_dir, data_src_cfg, algos, search=False):
     preds = builder.get_ensemble()(pred_param)
     return preds
 
+
 class TestAlgoTemplates(unittest.TestCase):
     @parameterized.expand(SIM_TEST_CASES)
     def test_sim(self, input_params) -> None:
-        work_dir = os.path.join('./tmp_sim_work_dir')
+        work_dir = os.path.join("./tmp_sim_work_dir")
         if os.path.isdir(work_dir):
             shutil.rmtree(work_dir)  # folders are created by failed tests
         os.makedirs(work_dir)
@@ -159,10 +162,16 @@ class TestAlgoTemplates(unittest.TestCase):
         )
 
         data_src_cfg = {"modality": input_params["modality"], "datalist": datalist_file, "dataroot": dataroot_dir}
-        preds = auto_run(work_dir, data_src_cfg, ["dints", "segresnet", "segresnet2d", "swinunetr"], search=input_params["dints_search"])
+        preds = auto_run(
+            work_dir,
+            data_src_cfg,
+            ["dints", "segresnet", "segresnet2d", "swinunetr"],
+            search=input_params["dints_search"],
+        )
         self.assertTupleEqual(preds[0].shape, (2, sim_dim[0], sim_dim[1], sim_dim[2]))
 
         shutil.rmtree(work_dir)
+
 
 if __name__ == "__main__":
     unittest.main()

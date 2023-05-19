@@ -23,5 +23,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     override["validate#enabled"] = True
     run_segmenter(config_file=config_file, **override)
 
+
 if __name__ == "__main__":
     fire.Fire()

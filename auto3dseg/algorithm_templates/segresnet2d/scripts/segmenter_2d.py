@@ -10,31 +10,34 @@
 # limitations under the License.
 
 
+import copy
 import csv
 import logging
 import os
+import shutil
 import sys
 import time
 import warnings
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
-import copy
+from typing import Any, Callable, Dict, Hashable, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import psutil
-import shutil
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
+
 from monai.apps.auto3dseg.transforms import EnsureSameShaped
 from monai.bundle.config_parser import ConfigParser
+from monai.config import KeysCollection
 from monai.inferers import SlidingWindowInfererAdapt
-
 
 # from monai.optimizers.lr_scheduler import WarmupCosineSchedule
 from monai.transforms import (
     AsDiscreted,
+    CastToTyped,
+    ClassesToIndicesd,
     Compose,
     ConcatItemsd,
     CopyItemsd,
@@ -42,6 +45,7 @@ from monai.transforms import (
     DataStatsd,
     DeleteItemsd,
     EnsureTyped,
+    Identityd,
     Invertd,
     Lambdad,
     LoadImaged,
@@ -59,33 +63,21 @@ from monai.transforms import (
     ScaleIntensityRanged,
     Spacingd,
     SpatialPadd,
-    CastToTyped,
-    ClassesToIndicesd,
-    Identityd
 )
+from monai.transforms.transform import MapTransform
 from monai.utils import MetricReduction, convert_to_dst_type, optional_import, set_determinism
 
-from monai.transforms.transform import MapTransform
-from monai.config import KeysCollection
-from typing import Dict, Hashable, Mapping, List, Optional
-
-import warnings
-import torch
-import time
-import numpy as np
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
-
-
 if __package__ in (None, ""):
-    from segmenter import Segmenter, DataTransformBuilder
+    from segmenter import DataTransformBuilder, Segmenter
 else:
     from .segmenter import Segmenter, DataTransformBuilder
 
 from monai.apps.auto3dseg.auto_runner import logger
+
 print = logger.debug
 
-class WrappedModel2D(torch.nn.Module):
 
+class WrappedModel2D(torch.nn.Module):
     def __init__(self, net, memory_format=torch.preserve_format):
         super().__init__()
         self.net = net
@@ -95,13 +87,12 @@ class WrappedModel2D(torch.nn.Module):
         self.net = self.net.to(memory_format=memory_format)
 
     def reshape2D(self, x):
-        return x.permute(0,4,1,2,3).reshape(-1, x.shape[1], x.shape[2], x.shape[3])
+        return x.permute(0, 4, 1, 2, 3).reshape(-1, x.shape[1], x.shape[2], x.shape[3])
 
     def reshape3D(self, x, sh):
-        return x.reshape(sh[0], sh[4], x.shape[1], x.shape[2], x.shape[3]).permute(0,2,3,4,1)
+        return x.reshape(sh[0], sh[4], x.shape[1], x.shape[2], x.shape[3]).permute(0, 2, 3, 4, 1)
 
     def forward(self, x: torch.Tensor):
-
         # print('WrappedModel2D input', x.shape,  'local', self.memory_format)
         sh = x.shape
         x = self.reshape2D(x)
@@ -121,7 +112,6 @@ class WrappedModel2D(torch.nn.Module):
 
 class DataTransformBuilder2D(DataTransformBuilder):
     def get_resample_transforms(self, resample_label=True):
-
         ts = self.get_custom("resample_transforms")
         if len(ts) > 0:
             return ts
@@ -131,7 +121,11 @@ class DataTransformBuilder2D(DataTransformBuilder):
         extra_keys = list(self.extra_modalities)
 
         if self.extra_options.get("crop_foreground", False) and len(extra_keys) == 0:
-            ts.append(CropForegroundd(keys=keys, source_key=self.image_key, allow_missing_keys=True, margin=10, allow_smaller=True))
+            ts.append(
+                CropForegroundd(
+                    keys=keys, source_key=self.image_key, allow_missing_keys=True, margin=10, allow_smaller=True
+                )
+            )
 
         if self.resample:
             if self.resample_resolution is None:
@@ -141,7 +135,7 @@ class DataTransformBuilder2D(DataTransformBuilder):
             ts.append(
                 Spacingd(
                     keys=keys,
-                    pixdim=pixdim[:2]+[-1,],
+                    pixdim=pixdim[:2] + [-1],
                     mode=mode,
                     dtype=torch.float,
                     min_pixdim=np.array(pixdim) * 0.75,
@@ -151,8 +145,11 @@ class DataTransformBuilder2D(DataTransformBuilder):
             )
 
             if resample_label:
-                ts.append(EnsureSameShaped(keys=self.label_key, source_key=self.image_key, allow_missing_keys=True, warn=self.debug))
-
+                ts.append(
+                    EnsureSameShaped(
+                        keys=self.label_key, source_key=self.image_key, allow_missing_keys=True, warn=self.debug
+                    )
+                )
 
         for extra_key in extra_keys:
             ts.append(ResampleToMatchd(keys=extra_key, key_dst=self.image_key, dtype=np.float32))
@@ -162,7 +159,6 @@ class DataTransformBuilder2D(DataTransformBuilder):
         return ts
 
     def get_augment_transforms(self):
-
         ts = self.get_custom("augment_transforms")
         if len(ts) > 0:
             return ts
@@ -184,9 +180,7 @@ class DataTransformBuilder2D(DataTransformBuilder):
             )
         )
         ts.append(
-            RandGaussianSmoothd(
-                keys=self.image_key, prob=0.2, sigma_x=[0.5, 1.0], sigma_y=[0.5, 1.0], sigma_z=[0, 0]
-            )
+            RandGaussianSmoothd(keys=self.image_key, prob=0.2, sigma_x=[0.5, 1.0], sigma_y=[0.5, 1.0], sigma_z=[0, 0])
         )
         ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=0))
         ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=1))
@@ -197,7 +191,6 @@ class DataTransformBuilder2D(DataTransformBuilder):
         ts.append(RandShiftIntensityd(keys=self.image_key, prob=0.5, offsets=0.1))
         ts.append(RandGaussianNoised(keys=self.image_key, prob=0.2, mean=0.0, std=0.1))
 
-
         ts.extend(self.get_custom("after_augment_transforms"))
 
         return ts
@@ -205,9 +198,13 @@ class DataTransformBuilder2D(DataTransformBuilder):
 
 class Segmenter2D(Segmenter):
     def __init__(
-        self, config_file: Optional[Union[str, Sequence[str]]] = None, config_dict: Dict = {}, rank: int = 0, global_rank: int = 0
+        self,
+        config_file: Optional[Union[str, Sequence[str]]] = None,
+        config_dict: Dict = {},
+        rank: int = 0,
+        global_rank: int = 0,
     ) -> None:
-        super().__init__(config_file=config_file, config_dict=config_dict,  rank=rank, global_rank=global_rank)
+        super().__init__(config_file=config_file, config_dict=config_dict, rank=rank, global_rank=global_rank)
 
         config = self.config
 
@@ -217,26 +214,25 @@ class Segmenter2D(Segmenter):
             self.sliding_inferrer = SlidingWindowInfererAdapt(
                 roi_size=config["roi_size"],
                 sw_batch_size=1,
-                overlap=[0.625 ,0.625, 0],
+                overlap=[0.625, 0.625, 0],
                 mode="gaussian",
                 cache_roi_weight_map=False,
-                progress=False
+                progress=False,
             )
 
-
     # change model to be wrapped 2D
-    def setup_model(self, pretrained_ckpt_name=None):
 
+    def setup_model(self, pretrained_ckpt_name=None):
         config = self.config
 
-        memory_format = torch.channels_last if self.config['channels_last'] else torch.preserve_format
-        self.config['channels_last'] = False
+        memory_format = torch.channels_last if self.config["channels_last"] else torch.preserve_format
+        self.config["channels_last"] = False
 
         model = ConfigParser(config["network"]).get_parsed_content()
 
-        model = WrappedModel2D(model, memory_format=memory_format) #wrap in 2D
+        model = WrappedModel2D(model, memory_format=memory_format)  # wrap in 2D
 
-        if self.global_rank==0:
+        if self.global_rank == 0:
             print(str(model))
 
         if pretrained_ckpt_name is not None:
@@ -258,7 +254,6 @@ class Segmenter2D(Segmenter):
 
     # change augmentations to be 2D
     def get_data_transform_builder(self):
-
         if self._data_transform_builder is None:
             config = self.config
             custom_transforms = self.get_custom_transforms()
@@ -268,33 +263,34 @@ class Segmenter2D(Segmenter):
                 resample=config["resample"],
                 resample_resolution=config["resample_resolution"],
                 normalize_mode=config["normalize_mode"],
-                normalize_params={"intensity_bounds": config["intensity_bounds"],
-                                    "label_dtype": torch.uint8 if config["input_channels"] < 255 else torch.int16},
+                normalize_params={
+                    "intensity_bounds": config["intensity_bounds"],
+                    "label_dtype": torch.uint8 if config["input_channels"] < 255 else torch.int16,
+                },
                 crop_mode=config["crop_mode"],
-                crop_params={"output_classes": config["output_classes"],
-                            "crop_ratios": config["crop_ratios"],
-                            "cache_class_indices": config["cache_class_indices"],
-                            "num_crops_per_image": config["num_crops_per_image"],
-                            "max_samples_per_class": config["max_samples_per_class"]
-                            },
-
+                crop_params={
+                    "output_classes": config["output_classes"],
+                    "crop_ratios": config["crop_ratios"],
+                    "cache_class_indices": config["cache_class_indices"],
+                    "num_crops_per_image": config["num_crops_per_image"],
+                    "max_samples_per_class": config["max_samples_per_class"],
+                },
                 extra_modalities=config["extra_modalities"],
                 custom_transforms=custom_transforms,
-                lazy_verbose = config.get("lazy_verbose" , False),
-                crop_foreground =  config.get("crop_foreground" , True),
+                lazy_verbose=config.get("lazy_verbose", False),
+                crop_foreground=config.get("crop_foreground", True),
             )
 
         return self._data_transform_builder
 
 
 def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]] = None, override: Dict = {}):
-
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     dist_available = dist.is_available()
     global_rank = rank
 
-    if type(config_file) == str and ',' in config_file:
-        config_file = config_file.split(',')
+    if type(config_file) == str and "," in config_file:
+        config_file = config_file.split(",")
 
     if dist_available:
         mgpu = override.get("mgpu", None)
@@ -306,7 +302,6 @@ def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]
                 print(f"Distributed: initializing multi-gpu tcp:// process group {mgpu}")
 
         elif dist_launched():
-
             rank = int(os.getenv("LOCAL_RANK"))
             global_rank = int(os.getenv("RANK"))
             world_size = int(os.getenv("LOCAL_WORLD_SIZE"))
@@ -327,8 +322,10 @@ def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]
 
 
 def dist_launched() -> bool:
-    return dist.is_torchelastic_launched() or \
-            (os.getenv("NGC_ARRAY_SIZE") is not None and int(os.getenv("NGC_ARRAY_SIZE")) > 1)
+    return dist.is_torchelastic_launched() or (
+        os.getenv("NGC_ARRAY_SIZE") is not None and int(os.getenv("NGC_ARRAY_SIZE")) > 1
+    )
+
 
 def run_segmenter(config_file: Optional[Union[str, Sequence[str]]] = None, **kwargs):
     """
@@ -347,7 +344,6 @@ def run_segmenter(config_file: Optional[Union[str, Sequence[str]]] = None, **kwa
 
 
 if __name__ == "__main__":
-
     fire, fire_is_imported = optional_import("fire")
     if fire_is_imported:
         fire.Fire(run_segmenter)

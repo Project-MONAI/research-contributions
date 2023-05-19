@@ -11,18 +11,18 @@
 
 import copy
 import os
+import shutil
 import warnings
 from typing import Optional
-import yaml
 
 import fire
 import numpy as np
-import shutil
+import yaml
 
 from monai.apps.auto3dseg import BundleAlgo
+from monai.apps.auto3dseg.auto_runner import logger
 from monai.bundle import ConfigParser
 
-from monai.apps.auto3dseg.auto_runner import logger
 print = logger.debug
 
 if __package__ in (None, ""):
@@ -47,10 +47,9 @@ class SegresnetAlgo(BundleAlgo):
         if output_path is None:
             raise ValueError("output_path is not provided")
 
-        os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:2048'
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:2048"
 
         if kwargs.pop("fill_with_datastats", True):
-
             config = {"bundle_root": output_path}
 
             if self.data_list_file is None or not os.path.exists(str(self.data_list_file)):
@@ -76,7 +75,6 @@ class SegresnetAlgo(BundleAlgo):
             # else:
             #     config["data_list_file_path"] = data_list_file_path
 
-
             ##########
             if "modality" in input_config:
                 modality = input_config.pop("modality").lower().strip()
@@ -88,12 +86,13 @@ class SegresnetAlgo(BundleAlgo):
                 raise ValueError("Modality must be either CT or MRI, but got" + str(modality))
             config["modality"] = modality
 
-            input_channels = int(data_stats["stats_summary#image_stats#channels#max"]) + len(input_config.get("extra_modalities", {}))
+            input_channels = int(data_stats["stats_summary#image_stats#channels#max"]) + len(
+                input_config.get("extra_modalities", {})
+            )
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
 
             config["input_channels"] = input_channels
             config["output_classes"] = output_classes
-
 
             ###########################################
             sigmoid = input_config.pop("sigmoid", False)
@@ -138,31 +137,34 @@ class SegresnetAlgo(BundleAlgo):
             elif "mr" in modality:
                 config["normalize_mode"] = "meanstd"
 
-
             spacing = input_config.pop("resample_resolution", None)
             resample_mode = input_config.pop("resample_mode", None)
             if resample_mode is None:
-                resample_mode = 'auto'
+                resample_mode = "auto"
 
             if spacing is not None:
-                #if working resolution is provided manually
+                # if working resolution is provided manually
                 pass
-            elif resample_mode=='median':
+            elif resample_mode == "median":
                 spacing = spacing_median
-            elif resample_mode=='median10':
+            elif resample_mode == "median10":
                 spacing = [spacing_median[0], spacing_median[1], spacing_10[2]]
-            elif resample_mode=='ones':
-                spacing=[1., 1., 1.]
-            elif resample_mode=='auto' or resample_mode is None:
-                spacing = [spacing_median[0], spacing_median[1], max(0.5*(spacing_median[0]+spacing_median[1]), float(spacing_10[2])) ]
+            elif resample_mode == "ones":
+                spacing = [1.0, 1.0, 1.0]
+            elif resample_mode == "auto" or resample_mode is None:
+                spacing = [
+                    spacing_median[0],
+                    spacing_median[1],
+                    max(0.5 * (spacing_median[0] + spacing_median[1]), float(spacing_10[2])),
+                ]
             else:
-                raise ValueError('Unsupported resample_mode'+str(resample_mode))
+                raise ValueError("Unsupported resample_mode" + str(resample_mode))
 
             config["resample_resolution"] = spacing
 
-            config["anisotropic_scales"]  = input_config.pop("anisotropic_scales", None)
-            if config["anisotropic_scales"]  is None:
-                config["anisotropic_scales"] =  not (0.75 <= (0.5*(spacing[0]+spacing[1]) / spacing[2]) <= 1.25)
+            config["anisotropic_scales"] = input_config.pop("anisotropic_scales", None)
+            if config["anisotropic_scales"] is None:
+                config["anisotropic_scales"] = not (0.75 <= (0.5 * (spacing[0] + spacing[1]) / spacing[2]) <= 1.25)
 
             ###########################################
             spacing_lower_bound = np.array(data_stats["stats_summary#image_stats#spacing#percentile_00_5"])
@@ -170,7 +172,6 @@ class SegresnetAlgo(BundleAlgo):
             config["spacing_median"] = list(data_stats["stats_summary#image_stats#spacing#median"])
             config["spacing_lower"] = spacing_lower_bound.tolist()
             config["spacing_upper"] = spacing_upper_bound.tolist()
-
 
             ###########################################
             resample = input_config.pop("resample", None)
@@ -183,13 +184,15 @@ class SegresnetAlgo(BundleAlgo):
                     resample = False
             config["resample"] = resample
 
-            print(f"Resampling params: \n"
+            print(
+                f"Resampling params: \n"
                 f"resample {config['resample']} \n"
                 f"resolution {config['resample_resolution']} \n"
                 f"resample_mode {resample_mode} \n"
                 f"anisotropic_scales {config['anisotropic_scales']} \n"
                 f"res bounds {config['spacing_lower']} {config['spacing_upper']} \n"
-                f"modality {modality} \n")
+                f"modality {modality} \n"
+            )
 
             ###########################################
 
@@ -199,7 +202,9 @@ class SegresnetAlgo(BundleAlgo):
             image_size_mm_median = data_stats["stats_summary#image_stats#sizemm#median"]
             image_size_90 = (np.array(image_size_mm_90) / np.array(spacing)).astype(np.int32).tolist()
 
-            print(f"Found sizemm in new datastats median {image_size_mm_median} per90 {image_size_mm_90} n_cases  {n_cases}")
+            print(
+                f"Found sizemm in new datastats median {image_size_mm_median} per90 {image_size_mm_90} n_cases  {n_cases}"
+            )
             print(f"Using avg image size 90 {image_size_90} for resample res {spacing} n_cases {n_cases}")
 
             config["image_size_mm_median"] = image_size_mm_median
@@ -213,16 +218,15 @@ class SegresnetAlgo(BundleAlgo):
 
             ###########################################
 
-
             roi_size, levels, init_filters, batch_size = auto_adjust_network_settings(
-                                            auto_scale_batch = input_config.get("auto_scale_batch", False),
-                                            auto_scale_roi = input_config.get("auto_scale_roi", False),
-                                            auto_scale_filters = input_config.get("auto_scale_filters", False),
-                                            image_size_mm=config["image_size_mm_median"],
-                                            spacing=config["resample_resolution"],
-                                            anisotropic_scales=config["anisotropic_scales"],
-                                            output_classes = config["output_classes"]
-                                        )
+                auto_scale_batch=input_config.get("auto_scale_batch", False),
+                auto_scale_roi=input_config.get("auto_scale_roi", False),
+                auto_scale_filters=input_config.get("auto_scale_filters", False),
+                image_size_mm=config["image_size_mm_median"],
+                spacing=config["resample_resolution"],
+                anisotropic_scales=config["anisotropic_scales"],
+                output_classes=config["output_classes"],
+            )
 
             if input_config.get("roi_size", None):
                 roi_size = input_config.get("roi_size", None)
@@ -231,7 +235,6 @@ class SegresnetAlgo(BundleAlgo):
 
             config["roi_size"] = roi_size
             config["batch_size"] = batch_size
-
 
             print(f"Updating roi_size (divisible) final {roi_size} levels {levels}")
 
@@ -290,17 +293,18 @@ class SegresnetAlgo(BundleAlgo):
     def export_to_disk(self, output_path: str, algo_name: str, **kwargs):
         super().export_to_disk(output_path=output_path, algo_name=algo_name, **kwargs)
 
-        output_path =os.path.join(output_path, algo_name)
+        output_path = os.path.join(output_path, algo_name)
         config = ConfigParser.load_config_file(os.path.join(output_path, "configs/hyper_parameters.yaml"))
 
-        for c in config.get('custom_data_transforms',[]):
+        for c in config.get("custom_data_transforms", []):
             if "transform" in c and "_target_" in c["transform"]:
                 target = c["transform"]["_target_"]
                 target = "/".join(target.split(".")[:-1]) + ".py"
                 print(f"Copying custom transform file {target} into {output_path}")
                 shutil.copy(target, output_path)
             else:
-                raise ValueError("Malformed custom_data_transforms parameter!"+str(c))
+                raise ValueError("Malformed custom_data_transforms parameter!" + str(c))
+
 
 if __name__ == "__main__":
     fire.Fire({"SegresnetAlgo": SegresnetAlgo})

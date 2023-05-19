@@ -30,9 +30,10 @@ from monai.metrics import compute_dice
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 if __package__ in (None, ""):
-    from train import pre_operation, CONFIG
+    from train import CONFIG, pre_operation
 else:
-    from .train import pre_operation, CONFIG
+    from .train import CONFIG, pre_operation
+
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     pre_operation(config_file, **override)
@@ -62,7 +63,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if not os.path.exists(output_path):
         os.makedirs(output_path, exist_ok=True)
 
-    CONFIG["handlers"]["file"]["filename"] =parser.get_parsed_content("validate")["log_output_file"]
+    CONFIG["handlers"]["file"]["filename"] = parser.get_parsed_content("validate")["log_output_file"]
     logging.config.dictConfig(CONFIG)
 
     infer_transforms = parser.get_parsed_content("transforms_infer")
@@ -96,11 +97,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     val_files = files
 
     val_ds = monai.data.Dataset(data=val_files, transform=validate_transforms)
-    val_loader = ThreadDataLoader(
-        val_ds,
-        num_workers=2,
-        batch_size=1,
-        shuffle=False)
+    val_loader = ThreadDataLoader(val_ds, num_workers=2, batch_size=1, shuffle=False)
 
     device = torch.device("cuda:0")
 
@@ -137,7 +134,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 output_dir=output_path,
                 output_postfix="seg",
                 data_root_dir=data_file_base_dir,
-                resample=False)]
+                resample=False,
+            )
+        ]
 
     post_transforms = transforms.Compose(post_transforms)
 
@@ -151,13 +150,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         for val_data in val_loader:
             try:
                 val_filename = val_data["image_meta_dict"]["filename_or_obj"][0]
-            except:
+            except BaseException:
                 val_filename = val_data["image"].meta["filename_or_obj"][0]
             torch.cuda.empty_cache()
             device_list_input = [device, device, "cpu"]
             device_list_output = [device, "cpu", "cpu"]
-            for _device_in, _device_out in zip(
-                    device_list_input, device_list_output):
+            for _device_in, _device_out in zip(device_list_input, device_list_output):
                 try:
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_data["pred"] = sliding_window_inference(
@@ -168,10 +166,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             mode="gaussian",
                             overlap=overlap_ratio_final,
                             sw_device=device,
-                            device=_device_out)
+                            device=_device_out,
+                        )
                     try:
                         val_data = [post_transforms(i) for i in decollate_batch(val_data)]
-                    except:
+                    except BaseException:
                         val_data["pred"] = val_data["pred"].to("cpu")
                         val_data = [post_transforms(i) for i in decollate_batch(val_data)]
                     finished = True
@@ -182,12 +181,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 if finished:
                     break
             if not finished:
-                raise RuntimeError('Validate not finishing due to OOM.')
+                raise RuntimeError("Validate not finishing due to OOM.")
 
             value = compute_dice(
                 y_pred=val_data[0]["pred"],
-                y=val_data[0]['label'][None,...].to(val_data[0]["pred"].device),
-                include_background=not softmax, num_classes=output_classes).to("cpu")
+                y=val_data[0]["label"][None, ...].to(val_data[0]["pred"].device),
+                include_background=not softmax,
+                num_classes=output_classes,
+            ).to("cpu")
             logger.debug(f"{_index + 1} / {len(val_loader)}/ {val_filename}: {value}")
 
             for _c in range(metric_dim):
@@ -200,8 +201,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         metric = metric.tolist()
         for _c in range(metric_dim):
-            logger.debug(
-                f"Evaluation metric - class {_c + 1:d}: {metric[2 * _c] / metric[2 * _c + 1]}")
+            logger.debug(f"Evaluation metric - class {_c + 1:d}: {metric[2 * _c] / metric[2 * _c + 1]}")
         avg_metric = 0
         for _c in range(metric_dim):
             avg_metric += metric[2 * _c] / metric[2 * _c + 1]
@@ -211,8 +211,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         dict_file = {}
         dict_file["acc"] = float(avg_metric)
         for _c in range(metric_dim):
-            dict_file["acc_class" +
-                      str(_c + 1)] = metric[2 * _c] / metric[2 * _c + 1]
+            dict_file["acc_class" + str(_c + 1)] = metric[2 * _c] / metric[2 * _c + 1]
 
         with open(os.path.join(output_path, "summary.yaml"), "w") as out_file:
             yaml.dump(dict_file, stream=out_file)

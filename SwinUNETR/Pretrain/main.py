@@ -32,7 +32,6 @@ def main():
         torch.save(state, checkpoint_dir)
 
     def train(args, global_step, train_loader, val_best, scaler):
-
         model.train()
         loss_train = []
         loss_train_recon = []
