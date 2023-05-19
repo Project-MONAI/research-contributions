@@ -237,7 +237,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
     # pre-operations
-    logger.debug(f"[info] number of GPUs: {torch.cuda.device_count()}")
+    logger.debug(f"number of GPUs: {torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
         logging.getLogger("torch.distributed.distributed_c10d").setLevel(
             logging.WARNING)
@@ -245,7 +245,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         world_size = dist.get_world_size()
     else:
         world_size = 1
-    logger.debug(f"[info] world_size: {world_size}")
+    logger.debug(f"world_size: {world_size}")
 
     pre_operation(config_file, **override)
 
@@ -543,7 +543,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if finetune["activate"] and os.path.isfile(
             finetune["pretrained_ckpt_name"]):
         logger.debug(
-            "[info] fine-tuning pre-trained checkpoint {:s}".format(finetune["pretrained_ckpt_name"]))
+            "fine-tuning pre-trained checkpoint {:s}".format(finetune["pretrained_ckpt_name"]))
         if torch.cuda.device_count() > 1:
             model.module.load_state_dict(
                 torch.load(
@@ -555,14 +555,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     finetune["pretrained_ckpt_name"],
                     map_location=device))
     else:
-        logger.debug("[info] training from scratch")
+        logger.debug("training from scratch")
 
     if amp:
         from torch.cuda.amp import GradScaler, autocast
 
         scaler = GradScaler()
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-            logger.debug("[info] amp enabled")
+            logger.debug("amp enabled")
 
     best_metric = -1
     best_metric_epoch = -1

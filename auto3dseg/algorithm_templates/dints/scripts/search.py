@@ -94,13 +94,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if determ:
         set_determinism(seed=0)
 
-    logger.debug(f"[info] number of GPUs:, {torch.cuda.device_count()}")
+    logger.debug(f"number of GPUs:, {torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
         dist.init_process_group(backend="nccl", init_method="env://")
         world_size = dist.get_world_size()
     else:
         world_size = 1
-    logger.debug(f"[info] world_size:, {world_size}")
+    logger.debug(f"world_size:, {world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
 
@@ -291,7 +291,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         scaler = GradScaler()
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-            logger.debug("[info] amp enabled")
+            logger.debug("amp enabled")
 
     val_interval = num_epochs_per_validation
     best_metric = -1

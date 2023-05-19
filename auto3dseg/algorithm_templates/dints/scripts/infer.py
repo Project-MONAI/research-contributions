@@ -177,7 +177,7 @@ class InferClass:
 
         pretrained_ckpt = torch.load(ckpt_name, map_location=self.device)
         self.model.load_state_dict(pretrained_ckpt)
-        logger.debug(f"[info] checkpoint {ckpt_name:s} loaded")
+        logger.debug(f"checkpoint {ckpt_name:s} loaded")
 
         post_transforms = [
             transforms.Invertd(
@@ -343,10 +343,10 @@ class InferClass:
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     infer_instance = InferClass(config_file, **override)
     if infer_instance.fast:
-        logger.debug("[info] fast mode")
+        logger.debug("fast mode")
         infer_instance.batch_infer()
     else:
-        logger.debug("[info] slow mode")
+        logger.debug("slow mode")
         infer_instance.infer_all()
 
     return

@@ -185,7 +185,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     pretrained_ckpt = torch.load(ckpt_name, map_location=device)
     model.load_state_dict(pretrained_ckpt)
-    logger.debug(f"[info] checkpoint {ckpt_name:s} loaded")
+    logger.debug(f"checkpoint {ckpt_name:s} loaded")
 
     if softmax:
         post_pred = transforms.Compose(
