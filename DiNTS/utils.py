@@ -83,7 +83,6 @@ def parse_monai_specs(component_string):
 
 
 def keep_largest_cc(nda):
-
     labels = measure.label(nda > 0)
     if labels.max() != 0:
         largestCC = labels == np.argmax(np.bincount(labels.flat)[1:]) + 1

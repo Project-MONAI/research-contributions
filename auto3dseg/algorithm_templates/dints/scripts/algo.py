@@ -9,18 +9,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 import os
 import subprocess
 import sys
+from copy import deepcopy
+
+import numpy as np
 import torch
 import yaml
 
-from copy import deepcopy
 from monai.apps.auto3dseg import BundleAlgo
-from monai.bundle import ConfigParser
 from monai.apps.utils import get_logger
-
+from monai.bundle import ConfigParser
 
 logger = get_logger(module_name=__name__)
 
@@ -54,9 +54,7 @@ class DintsAlgo(BundleAlgo):
                 data_stats.update(data_stats_file)
 
             data_src_cfg = ConfigParser(globals=False)
-            if self.data_list_file is not None and os.path.exists(
-                str(self.data_list_file)
-            ):
+            if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
                 data_src_cfg.read_config(self.data_list_file)
 
             hyper_parameters = {"bundle_root": output_path}
@@ -70,19 +68,21 @@ class DintsAlgo(BundleAlgo):
             patch_size = [96, 96, 96]
             max_shape = data_stats["stats_summary#image_stats#shape#max"]
             patch_size = [
-                max(32, shape_k // 32 * 32) if shape_k < p_k else p_k
-                for p_k, shape_k in zip(patch_size, max_shape)
+                max(32, shape_k // 32 * 32) if shape_k < p_k else p_k for p_k, shape_k in zip(patch_size, max_shape)
             ]
+
+            try:
+                if isinstance(data_src_cfg["class_names"], list):
+                    hyper_parameters.update({"class_names": data_src_cfg["class_names"]})
+                    hyper_parameters_search.update({"class_names": data_src_cfg["class_names"]})
+            except BaseException:
+                pass
 
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
 
-            hyper_parameters.update(
-                {"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])}
-            )
-            hyper_parameters.update(
-                {"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])}
-            )
+            hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
+            hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
 
             hyper_parameters.update({"training#patch_size": patch_size})
             hyper_parameters.update({"training#patch_size_valid": patch_size})
@@ -104,16 +104,8 @@ class DintsAlgo(BundleAlgo):
             hyper_parameters.update({"training#resample_to_spacing": spacing})
             hyper_parameters_search.update({"searching#resample_to_spacing": spacing})
 
-            intensity_upper_bound = float(
-                data_stats[
-                    "stats_summary#image_foreground_stats#intensity#percentile_99_5"
-                ]
-            )
-            intensity_lower_bound = float(
-                data_stats[
-                    "stats_summary#image_foreground_stats#intensity#percentile_00_5"
-                ]
-            )
+            intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
+            intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
 
             ct_intensity_xform_train_valid = {
                 "_target_": "Compose",
@@ -131,6 +123,8 @@ class DintsAlgo(BundleAlgo):
                         "_target_": "CropForegroundd",
                         "keys": ["@image_key", "@label_key"],
                         "source_key": "@image_key",
+                        "start_coord_key": None,
+                        "end_coord_key": None,
                     },
                 ],
             }
@@ -147,11 +141,7 @@ class DintsAlgo(BundleAlgo):
                         "b_max": 1.0,
                         "clip": True,
                     },
-                    {
-                        "_target_": "CropForegroundd",
-                        "keys": "@image_key",
-                        "source_key": "@image_key",
-                    },
+                    {"_target_": "CropForegroundd", "keys": "@image_key", "source_key": "@image_key"},
                 ],
             }
 
@@ -163,25 +153,13 @@ class DintsAlgo(BundleAlgo):
             }
 
             if modality.startswith("ct"):
-                transforms_train.update(
-                    {"transforms_train#transforms#5": ct_intensity_xform_train_valid}
-                )
-                transforms_validate.update(
-                    {"transforms_validate#transforms#5": ct_intensity_xform_train_valid}
-                )
-                transforms_infer.update(
-                    {"transforms_infer#transforms#5": ct_intensity_xform_infer}
-                )
+                transforms_train.update({"transforms_train#transforms#2": ct_intensity_xform_train_valid})
+                transforms_validate.update({"transforms_validate#transforms#2": ct_intensity_xform_train_valid})
+                transforms_infer.update({"transforms_infer#transforms#2": ct_intensity_xform_infer})
             else:
-                transforms_train.update(
-                    {"transforms_train#transforms#5": mr_intensity_transform}
-                )
-                transforms_validate.update(
-                    {"transforms_validate#transforms#5": mr_intensity_transform}
-                )
-                transforms_infer.update(
-                    {"transforms_infer#transforms#5": mr_intensity_transform}
-                )
+                transforms_train.update({"transforms_train#transforms#2": mr_intensity_transform})
+                transforms_validate.update({"transforms_validate#transforms#2": mr_intensity_transform})
+                transforms_infer.update({"transforms_infer#transforms#2": mr_intensity_transform})
 
             fill_records = {
                 "hyper_parameters.yaml": hyper_parameters,
@@ -207,33 +185,23 @@ class DintsAlgo(BundleAlgo):
                     parser[k] = deepcopy(v)  # some values are dicts
                 yaml_contents[k] = deepcopy(parser[k])
 
-            for (
-                k,
-                v,
-            ) in kwargs.items():  # override new params that is not in fill_records
+            for k, v in kwargs.items():  # override new params that is not in fill_records
                 if parser.get(k, None) is not None:
                     parser[k] = deepcopy(v)
                     yaml_contents.update({k: parser[k]})
 
-            ConfigParser.export_config_file(
-                parser.get(), file_path, fmt="yaml", default_flow_style=None
-            )
+            ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
 
         # customize parameters for gpu
         if kwargs.pop("gpu_customization", False):
             gpu_customization_specs = kwargs.pop("gpu_customization_specs", {})
             fill_records = self.customize_param_for_gpu(
-                output_path,
-                data_stats_file,
-                fill_records,
-                gpu_customization_specs,
+                output_path, data_stats_file, fill_records, gpu_customization_specs
             )
 
         return fill_records
 
-    def customize_param_for_gpu(
-        self, output_path, data_stats_file, fill_records, gpu_customization_specs
-    ):
+    def customize_param_for_gpu(self, output_path, data_stats_file, fill_records, gpu_customization_specs):
         # optimize batch size for model training
         import optuna
 
@@ -244,9 +212,7 @@ class DintsAlgo(BundleAlgo):
 
         # load customized range
         if "dints" in gpu_customization_specs or "universal" in gpu_customization_specs:
-            specs_section = (
-                "dints" if "dints" in gpu_customization_specs else "universal"
-            )
+            specs_section = "dints" if "dints" in gpu_customization_specs else "universal"
             specs = gpu_customization_specs[specs_section]
 
             if "num_trials" in specs:
@@ -262,30 +228,21 @@ class DintsAlgo(BundleAlgo):
         device_id = np.argmin(mem)
         print(f"[info] device {device_id} in visible GPU list has the minimum memory.")
 
-        mem = min(mem) if type(mem) is list else mem
+        mem = min(mem) if isinstance(mem, list) else mem
         mem = round(float(mem) / 1024.0)
 
         def objective(trial):
             num_images_per_batch = trial.suggest_int(
-                "num_images_per_batch",
-                range_num_images_per_batch[0],
-                range_num_images_per_batch[1],
+                "num_images_per_batch", range_num_images_per_batch[0], range_num_images_per_batch[1]
             )
             num_sw_batch_size = trial.suggest_int(
-                "num_sw_batch_size",
-                range_num_sw_batch_size[0],
-                range_num_sw_batch_size[1],
+                "num_sw_batch_size", range_num_sw_batch_size[0], range_num_sw_batch_size[1]
             )
-            validation_data_device = trial.suggest_categorical(
-                "validation_data_device", ["cpu", "gpu"]
-            )
+            validation_data_device = trial.suggest_categorical("validation_data_device", ["cpu", "gpu"])
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
-            ps_environ = os.environ.copy()  # ensure the CUDA_VISIBLE_DEVICES is copied when used.
 
             try:
-                cmd = "python {0:s}dummy_runner.py ".format(
-                    os.path.join(output_path, "scripts") + os.sep
-                )
+                cmd = "python {0:s}dummy_runner.py ".format(os.path.join(output_path, "scripts") + os.sep)
                 cmd += "--output_path {0:s} ".format(output_path)
                 cmd += "--data_stats_file {0:s} ".format(data_stats_file)
                 cmd += "--device_id {0:d} ".format(device_id)
@@ -293,23 +250,14 @@ class DintsAlgo(BundleAlgo):
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
                 cmd += f"--validation_data_device {validation_data_device}"
-                _ = subprocess.run(cmd.split(), env=ps_environ, check=True)
+                _ = subprocess.run(cmd.split(), check=True)
             except RuntimeError as e:
-                if "out of memory" in str(e):
-                    return (
-                        float(num_images_per_batch)
-                        * float(num_sw_batch_size)
-                        * device_factor
-                    )
-                else:
-                    raise(e)
+                if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                    raise e
+                print("[error] OOM")
+                return float(num_images_per_batch) * float(num_sw_batch_size) * device_factor
 
-            value = (
-                -1.0
-                * float(num_images_per_batch)
-                * float(num_sw_batch_size)
-                * device_factor
-            )
+            value = -1.0 * float(num_images_per_batch) * float(num_sw_batch_size) * device_factor
 
             return value
 
@@ -323,15 +271,9 @@ class DintsAlgo(BundleAlgo):
             study.optimize(objective, n_trials=num_trials)
             trial = study.best_trial
             best_trial = {}
-            best_trial["num_images_per_batch"] = max(
-                int(trial.params["num_images_per_batch"]) - 1, 1
-            )
-            best_trial["num_sw_batch_size"] = max(
-                int(trial.params["num_sw_batch_size"]) - 1, 1
-            )
-            best_trial["validation_data_device"] = trial.params[
-                "validation_data_device"
-            ]
+            best_trial["num_images_per_batch"] = max(int(trial.params["num_images_per_batch"]) - 1, 1)
+            best_trial["num_sw_batch_size"] = max(int(trial.params["num_sw_batch_size"]) - 1, 1)
+            best_trial["validation_data_device"] = trial.params["validation_data_device"]
             best_trial["value"] = int(trial.value)
             with open(opt_result_file, "a") as out_file:
                 yaml.dump({"dints": {"training": best_trial}}, stream=out_file)
@@ -352,13 +294,9 @@ class DintsAlgo(BundleAlgo):
                 {"training#num_sw_batch_size": best_trial["num_sw_batch_size"]}
             )
             if best_trial["validation_data_device"] == "cpu":
-                fill_records["hyper_parameters.yaml"].update(
-                    {"training#sw_input_on_cpu": True}
-                )
+                fill_records["hyper_parameters.yaml"].update({"training#sw_input_on_cpu": True})
             else:
-                fill_records["hyper_parameters.yaml"].update(
-                    {"training#sw_input_on_cpu": False}
-                )
+                fill_records["hyper_parameters.yaml"].update({"training#sw_input_on_cpu": False})
 
             for yaml_file, yaml_contents in fill_records.items():
                 if "hyper_parameters" in yaml_file:
@@ -370,13 +308,11 @@ class DintsAlgo(BundleAlgo):
                         parser[k] = deepcopy(v)
                         yaml_contents[k] = deepcopy(parser[k])
 
-                    ConfigParser.export_config_file(
-                        parser.get(), file_path, fmt="yaml", default_flow_style=None
-                    )
+                    ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
 
         return fill_records
 
-    def train(self, train_params=None):
+    def train(self, train_params=None, device_setting=None, search=False):
         """
         Load the run function in the training script of each model. Training parameter is predefined by the
         algo_config.yaml file, which is pre-filled by the fill_template_config function in the same instance.
@@ -384,6 +320,14 @@ class DintsAlgo(BundleAlgo):
         Args:
             train_params:  to specify the devices using a list of integers: ``{"CUDA_VISIBLE_DEVICES": [1,2,3]}``.
         """
+        if device_setting is not None:
+            self.device_setting.update(device_setting)
+            self.device_setting["n_devices"] = len(str(self.device_setting["CUDA_VISIBLE_DEVICES"]).split(","))
+
+        if train_params is not None and "CUDA_VISIBLE_DEVICES" in train_params:
+            warnings.warn("CUDA_VISIBLE_DEVICES is deprecated from train_params!")
+            train_params.pop("CUDA_VISIBLE_DEVICES")
+
         # searching
         dints_search_params = {}
         params = {}
@@ -397,10 +341,6 @@ class DintsAlgo(BundleAlgo):
 
         output_path = self.fill_records["hyper_parameters.yaml"]["bundle_root"]
         parser = ConfigParser(globals=False)
-        config_search_fname = os.path.join(output_path, "configs", "hyper_parameters_search.yaml")
-        parser.read_config(config_search_fname)
-        allow_search_set = [k for k in parser.get("searching")]
-        allow_search_set_root = [k for k in parser.get()]
 
         parser = ConfigParser(globals=False)
         config_fname = os.path.join(output_path, "configs", "hyper_parameters.yaml")
@@ -408,24 +348,31 @@ class DintsAlgo(BundleAlgo):
         allow_train_set = [k for k in parser.get("training")]
         allow_train_set_root = [k for k in parser.get()]
 
-        allow_search_set_root.append("CUDA_VISIBLE_DEVICES")
         allow_train_set_root.append("CUDA_VISIBLE_DEVICES")
 
         # architecture search
-        for k, v in params.items():
-            if k in allow_search_set_root:
-                dints_search_params.update({k: v})
-            elif k in allow_search_set:
-                dints_search_params.update({"searching#" + k: v})
-            else:
-                logger.info(
-                    f"The keys {k} cannot be found in the {config_search_fname} for architecture search. "
-                    f"Skipped overriding key {k}."
-                )
+        if search:
+            config_search_fname = os.path.join(output_path, "configs", "hyper_parameters_search.yaml")
+            parser.read_config(config_search_fname)
+            allow_search_set = [k for k in parser.get("searching")]
+            allow_search_set_root = [k for k in parser.get()]
 
-        cmd, devices_info = self._create_cmd(dints_search_params)
-        cmd_search = cmd.replace("train.py", "search.py")
-        self._run_cmd(cmd_search, devices_info)
+            allow_search_set_root.append("CUDA_VISIBLE_DEVICES")
+
+            for k, v in params.items():
+                if k in allow_search_set_root:
+                    dints_search_params.update({k: v})
+                elif k in allow_search_set:
+                    dints_search_params.update({"searching#" + k: v})
+                else:
+                    logger.info(
+                        f"The keys {k} cannot be found in the {config_search_fname} for architecture search. "
+                        f"Skipped overriding key {k}."
+                    )
+
+            cmd, devices_info = self._create_cmd(dints_search_params)
+            cmd_search = cmd.replace("train.py", "search.py")
+            self._run_cmd(cmd_search, devices_info)
 
         # training
         dints_train_params = {}
@@ -436,10 +383,10 @@ class DintsAlgo(BundleAlgo):
                 dints_train_params.update({"training#" + k: v})
             else:
                 logger.info(
-                    f"The keys {k} cannot be found in the {config_fname} for training. "
-                    f"Skipped overriding key {k}."
+                    f"The keys {k} cannot be found in the {config_fname} for training. " f"Skipped overriding key {k}."
                 )
         cmd, devices_info = self._create_cmd(dints_train_params)
+        cmd = "OMP_NUM_THREADS=1 " + cmd
         return self._run_cmd(cmd, devices_info)
 
 

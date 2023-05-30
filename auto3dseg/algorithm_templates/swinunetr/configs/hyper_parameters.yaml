@@ -1,66 +1,90 @@
-amp: true
 bundle_root: null
-
-cache_rate: 1
-train_cache_rate: "$@cache_rate"
-validate_cache_rate: "$@cache_rate"
-
-ckpt_path: $@bundle_root + '/model_fold' + str(@fold)
-use_pretrain: true
-pretrained_path: $@bundle_root + '/pretrained_model' + '/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt'
+ckpt_path: "$@bundle_root + '/model_fold' + str(@fold)"
 data_file_base_dir: null
 data_list_file_path: null
-determ: false
-finetune:
-  activate: false
-  pretrained_ckpt_name: $@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'
 fold: 0
-infer:
-  ckpt_name: $@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'
-  data_list_key: testing
-  fast: false
-  output_path: $@bundle_root + '/prediction_' + @infer#data_list_key
-input_channels: 1
-learning_rate: 0.0001
+
+transforms:
+  resample_to_spacing: "$@resample_to_spacing"
+  lazy_resampling: false
+cache_rate: 0
+train_cache_rate: "$@cache_rate"
+validate_cache_rate: "$@cache_rate"
+show_cache_progress: false
+
+auto_scale_allowed: true
+amp: true
+input_channels: null
+learning_rate: 0.0004
+log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/training.log'"
+num_images_per_batch: 2
+num_epochs: null
+auto_scale_max_epochs: 1000
+num_epochs_per_validation: 5
+num_patches_per_image: null
+num_patches_per_iter: null
+num_sw_batch_size: "$@num_patches_per_iter"
+num_workers: 8
+num_workers_validation: 4
+num_cache_workers: 8
+output_classes: null
+n_cases: null
+overlap_ratio: 0.125
+overlap_ratio_final: 0.625
+patch_size: null
+patch_size_valid: null
+random_seed: 0
+resample_to_spacing: null
+sw_input_on_cpu: false
+softmax: true
+valid_at_orig_resolution_at_last: true
+valid_at_orig_resolution_only: false
+use_pretrain: true
+pretrained_path: $@bundle_root + '/pretrained_model' + '/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt'
+adapt_valid_mode: true
+adapt_valid_progress_percentages: [10, 40, 70]
+adapt_valid_num_epochs_per_validation: [5, 5, 5]
+
+early_stop_mode: true
+early_stop_delta: 0
+early_stop_patience: 5
+
 loss:
   _target_: DiceCELoss
-  batch: true
   include_background: true
-  sigmoid: $not @softmax
-  smooth_dr: 1.0e-06
-  smooth_nr: 0
-  softmax: $@softmax
   squared_pred: true
+  smooth_nr: 0
+  smooth_dr: 1.0e-05
+  softmax: $@softmax
+  sigmoid: $not @softmax
   to_onehot_y: $@softmax
-lr_scheduler:
-  _target_: torch.optim.lr_scheduler.StepLR
-  gamma: 0.5
-  optimizer: $@optimizer
-  step_size: $max(@num_epochs // 5, 1)
-num_images_per_batch: 2
-num_epochs: 2000
-num_epochs_per_validation: 20
-num_patches_per_image: 1
-num_sw_batch_size: 1
-num_workers: 2
-num_cache_workers: 8
+
 optimizer:
   _target_: torch.optim.AdamW
-  lr: '@learning_rate'
+  lr: "@learning_rate"
   weight_decay: 1.0e-05
-output_classes: 2
-overlap_ratio: 0.25
-patch_size:
-- 96
-- 96
-- 96
-patch_size_valid:
-- 96
-- 96
-- 96
-resample_to_spacing: null
-softmax: true
+lr_scheduler:
+  _target_: monai.optimizers.WarmupCosineSchedule
+  optimizer: "$@optimizer"
+  warmup_steps: $@num_epochs//100
+  t_total: '$@num_epochs // @num_epochs_per_validation + 1'
+
+# fine-tuning
+finetune:
+  activate: false
+  pretrained_ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
+
+# validation
 validate:
-  ckpt_name: $@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'
-  output_path: $@bundle_root + '/prediction_fold' + str(@fold)
+  ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
   save_mask: true
+  log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/validation.log'"
+  output_path: "$@bundle_root + '/prediction_fold' + str(@fold)"
+
+# inference
+infer:
+  ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
+  fast: false
+  data_list_key: testing
+  log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/inference.log'"
+  output_path: "$@bundle_root + '/prediction_' + @infer#data_list_key"

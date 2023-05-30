@@ -1,0 +1,42 @@
+name: release
+# generating package artefacts from the main branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'The tag to upload this asset into'
+        required: true
+        default: 'algo_templates'
+
+jobs:
+  packaging-algo:
+    if: github.repository == 'Project-MONAI/research-contributions'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        ref: main
+    - name: Algo name
+      id: name
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+    - name: Build ${{ steps.name.outputs.sha_short }}
+      env:
+        release_version: ${{ steps.name.outputs.sha_short }}
+      run: |
+        echo $release_version
+        cd auto3dseg/
+        tar -cvzf "$release_version".tar.gz algorithm_templates
+    - name: Upload ${{ steps.name.outputs.sha_short }}
+      uses: svenstaro/upload-release-action@v2
+      with:
+        tag: ${{ github.event.inputs.tag_name }}
+        file: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz
+        asset_name: ${{ steps.name.outputs.sha_short }}.tar.gz
+        overwrite: false
+    - name: Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ steps.name.outputs.sha_short }}
+        path: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz

@@ -9,16 +9,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 import os
 import subprocess
 import sys
+from copy import deepcopy
+
+import numpy as np
 import torch
 import yaml
 
-from copy import deepcopy
 from monai.apps.auto3dseg import BundleAlgo
+from monai.apps.utils import get_logger
 from monai.bundle import ConfigParser
+
+logger = get_logger(module_name=__name__)
 
 
 def get_mem_from_visible_gpus():
@@ -26,6 +30,33 @@ def get_mem_from_visible_gpus():
     for d in range(torch.cuda.device_count()):
         available_mem_visible_gpus.append(torch.cuda.mem_get_info(device=d)[0])
     return available_mem_visible_gpus
+
+
+def auto_scale(output_classes, n_cases, max_epoch=1000):
+    """Scale batch size based on gpu memory and output class. Includes heuristics."""
+    mem = get_mem_from_visible_gpus()
+    mem = min(mem) if isinstance(mem, list) else mem
+    mem = float(mem) / (1024.0**3)
+    mem = max(1.0, mem - 1.0)
+    # heuristics copied from dints template
+    mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
+    mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
+    # heuristic scaling for swinunetr
+    mem_bs2 = 12 / 6 * mem_bs2
+    mem_bs9 = 12 / 6 * mem_bs9
+    batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+    batch_size = max(int(batch_size), 1)
+
+    # fixed two iters per whole image, each iter with num_patches_per_iter
+    num_patches_per_iter = batch_size
+    num_patches_per_image = batch_size * 2
+    # heuristics for 400k patch iteration. epoch * n_cases * num_patches_per_image = total 400k patch
+    num_epochs = min(max_epoch, int(400000 / n_cases / num_patches_per_image))
+    return {
+        "num_patches_per_iter": num_patches_per_iter,
+        "num_patches_per_image": num_patches_per_image,
+        "num_epochs": num_epochs,
+    }
 
 
 class SwinunetrAlgo(BundleAlgo):
@@ -49,9 +80,7 @@ class SwinunetrAlgo(BundleAlgo):
                 data_stats.update(data_stats_file)
 
             data_src_cfg = ConfigParser(globals=False)
-            if self.data_list_file is not None and os.path.exists(
-                str(self.data_list_file)
-            ):
+            if self.data_list_file is not None and os.path.exists(str(self.data_list_file)):
                 data_src_cfg.read_config(self.data_list_file)
 
             hyper_parameters = {"bundle_root": output_path}
@@ -63,23 +92,21 @@ class SwinunetrAlgo(BundleAlgo):
             patch_size = [96, 96, 96]
             max_shape = data_stats["stats_summary#image_stats#shape#max"]
             patch_size = [
-                max(64, shape_k // 64 * 64) if shape_k < p_k else p_k
-                for p_k, shape_k in zip(patch_size, max_shape)
+                max(64, shape_k // 64 * 64) if shape_k < p_k else p_k for p_k, shape_k in zip(patch_size, max_shape)
             ]
 
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
+            n_cases = data_stats["stats_summary#n_cases"]
+
+            hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
+            hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
 
             hyper_parameters.update({"patch_size": patch_size})
             hyper_parameters.update({"patch_size_valid": patch_size})
-            hyper_parameters.update(
-                {"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])}
-            )
-            hyper_parameters.update(
-                {"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])}
-            )
             hyper_parameters.update({"input_channels": input_channels})
             hyper_parameters.update({"output_classes": output_classes})
+            hyper_parameters.update({"n_cases": n_cases})
 
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]
@@ -88,36 +115,51 @@ class SwinunetrAlgo(BundleAlgo):
             if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
                 spacing = [1.0, 1.0, 1.0]
 
-            min_shape = data_stats["stats_summary#image_stats#shape#min"]
-            # reflection-mode padding requires a minimum image for a given patch size
-            spacing = [
-                min(s / int(patch_size[i] / 3 + 1), spacing[i])
-                for i, s in enumerate(min_shape)
-            ]
-
             hyper_parameters.update({"resample_to_spacing": spacing})
 
-            intensity_upper_bound = float(
-                data_stats[
-                    "stats_summary#image_foreground_stats#intensity#percentile_99_5"
-                ]
-            )
-            intensity_lower_bound = float(
-                data_stats[
-                    "stats_summary#image_foreground_stats#intensity#percentile_00_5"
-                ]
-            )
+            scaled = auto_scale(output_classes, n_cases, max_epoch=1000)
+            hyper_parameters.update({"num_patches_per_iter": scaled["num_patches_per_iter"]})
+            hyper_parameters.update({"num_patches_per_image": scaled["num_patches_per_image"]})
+            hyper_parameters.update({"num_epochs": scaled["num_epochs"]})
 
-            ct_intensity_xform = {
-                "_target_": "ScaleIntensityRanged",
-                "keys": "@image_key",
-                "a_min": intensity_lower_bound,
-                "a_max": intensity_upper_bound,
-                "b_min": 0.0,
-                "b_max": 1.0,
-                "clip": True,
+            intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
+            intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
+            ct_intensity_xform_train_valid = {
+                "_target_": "Compose",
+                "transforms": [
+                    {
+                        "_target_": "ScaleIntensityRanged",
+                        "keys": "@image_key",
+                        "a_min": intensity_lower_bound,
+                        "a_max": intensity_upper_bound,
+                        "b_min": 0.0,
+                        "b_max": 1.0,
+                        "clip": True,
+                    },
+                    {
+                        "_target_": "CropForegroundd",
+                        "keys": ["@image_key", "@label_key"],
+                        "source_key": "@image_key",
+                        "start_coord_key": None,
+                        "end_coord_key": None,
+                    },
+                ],
             }
-
+            ct_intensity_xform_infer = {
+                "_target_": "Compose",
+                "transforms": [
+                    {
+                        "_target_": "ScaleIntensityRanged",
+                        "keys": "@image_key",
+                        "a_min": intensity_lower_bound,
+                        "a_max": intensity_upper_bound,
+                        "b_min": 0.0,
+                        "b_max": 1.0,
+                        "clip": True,
+                    },
+                    {"_target_": "CropForegroundd", "keys": "@image_key", "source_key": "@image_key"},
+                ],
+            }
             mr_intensity_transform = {
                 "_target_": "NormalizeIntensityd",
                 "keys": "@image_key",
@@ -126,25 +168,13 @@ class SwinunetrAlgo(BundleAlgo):
             }
 
             if modality.startswith("ct"):
-                transforms_train.update(
-                    {"transforms_train#transforms#5": ct_intensity_xform}
-                )
-                transforms_validate.update(
-                    {"transforms_validate#transforms#5": ct_intensity_xform}
-                )
-                transforms_infer.update(
-                    {"transforms_infer#transforms#5": ct_intensity_xform}
-                )
+                transforms_train.update({"transforms_train#transforms#2": ct_intensity_xform_train_valid})
+                transforms_validate.update({"transforms_validate#transforms#2": ct_intensity_xform_train_valid})
+                transforms_infer.update({"transforms_infer#transforms#2": ct_intensity_xform_infer})
             else:
-                transforms_train.update(
-                    {"transforms_train#transforms#5": mr_intensity_transform}
-                )
-                transforms_validate.update(
-                    {"transforms_validate#transforms#5": mr_intensity_transform}
-                )
-                transforms_infer.update(
-                    {"transforms_infer#transforms#5": mr_intensity_transform}
-                )
+                transforms_train.update({"transforms_train#transforms#2": mr_intensity_transform})
+                transforms_validate.update({"transforms_validate#transforms#2": mr_intensity_transform})
+                transforms_infer.update({"transforms_infer#transforms#2": mr_intensity_transform})
 
             fill_records = {
                 "hyper_parameters.yaml": hyper_parameters,
@@ -174,25 +204,18 @@ class SwinunetrAlgo(BundleAlgo):
                     parser[k] = deepcopy(v)
                     yaml_contents.update({k: parser[k]})
 
-            ConfigParser.export_config_file(
-                parser.get(), file_path, fmt="yaml", default_flow_style=None
-            )
+            ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
 
         # customize parameters for gpu
         if kwargs.pop("gpu_customization", False):
             gpu_customization_specs = kwargs.pop("gpu_customization_specs", {})
             fill_records = self.customize_param_for_gpu(
-                output_path,
-                data_stats_file,
-                fill_records,
-                gpu_customization_specs,
+                output_path, data_stats_file, fill_records, gpu_customization_specs
             )
 
         return fill_records
 
-    def customize_param_for_gpu(
-        self, output_path, data_stats_file, fill_records, gpu_customization_specs
-    ):
+    def customize_param_for_gpu(self, output_path, data_stats_file, fill_records, gpu_customization_specs):
         # optimize batch size for model training
         import optuna
 
@@ -202,13 +225,8 @@ class SwinunetrAlgo(BundleAlgo):
         range_num_sw_batch_size = [1, 40]
 
         # load customized range
-        if (
-            "swunetr" in gpu_customization_specs
-            or "universal" in gpu_customization_specs
-        ):
-            specs_section = (
-                "swunetr" if "swunetr" in gpu_customization_specs else "universal"
-            )
+        if "swunetr" in gpu_customization_specs or "universal" in gpu_customization_specs:
+            specs_section = "swunetr" if "swunetr" in gpu_customization_specs else "universal"
             specs = gpu_customization_specs[specs_section]
 
             if "num_trials" in specs:
@@ -222,32 +240,24 @@ class SwinunetrAlgo(BundleAlgo):
 
         mem = get_mem_from_visible_gpus()
         device_id = np.argmin(mem)
-        print(f"[info] device {device_id} in visible GPU list has the minimum memory.")
+        print(f"[debug] device {device_id} in visible GPU list has the minimum memory.")
 
-        mem = min(mem) if type(mem) is list else mem
+        mem = min(mem) if isinstance(mem, list) else mem
         mem = round(float(mem) / 1024.0)
 
         def objective(trial):
             num_images_per_batch = trial.suggest_int(
-                "num_images_per_batch",
-                range_num_images_per_batch[0],
-                range_num_images_per_batch[1],
+                "num_images_per_batch", range_num_images_per_batch[0], range_num_images_per_batch[1]
             )
             num_sw_batch_size = trial.suggest_int(
-                "num_sw_batch_size",
-                range_num_sw_batch_size[0],
-                range_num_sw_batch_size[1],
+                "num_sw_batch_size", range_num_sw_batch_size[0], range_num_sw_batch_size[1]
             )
-            validation_data_device = trial.suggest_categorical(
-                "validation_data_device", ["cpu", "gpu"]
-            )
+            validation_data_device = trial.suggest_categorical("validation_data_device", ["cpu", "gpu"])
             device_factor = 2.0 if validation_data_device == "gpu" else 1.0
-            ps_environ = os.environ.copy()  # ensure the CUDA_VISIBLE_DEVICES is copied when used.
+            ps_environ = os.environ.copy()
 
             try:
-                cmd = "python {0:s}dummy_runner.py ".format(
-                    os.path.join(output_path, "scripts") + os.sep
-                )
+                cmd = "python {0:s}dummy_runner.py ".format(os.path.join(output_path, "scripts") + os.sep)
                 cmd += "--output_path {0:s} ".format(output_path)
                 cmd += "--data_stats_file {0:s} ".format(data_stats_file)
                 cmd += "--device_id {0:d} ".format(device_id)
@@ -255,23 +265,14 @@ class SwinunetrAlgo(BundleAlgo):
                 cmd += f"--num_images_per_batch {num_images_per_batch} "
                 cmd += f"--num_sw_batch_size {num_sw_batch_size} "
                 cmd += f"--validation_data_device {validation_data_device}"
-                _ = subprocess.run(cmd.split(), env=ps_environ, check=True)
+                _ = subprocess.run(cmd.split(), check=True, env=ps_environ)
             except RuntimeError as e:
-                if "out of memory" in str(e):
-                    return (
-                        float(num_images_per_batch)
-                        * float(num_sw_batch_size)
-                        * device_factor
-                    )
-                else:
-                    raise(e)
+                if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                    raise e
+                print("[error] OOM")
+                return float(num_images_per_batch) * float(num_sw_batch_size) * device_factor
 
-            value = (
-                -1.0
-                * float(num_images_per_batch)
-                * float(num_sw_batch_size)
-                * device_factor
-            )
+            value = -1.0 * float(num_images_per_batch) * float(num_sw_batch_size) * device_factor
 
             return value
 
@@ -285,15 +286,9 @@ class SwinunetrAlgo(BundleAlgo):
             study.optimize(objective, n_trials=num_trials)
             trial = study.best_trial
             best_trial = {}
-            best_trial["num_images_per_batch"] = max(
-                int(trial.params["num_images_per_batch"]) - 1, 1
-            )
-            best_trial["num_sw_batch_size"] = max(
-                int(trial.params["num_sw_batch_size"]) - 1, 1
-            )
-            best_trial["validation_data_device"] = trial.params[
-                "validation_data_device"
-            ]
+            best_trial["num_images_per_batch"] = max(int(trial.params["num_images_per_batch"]) - 1, 1)
+            best_trial["num_sw_batch_size"] = max(int(trial.params["num_sw_batch_size"]) - 1, 1)
+            best_trial["validation_data_device"] = trial.params["validation_data_device"]
             best_trial["value"] = int(trial.value)
             with open(opt_result_file, "a") as out_file:
                 yaml.dump({"swunetr": best_trial}, stream=out_file)
@@ -307,12 +302,8 @@ class SwinunetrAlgo(BundleAlgo):
             best_trial = best_trial["swunetr"]
 
         if best_trial["value"] < 0:
-            fill_records["hyper_parameters.yaml"].update(
-                {"num_images_per_batch": best_trial["num_images_per_batch"]}
-            )
-            fill_records["hyper_parameters.yaml"].update(
-                {"num_sw_batch_size": best_trial["num_sw_batch_size"]}
-            )
+            fill_records["hyper_parameters.yaml"].update({"num_images_per_batch": best_trial["num_images_per_batch"]})
+            fill_records["hyper_parameters.yaml"].update({"num_sw_batch_size": best_trial["num_sw_batch_size"]})
             if best_trial["validation_data_device"] == "cpu":
                 fill_records["hyper_parameters.yaml"].update({"sw_input_on_cpu": True})
             else:
@@ -328,9 +319,7 @@ class SwinunetrAlgo(BundleAlgo):
                         parser[k] = deepcopy(v)
                         yaml_contents[k] = deepcopy(parser[k])
 
-                    ConfigParser.export_config_file(
-                        parser.get(), file_path, fmt="yaml", default_flow_style=None
-                    )
+                    ConfigParser.export_config_file(parser.get(), file_path, fmt="yaml", default_flow_style=None)
 
         return fill_records
 
