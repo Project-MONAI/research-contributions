@@ -227,8 +227,6 @@ class DataTransformBuilder:
                     keys=keys, source_key=self.image_key, allow_missing_keys=True, margin=10, allow_smaller=True
                 )
             )
-            if self.lazy_evaluation:
-                ts.append(Identityd(keys=keys))
 
         if self.resample:
             if self.resample_resolution is None:
@@ -326,8 +324,6 @@ class DataTransformBuilder:
                 max_samples_per_class = None
             indices_key = None
 
-            if self.lazy_evaluation:
-                ts.append(Identityd(keys=[self.label_key]))
 
             if cache_class_indices:
                 ts.append(
@@ -390,9 +386,6 @@ class DataTransformBuilder:
         ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=0))
         ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=1))
         ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=2))
-        if self.lazy_evaluation:
-            ts.append(Identityd(keys=[self.image_key, self.label_key]))
-
         ts.append(
             RandGaussianSmoothd(
                 keys=self.image_key, prob=0.2, sigma_x=[0.5, 1.0], sigma_y=[0.5, 1.0], sigma_z=[0.5, 1.0]
@@ -461,15 +454,8 @@ class DataTransformBuilder:
         ts.extend(self.get_final_transforms())
 
         if self.lazy_evaluation:  # experimental
-            compose_ts = Compose(
-                ts,
-                lazy_evaluation=True,
-                verbose=self.lazy_verbose,
-                override_keys=[self.image_key, self.label_key],
-                overrides=dict(mode=["bilinear", "nearest"], padding_mode=["border", "border"], dtype=torch.float32),
-            )
-        else:
-            compose_ts = Compose(ts)
+            warnings.warn("Lazy evaluation is not currently enabled.")
+        compose_ts = Compose(ts)
 
         return compose_ts
 

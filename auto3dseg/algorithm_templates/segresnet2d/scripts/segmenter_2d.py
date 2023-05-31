@@ -184,9 +184,6 @@ class DataTransformBuilder2D(DataTransformBuilder):
         )
         ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=0))
         ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=1))
-        if self.lazy_evaluation:
-            ts.append(Identityd(keys=[self.image_key, self.label_key]))
-
         ts.append(RandScaleIntensityd(keys=self.image_key, prob=0.5, factors=0.3))
         ts.append(RandShiftIntensityd(keys=self.image_key, prob=0.5, offsets=0.1))
         ts.append(RandGaussianNoised(keys=self.image_key, prob=0.2, mean=0.0, std=0.1))
