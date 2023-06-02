@@ -88,7 +88,7 @@ class InferClass:
 
         try:
             device = f"cuda:{dist.get_rank()}"
-        except:
+        except BaseException:
             device = f"cuda:0"
         self.device = device
 
@@ -146,7 +146,7 @@ class InferClass:
         device_list_output = [self.device, "cpu", "cpu"]
         for _device_in, _device_out in zip(device_list_input, device_list_output):
             try:
-                logger.debug(f'Working on {image_file} on device {_device_in}/{_device_out} in/out.')
+                logger.debug(f"Working on {image_file} on device {_device_in}/{_device_out} in/out.")
                 with torch.cuda.amp.autocast(enabled=self.amp):
                     batch_data["pred"] = sliding_window_inference(
                         inputs=batch_data["image"].to(_device_in),
@@ -171,7 +171,7 @@ class InferClass:
                 break
         if not finished:
             raise RuntimeError("Infer not finished due to OOM.")
-        logger.debug(f'{image_file} fininshed.')
+        logger.debug(f"{image_file} fininshed.")
         return batch_data[0]["pred"]
 
     @torch.no_grad()
