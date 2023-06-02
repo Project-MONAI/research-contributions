@@ -324,7 +324,6 @@ class DataTransformBuilder:
                 max_samples_per_class = None
             indices_key = None
 
-
             if cache_class_indices:
                 ts.append(
                     ClassesToIndicesd(

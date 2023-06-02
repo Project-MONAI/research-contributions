@@ -15,6 +15,7 @@ import sys
 from typing import Optional, Sequence, Union
 
 import torch
+import torch.distributed as dist
 
 import monai
 from monai import transforms
@@ -85,7 +86,11 @@ class InferClass:
             infer_ds = monai.data.Dataset(data=self.infer_files, transform=self.infer_transforms)
             self.infer_loader = ThreadDataLoader(infer_ds, num_workers=8, batch_size=1, shuffle=False)
 
-        self.device = torch.device("cuda:0")
+        try:
+            device = f"cuda:{dist.get_rank()}"
+        except BaseException:
+            device = f"cuda:0"
+        self.device = device
 
         self.model = parser.get_parsed_content("network")
         self.model = self.model.to(self.device)
@@ -141,6 +146,7 @@ class InferClass:
         device_list_output = [self.device, "cpu", "cpu"]
         for _device_in, _device_out in zip(device_list_input, device_list_output):
             try:
+                logger.debug(f"Working on {image_file} on device {_device_in}/{_device_out} in/out.")
                 with torch.cuda.amp.autocast(enabled=self.amp):
                     batch_data["pred"] = sliding_window_inference(
                         inputs=batch_data["image"].to(_device_in),
@@ -165,6 +171,7 @@ class InferClass:
                 break
         if not finished:
             raise RuntimeError("Infer not finished due to OOM.")
+        logger.debug(f"{image_file} fininshed.")
         return batch_data[0]["pred"]
 
     @torch.no_grad()
