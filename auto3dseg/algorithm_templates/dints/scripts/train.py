@@ -268,18 +268,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     CONFIG["handlers"]["file"]["filename"] = log_output_file
     logging.config.dictConfig(CONFIG)
 
-    datalist = ConfigParser.load_config_file(data_list_file_path)
-
-    list_train = []
-    list_valid = []
-    for item in datalist["training"]:
-        if item["fold"] == fold:
-            item.pop("fold", None)
-            list_valid.append(item)
-        else:
-            item.pop("fold", None)
-            list_train.append(item)
-
     train_files, val_files = datafold_read(
         datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold
     )

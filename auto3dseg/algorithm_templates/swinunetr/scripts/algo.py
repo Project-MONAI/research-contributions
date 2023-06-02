@@ -95,6 +95,13 @@ class SwinunetrAlgo(BundleAlgo):
                 max(64, shape_k // 64 * 64) if shape_k < p_k else p_k for p_k, shape_k in zip(patch_size, max_shape)
             ]
 
+            try:
+                if isinstance(data_src_cfg["sigmoid"], bool) and data_src_cfg["sigmoid"] == True:
+                    hyper_parameters.update({"training#softmax": False})
+                    hyper_parameters_search.update({"searching#softmax": False})
+            except BaseException:
+                pass
+
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
             n_cases = data_stats["stats_summary#n_cases"]

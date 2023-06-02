@@ -142,7 +142,11 @@ class InferClass:
             infer_ds = monai.data.Dataset(data=self.infer_files, transform=self.infer_transforms)
             self.infer_loader = ThreadDataLoader(infer_ds, num_workers=8, batch_size=1, shuffle=False)
 
-        self.device = torch.device("cuda:0")
+        try:
+            device = f"cuda:{dist.get_rank()}"
+        except BaseException:
+            device = f"cuda:0"
+        self.device = device
 
         self.model = parser.get_parsed_content("training_network#network")
         self.model = self.model.to(self.device)
