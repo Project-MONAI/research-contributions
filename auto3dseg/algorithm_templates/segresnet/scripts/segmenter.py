@@ -1561,7 +1561,7 @@ class Segmenter:
             )
 
         if self.global_rank == 0:
-            print("testing_files files {len(testing_files)}")
+            print(f"testing_files files {len(testing_files)}")
 
         if len(testing_files) == 0:
             warnings.warn("No testing_files files found!")
