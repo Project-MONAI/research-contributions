@@ -78,6 +78,13 @@ class DintsAlgo(BundleAlgo):
             except BaseException:
                 pass
 
+            try:
+                if isinstance(data_src_cfg["sigmoid"], bool) and data_src_cfg["sigmoid"] == True:
+                    hyper_parameters.update({"training#softmax": False})
+                    hyper_parameters_search.update({"searching#softmax": False})
+            except BaseException:
+                pass
+
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
 

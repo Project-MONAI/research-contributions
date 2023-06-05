@@ -15,10 +15,12 @@ import sys
 from typing import Optional, Sequence, Union
 
 import torch
+import torch.distributed as dist
 
 import monai
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
+from monai.auto3dseg.utils import datafold_read
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch, list_data_collate
@@ -63,29 +65,21 @@ class InferClass:
         logging.config.dictConfig(CONFIG)
         self.infer_transforms = parser.get_parsed_content("transforms_infer")
 
-        datalist = ConfigParser.load_config_file(data_list_file_path)
-
-        list_data = []
-        for item in datalist[data_list_key]:
-            list_data.append(item)
-
-        files = []
-        for _i in range(len(list_data)):
-            str_img = os.path.join(data_file_base_dir, list_data[_i]["image"])
-
-            if not os.path.exists(str_img):
-                continue
-
-            files.append({"image": str_img})
-
-        self.infer_files = files
+        testing_files, _ = datafold_read(
+            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key="testing"
+        )
+        self.infer_files = testing_files
 
         self.infer_loader = None
         if self.fast:
             infer_ds = monai.data.Dataset(data=self.infer_files, transform=self.infer_transforms)
             self.infer_loader = ThreadDataLoader(infer_ds, num_workers=8, batch_size=1, shuffle=False)
 
-        self.device = torch.device("cuda:0")
+        try:
+            device = f"cuda:{dist.get_rank()}"
+        except BaseException:
+            device = f"cuda:0"
+        self.device = device
 
         self.model = parser.get_parsed_content("network")
         self.model = self.model.to(self.device)
@@ -141,6 +135,7 @@ class InferClass:
         device_list_output = [self.device, "cpu", "cpu"]
         for _device_in, _device_out in zip(device_list_input, device_list_output):
             try:
+                logger.debug(f"Working on {image_file} on device {_device_in}/{_device_out} in/out.")
                 with torch.cuda.amp.autocast(enabled=self.amp):
                     batch_data["pred"] = sliding_window_inference(
                         inputs=batch_data["image"].to(_device_in),
@@ -165,6 +160,7 @@ class InferClass:
                 break
         if not finished:
             raise RuntimeError("Infer not finished due to OOM.")
+        logger.debug(f"{image_file} fininshed.")
         return batch_data[0]["pred"]
 
     @torch.no_grad()
