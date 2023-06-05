@@ -15,6 +15,7 @@ import sys
 from typing import Optional, Sequence, Union
 
 import torch
+import torch.distributed as dist
 
 import monai
 from monai import transforms
