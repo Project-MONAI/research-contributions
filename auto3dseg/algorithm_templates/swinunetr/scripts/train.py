@@ -38,6 +38,7 @@ from monai import transforms
 from monai.apps import download_url
 from monai.apps.auto3dseg.auto_runner import logger
 from monai.apps.utils import DEFAULT_FMT
+from monai.auto3dseg.utils import datafold_read
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import DataLoader, partition_dataset
@@ -217,29 +218,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logger.debug(f"Number of GPUs: {torch.cuda.device_count()}")
     logger.debug(f"World_size: {world_size}")
 
-    datalist = ConfigParser.load_config_file(data_list_file_path)
+    train_files, val_files = datafold_read(
+        datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold
+    )
 
-    list_train = []
-    list_valid = []
-    for item in datalist["training"]:
-        if item["fold"] == fold:
-            item.pop("fold", None)
-            list_valid.append(item)
-        else:
-            item.pop("fold", None)
-            list_train.append(item)
-
-    files = []
-    for _i in range(len(list_train)):
-        str_img = os.path.join(data_file_base_dir, list_train[_i]["image"])
-        str_seg = os.path.join(data_file_base_dir, list_train[_i]["label"])
-
-        if (not os.path.exists(str_img)) or (not os.path.exists(str_seg)):
-            continue
-
-        files.append({"image": str_img, "label": str_seg})
-
-    train_files = files
     random.shuffle(train_files)
 
     if torch.cuda.device_count() > 1:
@@ -247,18 +229,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             dist.get_rank()
         ]
     logger.debug(f"Train_files: {len(train_files)}")
-
-    files = []
-    for _i in range(len(list_valid)):
-        str_img = os.path.join(data_file_base_dir, list_valid[_i]["image"])
-        str_seg = os.path.join(data_file_base_dir, list_valid[_i]["label"])
-
-        if (not os.path.exists(str_img)) or (not os.path.exists(str_seg)):
-            continue
-
-        files.append({"image": str_img, "label": str_seg})
-
-    val_files = files
 
     if torch.cuda.device_count() > 1:
         if len(val_files) < world_size:

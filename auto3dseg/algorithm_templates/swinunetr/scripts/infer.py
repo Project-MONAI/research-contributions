@@ -20,6 +20,7 @@ import torch.distributed as dist
 import monai
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
+from monai.auto3dseg.utils import datafold_read
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch, list_data_collate
@@ -64,22 +65,10 @@ class InferClass:
         logging.config.dictConfig(CONFIG)
         self.infer_transforms = parser.get_parsed_content("transforms_infer")
 
-        datalist = ConfigParser.load_config_file(data_list_file_path)
-
-        list_data = []
-        for item in datalist[data_list_key]:
-            list_data.append(item)
-
-        files = []
-        for _i in range(len(list_data)):
-            str_img = os.path.join(data_file_base_dir, list_data[_i]["image"])
-
-            if not os.path.exists(str_img):
-                continue
-
-            files.append({"image": str_img})
-
-        self.infer_files = files
+        testing_files, _ = datafold_read(
+            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key="testing"
+        )
+        self.infer_files = testing_files
 
         self.infer_loader = None
         if self.fast:
