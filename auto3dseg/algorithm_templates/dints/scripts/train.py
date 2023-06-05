@@ -228,6 +228,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     class_names = None
     try:
         class_names = parser.get_parsed_content("class_names")
+        if isinstance(class_names[0], dict):
+            class_names = [class_names[_i]["name"] for _i in range(len(class_names))]
     except BaseException:
         pass
 
