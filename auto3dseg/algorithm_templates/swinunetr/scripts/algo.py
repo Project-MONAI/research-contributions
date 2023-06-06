@@ -96,9 +96,8 @@ class SwinunetrAlgo(BundleAlgo):
             ]
 
             try:
-                if isinstance(data_src_cfg["sigmoid"], bool) and data_src_cfg["sigmoid"] == True:
-                    hyper_parameters.update({"training#softmax": False})
-                    hyper_parameters_search.update({"searching#softmax": False})
+                if isinstance(data_src_cfg["sigmoid"], bool) and data_src_cfg["sigmoid"]:
+                    hyper_parameters.update({"softmax": False})
             except BaseException:
                 pass
 
