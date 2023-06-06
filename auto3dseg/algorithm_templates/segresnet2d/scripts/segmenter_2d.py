@@ -237,7 +237,7 @@ class Segmenter2D(Segmenter):
 
         model = model.to(self.device)
 
-        if self.distributed:
+        if self.distributed and not config["infer"]["enabled"]:
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
             model = DistributedDataParallel(
                 module=model, device_ids=[self.rank], output_device=self.rank, find_unused_parameters=False
