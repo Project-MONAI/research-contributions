@@ -96,7 +96,7 @@ class SwinunetrAlgo(BundleAlgo):
             ]
 
             try:
-                if isinstance(data_src_cfg["sigmoid"], bool) and data_src_cfg["sigmoid"] == True:
+                if isinstance(data_src_cfg["sigmoid"], bool) and data_src_cfg["sigmoid"]:
                     hyper_parameters.update({"softmax": False})
             except BaseException:
                 pass
