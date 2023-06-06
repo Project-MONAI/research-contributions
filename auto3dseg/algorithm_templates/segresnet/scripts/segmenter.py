@@ -661,7 +661,7 @@ class Segmenter:
             memory_format = torch.channels_last_3d if config["channels_last"] else torch.preserve_format
             model = model.to(memory_format=memory_format)
 
-        if self.distributed:
+        if self.distributed and not config["infer"]["enabled"]:
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
             model = DistributedDataParallel(
                 module=model, device_ids=[self.rank], output_device=self.rank, find_unused_parameters=False
