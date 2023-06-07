@@ -86,17 +86,24 @@ def pre_operation(config_file, **override):
                     mem = min(mem) if isinstance(mem, list) else mem
                     mem = float(mem) / (1024.0**3)
                     mem = max(1.0, mem - 1.0)
-                    mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
-                    mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
-                    batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+                    mem_bs2 = 6.0 + (20.0 - 6.0) * \
+                        (output_classes - 2) / (105 - 2)
+                    mem_bs9 = 24.0 + (74.0 - 24.0) * \
+                        (output_classes - 2) / (105 - 2)
+                    batch_size = 2 + (9 - 2) * \
+                        (mem - mem_bs2) / (mem_bs9 - mem_bs2)
                     batch_size = int(batch_size)
                     batch_size = max(batch_size, 1)
 
-                    parser["training"].update({"num_patches_per_iter": batch_size})
-                    parser["training"].update({"num_patches_per_image": 2 * batch_size})
-                    parser["training"].update({"num_epochs": int(400.0 / float(batch_size))})
+                    parser["training"].update(
+                        {"num_patches_per_iter": batch_size})
+                    parser["training"].update(
+                        {"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update(
+                        {"num_epochs": int(400.0 / float(batch_size))})
 
-                    ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
+                    ConfigParser.export_config_file(
+                        parser.get(), _file, fmt="yaml", default_flow_style=None)
 
     return
 
@@ -144,10 +151,32 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         ]
     )
 
-    _, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
+    if (
+        "class_names" in parser
+        and isinstance(parser["class_names"], list)
+        and "index" in parser["class_names"][0]
+    ):
+        class_index = [x["index"] for x in parser["class_names"]]
+
+        validate_transforms = transforms.Compose(
+            [
+                validate_transforms,
+                transforms.Lambdad(
+                    keys="label",
+                    func=lambda x: torch.cat([sum([x == i for i in c]) for c in class_index], dim=0).to(dtype=x.dtype)
+                )
+            ]
+        )
+
+    _, val_files = datafold_read(
+        datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
 
     val_ds = monai.data.Dataset(data=val_files, transform=validate_transforms)
-    val_loader = ThreadDataLoader(val_ds, num_workers=2, batch_size=1, shuffle=False)
+    val_loader = ThreadDataLoader(
+        val_ds,
+        num_workers=2,
+        batch_size=1,
+        shuffle=False)
 
     device = torch.device("cuda:0")
 
@@ -159,7 +188,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logger.debug(f"checkpoint {ckpt_name:s} loaded")
 
     if softmax:
-        post_pred = transforms.Compose([transforms.EnsureType(), transforms.AsDiscrete(to_onehot=None)])
+        post_pred = transforms.Compose(
+            [transforms.EnsureType(), transforms.AsDiscrete(to_onehot=None)])
     else:
         post_pred = transforms.Compose([transforms.EnsureType()])
 
@@ -222,7 +252,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             device_list_input = [device, device, "cpu"]
             device_list_output = [device, "cpu", "cpu"]
 
-            for _device_in, _device_out in zip(device_list_input, device_list_output):
+            for _device_in, _device_out in zip(
+                    device_list_input, device_list_output):
                 try:
                     val_images = val_data["image"].to(_device_in)
                     val_labels = val_data["label"].to(_device_out)
@@ -259,7 +290,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             val_labels = val_labels.cpu()
             torch.cuda.empty_cache()
 
-            val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
+            val_data = [post_transforms(i)
+                        for i in monai.data.decollate_batch(val_data)]
 
             val_outputs = post_pred(val_data[0]["pred"])
             val_outputs = val_outputs[None, ...]
@@ -268,11 +300,15 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 val_labels = val_labels.int()
                 value = torch.zeros(1, metric_dim)
                 for _k in range(1, metric_dim + 1):
-                    value[0, _k - 1] = compute_dice(
-                        y_pred=(val_outputs == _k).float(), y=(val_labels == _k).float(), include_background=not softmax
-                    )
+                    value[0,
+                          _k - 1] = compute_dice(y_pred=(val_outputs == _k).float(),
+                                                 y=(val_labels == _k).float(),
+                                                 include_background=not softmax)
             else:
-                value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
+                value = compute_dice(
+                    y_pred=val_outputs,
+                    y=val_labels,
+                    include_background=not softmax)
 
             logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
@@ -313,7 +349,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         metric = metric.tolist()
         for _c in range(metric_dim):
-            logger.debug(f"evaluation metric - class {_c + 1:d}:", metric[2 * _c] / metric[2 * _c + 1])
+            logger.debug(
+                f"evaluation metric - class {_c + 1:d}:", metric[2 * _c] / metric[2 * _c + 1])
         avg_metric = 0
         for _c in range(metric_dim):
             avg_metric += metric[2 * _c] / metric[2 * _c + 1]
@@ -323,7 +360,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         dict_file = {}
         dict_file["acc"] = float(avg_metric)
         for _c in range(metric_dim):
-            dict_file["acc_class" + str(_c + 1)] = metric[2 * _c] / metric[2 * _c + 1]
+            dict_file["acc_class" +
+                      str(_c + 1)] = metric[2 * _c] / metric[2 * _c + 1]
 
         with open(os.path.join(output_path, "summary.yaml"), "w") as out_file:
             yaml.dump(dict_file, stream=out_file)

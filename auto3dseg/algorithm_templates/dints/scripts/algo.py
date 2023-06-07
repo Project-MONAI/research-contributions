@@ -179,7 +179,7 @@ class DintsAlgo(BundleAlgo):
                 pt_type_transform_train = {
                     "_target_": "CastToTyped",
                     "keys": ["@image_key", "@label_key"],
-                    "dtype": ["$torch.float32", "$torch.float32"],
+                    "dtype": ["$torch.float32", "$torch.uint8"],
                 }
 
                 pt_type_transform_valid = {
