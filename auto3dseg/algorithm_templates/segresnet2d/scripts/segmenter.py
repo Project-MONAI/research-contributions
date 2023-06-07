@@ -180,7 +180,6 @@ class DataTransformBuilder:
         self.debug = debug
         self.rank = rank
 
-
     def get_custom(self, name, **kwargs):
         tr = []
         for t in self.custom_transforms.get(name, []):
@@ -435,7 +434,6 @@ class DataTransformBuilder:
         return Compose(ts)
 
     def __call__(self, augment=False, resample_label=False) -> Compose:
-
         ts = []
         ts.extend(self.get_load_transforms())
         ts.extend(self.get_resample_transforms(resample_label=resample_label))
@@ -755,7 +753,6 @@ class Segmenter:
         config.setdefault("extra_modalities", {})
         config.setdefault("intensity_bounds", [-250, 250])
         config.setdefault("stop_on_lowacc", True)
-
 
         config.setdefault("class_index", None)
         config.setdefault("class_names", [])
