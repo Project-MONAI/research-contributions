@@ -274,7 +274,6 @@ class Segmenter2D(Segmenter):
                 },
                 extra_modalities=config["extra_modalities"],
                 custom_transforms=custom_transforms,
-                lazy_verbose=config.get("lazy_verbose", False),
                 crop_foreground=config.get("crop_foreground", True),
             )
 

@@ -33,6 +33,7 @@ log_output_file: null
 cache_class_indices: null
 early_stopping_fraction: 0.001
 determ: false
+stop_on_lowacc: false
 
 learning_rate: 2.0e-4
 batch_size: '@num_images_per_batch'
