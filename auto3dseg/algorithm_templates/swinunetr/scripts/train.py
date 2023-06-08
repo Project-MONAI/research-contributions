@@ -278,8 +278,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             num_workers=parser.get_parsed_content("num_workers_validation"),
             batch_size=1,
             shuffle=False,
-            persistent_workers=True,
-            pin_memory=True,
         )
 
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
