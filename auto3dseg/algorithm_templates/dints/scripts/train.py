@@ -226,6 +226,19 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             ]
         )
 
+        if "class_names" in parser and isinstance(parser["class_names"], list) and "index" in parser["class_names"][0]:
+            class_index = [x["index"] for x in parser["class_names"]]
+
+            infer_transforms = transforms.Compose(
+                [
+                    infer_transforms,
+                    transforms.Lambdad(
+                        keys="label",
+                        func=lambda x: torch.cat([sum([x == i for i in c]) for c in class_index], dim=0).to(dtype=x.dtype),
+                    ),
+                ]
+            )
+
     class_names = None
     try:
         class_names = parser.get_parsed_content("class_names")
@@ -383,7 +396,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if softmax:
             post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
         else:
-            post_transforms += [transforms.AsDiscreted(keys="pred", threshold=0.5)]
+            post_transforms += [
+                transforms.Activationsd(keys="pred", sigmoid=True),
+                transforms.AsDiscreted(keys="pred", threshold=0.5),
+            ]
 
         post_transforms = transforms.Compose(post_transforms)
 
