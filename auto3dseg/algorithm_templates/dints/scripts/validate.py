@@ -157,7 +157,16 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             ]
         )
 
-    _, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
+    valid_data_list_key = parser.get_parsed_content("validate#data_list_key")
+    if valid_data_list_key != None:
+        val_files, _ = datafold_read(
+            datalist=data_list_file_path,
+            basedir=data_file_base_dir,
+            fold=-1,
+            key=valid_data_list_key,
+        )
+    else:
+        _, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
 
     val_ds = monai.data.Dataset(data=val_files, transform=validate_transforms)
     val_loader = ThreadDataLoader(val_ds, num_workers=2, batch_size=1, shuffle=False)

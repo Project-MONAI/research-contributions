@@ -11,6 +11,7 @@ training:
   # hyper-parameters
   amp: true
   auto_scale_allowed: true
+  data_list_key: null
   input_channels: null
   learning_rate: 0.2
   log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/training.log'"
@@ -80,6 +81,7 @@ validate:
   ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
   log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/validation.log'"
   save_mask: true
+  data_list_key: null
   output_path: "$@bundle_root + '/prediction_fold' + str(@fold)"
 
 # inference

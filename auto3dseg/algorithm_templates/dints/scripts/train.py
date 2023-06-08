@@ -271,7 +271,23 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     CONFIG["handlers"]["file"]["filename"] = log_output_file
     logging.config.dictConfig(CONFIG)
 
-    train_files, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
+    train_data_list_key = parser.get_parsed_content("training#data_list_key")
+    valid_data_list_key = parser.get_parsed_content("validate#data_list_key")
+    if valid_data_list_key != None:
+        train_files, _ = datafold_read(
+            datalist=data_list_file_path,
+            basedir=data_file_base_dir,
+            fold=-1,
+            key=train_data_list_key,
+        )
+        val_files, _ = datafold_read(
+            datalist=data_list_file_path,
+            basedir=data_file_base_dir,
+            fold=-1,
+            key=valid_data_list_key,
+        )
+    else:
+        train_files, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
 
     random.shuffle(train_files)
 
