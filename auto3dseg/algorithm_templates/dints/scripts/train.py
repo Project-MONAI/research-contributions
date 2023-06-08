@@ -840,7 +840,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         logger.debug(
                             f"evaluation metric at original spacing/resolution - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}"
                         )
-                        writer.add_scalar(f"val/acc/class{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
 
                     avg_metric = 0
                     for _c in range(metric_dim):
@@ -869,7 +868,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         writer.close()
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        if es and (_round + 1) < num_rounds:
+        if (not valid_at_orig_resolution_only) and es and (_round + 1) < num_rounds:
             logger.warning(f"{os.path.basename(bundle_root)} - training: finished with early stop")
         else:
             logger.warning(f"{os.path.basename(bundle_root)} - training: finished")
