@@ -234,7 +234,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     infer_transforms,
                     transforms.Lambdad(
                         keys="label",
-                        func=lambda x: torch.cat([sum([x == i for i in c]) for c in class_index], dim=0).to(dtype=x.dtype),
+                        func=lambda x: torch.cat([sum([x == i for i in c]) for c in class_index], dim=0).to(
+                            dtype=x.dtype
+                        ),
                     ),
                 ]
             )
