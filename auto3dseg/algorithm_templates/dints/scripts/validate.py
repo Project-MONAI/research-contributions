@@ -332,12 +332,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         metric = metric.tolist()
         for _c in range(metric_dim):
-            logger.debug(f"evaluation metric - class {_c + 1:d}:", metric[2 * _c] / metric[2 * _c + 1])
+            logger.debug(f"evaluation metric - class {_c + 1:d}: {metric[2 * _c] / metric[2 * _c + 1]}")
         avg_metric = 0
         for _c in range(metric_dim):
             avg_metric += metric[2 * _c] / metric[2 * _c + 1]
         avg_metric = avg_metric / float(metric_dim)
-        logger.debug(f"avg_metric, {avg_metric}")
+        logger.debug(f"avg_metric: {avg_metric}")
 
         dict_file = {}
         dict_file["acc"] = float(avg_metric)
