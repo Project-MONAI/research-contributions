@@ -144,6 +144,19 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         ]
     )
 
+    if "class_names" in parser and isinstance(parser["class_names"], list) and "index" in parser["class_names"][0]:
+        class_index = [x["index"] for x in parser["class_names"]]
+
+        validate_transforms = transforms.Compose(
+            [
+                validate_transforms,
+                transforms.Lambdad(
+                    keys="label",
+                    func=lambda x: torch.cat([sum([x == i for i in c]) for c in class_index], dim=0).to(dtype=x.dtype),
+                ),
+            ]
+        )
+
     _, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
 
     val_ds = monai.data.Dataset(data=val_files, transform=validate_transforms)
@@ -196,6 +209,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     post_transforms = transforms.Compose(post_transforms)
 
     metric_dim = output_classes - 1 if softmax else output_classes
+    metric_mat = []
 
     row = ["case_name"]
     for _i in range(metric_dim):
@@ -274,6 +288,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
 
             logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
+
+            metric_vals = value.cpu().numpy()
+            if len(metric_mat) == 0:
+                metric_mat = metric_vals
+            else:
+                metric_mat = np.concatenate((metric_mat, metric_vals), axis=0)
 
             print_message = ""
             print_message += str(_index + 1)
