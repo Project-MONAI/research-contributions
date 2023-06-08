@@ -4,13 +4,13 @@ A neural architecture search algorithm for volumetric segmentation of 3D medical
 
 # Model Overview
 
-This is a template for training the state-of-the-art algorithm [1] of the "Medical Segmentation Decathlon Challenge 2018".
+This serves as a template for the state-of-the-art algorithm [1] of the "Medical Segmentation Decathlon Challenge 2018".
 
-## Training configuration
+## Training Requirements
 
-The training was performed with at least 16GB-memory GPUs.
+The training process was performed with at least 16GB-memory GPUs.
 
-## commands example
+## Command Examples
 
 Execute model searching:
 
@@ -27,13 +27,13 @@ torchrun --nnodes=1 --nproc_per_node=8 -m scripts.search run --config_file "['co
 Execute model training:
 
 ```
-python -m scripts.train run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml','configs/transforms_train.yaml','configs/transforms_validate.yaml']"
+python -m scripts.train run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml','configs/transforms_train.yaml','configs/transforms_validate.yaml','configs/transforms_infer.yaml']"
 ```
 
 Execute multi-GPU model training (recommended):
 
 ```
-torchrun --nnodes=1 --nproc_per_node=8 -m scripts.train run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml','configs/transforms_train.yaml','configs/transforms_validate.yaml']"
+torchrun --nnodes=1 --nproc_per_node=8 -m scripts.train run --config_file "['configs/hyper_parameters.yaml','configs/network.yaml','configs/transforms_train.yaml','configs/transforms_validate.yaml','configs/transforms_infer.yaml']"
 ```
 
 Execute validation:
@@ -50,4 +50,4 @@ python -m scripts.infer run --config_file "['configs/hyper_parameters.yaml','con
 
 # References
 
-[1] He, Y., Yang, D., Roth, H., Zhao, C. and Xu, D., 2021. Dints: Differentiable neural network topology search for 3d medical image segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (pp. 5841-5850).
+[1] He, Y., Yang, D., Roth, H., Zhao, C. and Xu, D., 2021. DiNTS: Differentiable neural network topology search for 3d medical image segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (pp. 5841-5850).
