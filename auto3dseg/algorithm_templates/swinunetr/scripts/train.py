@@ -281,7 +281,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         )
 
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
-        orig_val_loader = DataLoader(orig_val_ds, num_workers=4, batch_size=1, shuffle=False)
+        orig_val_loader = DataLoader(
+            orig_val_ds,
+            num_workers=parser.get_parsed_content("num_workers_validation"),
+            batch_size=1,
+            shuffle=False,
+        )
 
     device = torch.device(f"cuda:{os.environ['LOCAL_RANK']}") if world_size > 1 else torch.device("cuda:0")
 
