@@ -764,7 +764,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         writer.close()
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        if es and not valid_at_orig_resolution_only and (_round + 1) < num_rounds
+        if es and not valid_at_orig_resolution_only and (_round + 1) < num_rounds:
             logger.warning(f"{os.path.basename(bundle_root)} - training: finished with early stop")
         else:
             logger.warning(f"{os.path.basename(bundle_root)} - training: finished")
