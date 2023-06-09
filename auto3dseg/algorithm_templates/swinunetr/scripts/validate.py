@@ -77,6 +77,19 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         ]
     )
 
+    if "class_names" in parser and isinstance(parser["class_names"], list) and "index" in parser["class_names"][0]:
+        class_index = [x["index"] for x in parser["class_names"]]
+
+        validate_transforms = transforms.Compose(
+            [
+                validate_transforms,
+                transforms.Lambdad(
+                    keys="label",
+                    func=lambda x: torch.cat([sum([x == i for i in c]) for c in class_index], dim=0).to(dtype=x.dtype),
+                ),
+            ]
+        )
+
     _, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
 
     val_ds = monai.data.Dataset(data=val_files, transform=validate_transforms)
@@ -170,7 +183,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 raise RuntimeError("Validate not finishing due to OOM.")
 
             value = compute_dice(
-                y_pred=val_data[0]["pred"],
+                y_pred=val_data[0]["pred"][None, ...],
                 y=val_data[0]["label"][None, ...].to(val_data[0]["pred"].device),
                 include_background=not softmax,
                 num_classes=output_classes,

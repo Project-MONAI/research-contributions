@@ -66,7 +66,7 @@ class InferClass:
         self.infer_transforms = parser.get_parsed_content("transforms_infer")
 
         testing_files, _ = datafold_read(
-            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key="testing"
+            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key=data_list_key
         )
         self.infer_files = testing_files
 

@@ -176,6 +176,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if not valid_at_orig_resolution_only:
         train_transforms = parser.get_parsed_content("transforms_train")
         val_transforms = parser.get_parsed_content("transforms_validate")
+
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
         infer_transforms = parser.get_parsed_content("transforms_infer")
         infer_transforms = transforms.Compose(
@@ -186,6 +187,22 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 transforms.EnsureTyped(keys="label"),
             ]
         )
+
+        if "class_names" in parser and isinstance(parser["class_names"], list) and "index" in parser["class_names"][0]:
+            class_index = [x["index"] for x in parser["class_names"]]
+
+            infer_transforms = transforms.Compose(
+                [
+                    infer_transforms,
+                    transforms.Lambdad(
+                        keys="label",
+                        func=lambda x: torch.cat([sum([x == i for i in c]) for c in class_index], dim=0).to(
+                            dtype=x.dtype
+                        ),
+                    ),
+                ]
+            )
+
     class_names = None
     try:
         class_names = parser.get_parsed_content("class_names")
@@ -289,11 +306,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     model = model.to(device)
 
     if use_pretrain:
-        download_url(
-            url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
-            filepath=pretrained_path,
-            progress=False,
-        )
+        if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
+            download_url(
+                url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
+                filepath=pretrained_path,
+                progress=False,
+            )
         if torch.cuda.device_count() > 1:
             dist.barrier()
         store_dict = model.state_dict()

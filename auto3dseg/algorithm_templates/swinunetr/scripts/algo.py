@@ -96,6 +96,12 @@ class SwinunetrAlgo(BundleAlgo):
             ]
 
             try:
+                if isinstance(data_src_cfg["class_names"], list):
+                    hyper_parameters.update({"class_names": data_src_cfg["class_names"]})
+            except BaseException:
+                pass
+
+            try:
                 if isinstance(data_src_cfg["sigmoid"], bool) and data_src_cfg["sigmoid"]:
                     hyper_parameters.update({"softmax": False})
             except BaseException:
@@ -181,6 +187,55 @@ class SwinunetrAlgo(BundleAlgo):
                 transforms_train.update({"transforms_train#transforms#2": mr_intensity_transform})
                 transforms_validate.update({"transforms_validate#transforms#2": mr_intensity_transform})
                 transforms_infer.update({"transforms_infer#transforms#2": mr_intensity_transform})
+
+            if (
+                "class_names" in data_src_cfg
+                and isinstance(data_src_cfg["class_names"], list)
+                and "index" in data_src_cfg["class_names"][0]
+            ):
+                class_index = [x["index"] for x in data_src_cfg["class_names"]]
+
+                pt_type_transform_train = {
+                    "_target_": "CastToTyped",
+                    "keys": ["@image_key", "@label_key"],
+                    "dtype": ["$torch.float32", "$torch.uint8"],
+                }
+
+                pt_type_transform_valid = {
+                    "_target_": "CastToTyped",
+                    "keys": ["@image_key", "@label_key"],
+                    "dtype": ["$torch.float32", "$torch.uint8"],
+                }
+
+                label_conversion_transforms_train = {
+                    "_target_": "Compose",
+                    "transforms": [
+                        pt_type_transform_train,
+                        {
+                            "_target_": "Lambdad",
+                            "keys": "@label_key",
+                            "func": f"$lambda x: torch.cat([sum([x == i for i in c]) for c in {class_index}], dim=0).to(dtype=x.dtype)",
+                        },
+                    ],
+                }
+
+                label_conversion_transforms_valid = {
+                    "_target_": "Compose",
+                    "transforms": [
+                        pt_type_transform_valid,
+                        {
+                            "_target_": "Lambdad",
+                            "keys": "@label_key",
+                            "func": f"$lambda x: torch.cat([sum([x == i for i in c]) for c in {class_index}], dim=0).to(dtype=x.dtype)",
+                        },
+                    ],
+                }
+
+                transforms_train.update({"transforms_train#transforms#5": label_conversion_transforms_train})
+                transforms_validate.update({"transforms_validate#transforms#5": label_conversion_transforms_valid})
+
+                if "sigmoid" in data_src_cfg and isinstance(data_src_cfg["sigmoid"], bool) and data_src_cfg["sigmoid"]:
+                    hyper_parameters.update({"output_classes": len(data_src_cfg["class_names"])})
 
             fill_records = {
                 "hyper_parameters.yaml": hyper_parameters,
