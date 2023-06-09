@@ -8,6 +8,7 @@ searching:
   sw_input_on_cpu: false
   learning_rate: 0.025
   learning_rate_arch: 0.001
+  log_output_file: "$@bundle_root + '/arch_ram' + str(@searching#ram_cost_factor) + '_fold' + str(@fold) + '/searching.log'"
   num_images_per_batch: 2
   num_epochs: 1000
   num_epochs_per_validation: 20
