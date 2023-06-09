@@ -691,24 +691,23 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                     sw_device=device,
                                     device=_device_out,
                                 )
-                            try:
-                                val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
-                            except BaseException:
-                                val_data["pred"] = val_data["pred"].to("cpu")
-                                val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
-
                             finished = True
-
                         except RuntimeError as e:
                             if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                 raise e
                             finished = False
                             torch.cuda.empty_cache()
-
                         if finished:
                             break
 
+                    # move all to cpu to avoid potential out memory in invert transform
+                    val_data["pred"] = val_data["pred"].to("cpu")
+                    val_data["image"] = val_data["image"].to("cpu")
+                    val_data["label"] = val_data["label"].to("cpu")
+                    torch.cuda.empty_cache()
+                    val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
                     val_outputs = val_data[0]["pred"][None, ...]
+
                     value = compute_dice(
                         y_pred=val_outputs,
                         y=val_data[0]["label"][None, ...].to(val_outputs.device),

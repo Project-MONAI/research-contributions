@@ -174,7 +174,10 @@ class InferClass:
         if softmax:
             post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
         else:
-            post_transforms += [transforms.AsDiscreted(keys="pred", threshold=0.5)]
+            post_transforms += [
+                transforms.Activationsd(keys="pred", sigmoid=True),
+                transforms.AsDiscreted(keys="pred", threshold=0.5),
+            ]
 
         post_transforms += [
             transforms.SaveImaged(
