@@ -76,5 +76,7 @@ jobs:
         git push -f --set-upstream origin auto-update-hash
         gh pr create --fill --title "Auto3DSeg algo_template hash update" --base dev --head "auto-update-hash"
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.PR_MAINTAIN_BOT }}
 
 
