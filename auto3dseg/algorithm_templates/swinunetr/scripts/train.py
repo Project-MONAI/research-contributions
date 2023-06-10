@@ -176,6 +176,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if not valid_at_orig_resolution_only:
         train_transforms = parser.get_parsed_content("transforms_train")
         val_transforms = parser.get_parsed_content("transforms_validate")
+
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
         infer_transforms = parser.get_parsed_content("transforms_infer")
         infer_transforms = transforms.Compose(
@@ -186,6 +187,22 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 transforms.EnsureTyped(keys="label"),
             ]
         )
+
+        if "class_names" in parser and isinstance(parser["class_names"], list) and "index" in parser["class_names"][0]:
+            class_index = [x["index"] for x in parser["class_names"]]
+
+            infer_transforms = transforms.Compose(
+                [
+                    infer_transforms,
+                    transforms.Lambdad(
+                        keys="label",
+                        func=lambda x: torch.cat([sum([x == i for i in c]) for c in class_index], dim=0).to(
+                            dtype=x.dtype
+                        ),
+                    ),
+                ]
+            )
+
     class_names = None
     try:
         class_names = parser.get_parsed_content("class_names")
@@ -274,16 +291,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             pin_memory=True,
         )
         val_loader = DataLoader(
-            val_ds,
-            num_workers=parser.get_parsed_content("num_workers_validation"),
-            batch_size=1,
-            shuffle=False,
-            persistent_workers=True,
-            pin_memory=True,
+            val_ds, num_workers=parser.get_parsed_content("num_workers_validation"), batch_size=1, shuffle=False
         )
 
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
-        orig_val_loader = DataLoader(orig_val_ds, num_workers=4, batch_size=1, shuffle=False)
+        orig_val_loader = DataLoader(
+            orig_val_ds, num_workers=parser.get_parsed_content("num_workers_validation"), batch_size=1, shuffle=False
+        )
 
     device = torch.device(f"cuda:{os.environ['LOCAL_RANK']}") if world_size > 1 else torch.device("cuda:0")
 
@@ -292,11 +306,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     model = model.to(device)
 
     if use_pretrain:
-        download_url(
-            url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
-            filepath=pretrained_path,
-            progress=False,
-        )
+        if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
+            download_url(
+                url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
+                filepath=pretrained_path,
+                progress=False,
+            )
         if torch.cuda.device_count() > 1:
             dist.barrier()
         store_dict = model.state_dict()
@@ -694,24 +709,23 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                     sw_device=device,
                                     device=_device_out,
                                 )
-                            try:
-                                val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
-                            except BaseException:
-                                val_data["pred"] = val_data["pred"].to("cpu")
-                                val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
-
                             finished = True
-
                         except RuntimeError as e:
                             if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                 raise e
                             finished = False
                             torch.cuda.empty_cache()
-
                         if finished:
                             break
 
+                    # move all to cpu to avoid potential out memory in invert transform
+                    val_data["pred"] = val_data["pred"].to("cpu")
+                    val_data["image"] = val_data["image"].to("cpu")
+                    val_data["label"] = val_data["label"].to("cpu")
+                    torch.cuda.empty_cache()
+                    val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
                     val_outputs = val_data[0]["pred"][None, ...]
+
                     value = compute_dice(
                         y_pred=val_outputs,
                         y=val_data[0]["label"][None, ...].to(val_outputs.device),
@@ -768,7 +782,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         writer.close()
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        if es and (_round + 1) < num_rounds:
+        if es and not valid_at_orig_resolution_only and (_round + 1) < num_rounds:
             logger.warning(f"{os.path.basename(bundle_root)} - training: finished with early stop")
         else:
             logger.warning(f"{os.path.basename(bundle_root)} - training: finished")

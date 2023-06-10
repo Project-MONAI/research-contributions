@@ -25,7 +25,7 @@ num_patches_per_image: null
 num_patches_per_iter: null
 num_sw_batch_size: "$@num_patches_per_iter"
 num_workers: 8
-num_workers_validation: 4
+num_workers_validation: 2
 num_cache_workers: 8
 output_classes: null
 n_cases: null
