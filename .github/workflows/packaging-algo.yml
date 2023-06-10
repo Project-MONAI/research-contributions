@@ -56,10 +56,7 @@ jobs:
         # modify hash
         filename="monai/apps/auto3dseg/bundle_gen.py"
         current_hash=$(grep -oE "[0-9a-f]{7}" $filename)
-        echo current_hash
-        file_content=$(cat $filename | sed s/$current_hash/${{ steps.name.outputs.sha_short }}/)
-        echo $file_content
-        echo $file_content > $filename
+        sed -i s/$current_hash/${{ steps.name.outputs.sha_short }}/ $filename
 
         git add .
         git diff --cached | cat
