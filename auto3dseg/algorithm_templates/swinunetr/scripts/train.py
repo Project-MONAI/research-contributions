@@ -550,7 +550,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         elif val_filename in val_devices_input and val_filename in val_devices_output:
                             device_list_input = [val_devices_input[val_filename]]
                             device_list_output = [val_devices_output[val_filename]]
-
+                        val_outputs = None
                         for _device_in, _device_out in zip(device_list_input, device_list_output):
                             try:
                                 val_devices_input[val_filename] = _device_in
@@ -576,10 +576,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                     raise e
                                 finished = False
-
-                            if finished:
-                                break
-
+                        if not finished:
+                            raise RuntimeError(f"{val_filename} validation failed due to OOM.")
                         val_outputs = val_outputs[None, ...]
                         value = compute_dice(
                             y_pred=val_outputs,
@@ -717,7 +715,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             torch.cuda.empty_cache()
                         if finished:
                             break
-
+                        
+                    if not finished:
+                        raise RuntimeError(f"{val_filename} validation at original resolution failed due to OOM.")
+                    
                     # move all to cpu to avoid potential out memory in invert transform
                     val_data["pred"] = val_data["pred"].to("cpu")
                     val_data["image"] = val_data["image"].to("cpu")
