@@ -2,6 +2,9 @@ name: release
 # generating package artefacts from the main branch
 
 on:
+  push:
+    branches:
+      - test-pr
   workflow_dispatch:
     inputs:
       tag_name:
@@ -42,11 +45,11 @@ jobs:
         path: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz
     - uses: actions/checkout@v3
       with:
-        token: ${{ secrets.PR_MAINTAIN }}
+        token: ${{ secrets.PR_MAINTAIN_BOT }}
         repository: Project-MONAI/MONAI
         ref: dev
         path: monai_src_dir
-    - name: make changes
+    - name: Modify MONAI core source code
       id: hash_code
       run: |
         cd monai_src_dir
