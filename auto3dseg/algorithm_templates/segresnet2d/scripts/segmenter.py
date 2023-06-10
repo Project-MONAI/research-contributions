@@ -163,7 +163,6 @@ class DataTransformBuilder:
         custom_transforms=None,
         debug: bool = False,
         rank: int = 0,
-        lazy_verbose: bool = False,
         **kwargs,
     ) -> None:
         self.roi_size, self.image_key, self.label_key = roi_size, image_key, label_key
@@ -180,9 +179,6 @@ class DataTransformBuilder:
         self.extra_options = kwargs
         self.debug = debug
         self.rank = rank
-
-        self.lazy_evaluation = False
-        self.lazy_verbose = lazy_verbose
 
     def get_custom(self, name, **kwargs):
         tr = []
@@ -227,7 +223,6 @@ class DataTransformBuilder:
                     keys=keys, source_key=self.image_key, allow_missing_keys=True, margin=10, allow_smaller=True
                 )
             )
-
         if self.resample:
             if self.resample_resolution is None:
                 raise ValueError("resample_resolution is not provided")
@@ -323,7 +318,6 @@ class DataTransformBuilder:
             if max_samples_per_class <= 0:
                 max_samples_per_class = None
             indices_key = None
-
 
             if cache_class_indices:
                 ts.append(
@@ -439,9 +433,7 @@ class DataTransformBuilder:
 
         return Compose(ts)
 
-    def __call__(self, augment=False, resample_label=False, lazy_evaluation=False) -> Compose:
-        self.lazy_evaluation = lazy_evaluation
-
+    def __call__(self, augment=False, resample_label=False) -> Compose:
         ts = []
         ts.extend(self.get_load_transforms())
         ts.extend(self.get_resample_transforms(resample_label=resample_label))
@@ -453,8 +445,6 @@ class DataTransformBuilder:
 
         ts.extend(self.get_final_transforms())
 
-        if self.lazy_evaluation:  # experimental
-            warnings.warn("Lazy evaluation is not currently enabled.")
         compose_ts = Compose(ts)
 
         return compose_ts
@@ -618,7 +608,6 @@ class Segmenter:
                 },
                 extra_modalitie=config["extra_modalities"],
                 custom_transforms=custom_transforms,
-                lazy_verbose=config["lazy_verbose"],
                 crop_foreground=config.get("crop_foreground", True),
                 debug=config["debug"],
             )
@@ -663,7 +652,7 @@ class Segmenter:
             memory_format = torch.channels_last_3d if config["channels_last"] else torch.preserve_format
             model = model.to(memory_format=memory_format)
 
-        if self.distributed:
+        if self.distributed and not config["infer"]["enabled"]:
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
             model = DistributedDataParallel(
                 module=model, device_ids=[self.rank], output_device=self.rank, find_unused_parameters=False
@@ -737,8 +726,6 @@ class Segmenter:
 
         config.setdefault("channels_last", True)
         config.setdefault("fork", True)
-        config.setdefault("lazy_evaluation", False)
-        config.setdefault("lazy_verbose", False)
 
         config.setdefault("num_epochs", 300)
         config.setdefault("num_warmup_epochs", 3)
@@ -765,6 +752,7 @@ class Segmenter:
         config.setdefault("num_workers", 4)
         config.setdefault("extra_modalities", {})
         config.setdefault("intensity_bounds", [-250, 250])
+        config.setdefault("stop_on_lowacc", True)
 
         config.setdefault("class_index", None)
         config.setdefault("class_names", [])
@@ -941,11 +929,8 @@ class Segmenter:
         distributed = self.distributed
         num_workers = self.config["num_workers"]
         batch_size = self.config["batch_size"]
-        lazy_evaluation = self.config["lazy_evaluation"]
 
-        train_transform = self.get_data_transform_builder()(
-            augment=True, resample_label=True, lazy_evaluation=lazy_evaluation
-        )
+        train_transform = self.get_data_transform_builder()(augment=True, resample_label=True)
 
         if cache_rate > 0:
             runtime_cache = self.get_shared_memory_list(length=len(data))
@@ -1329,7 +1314,7 @@ class Segmenter:
                         )
 
                 # sanity check
-                if epoch > max(20, num_epochs / 4) and 0 <= val_acc_mean < 0.01:
+                if epoch > max(20, num_epochs / 4) and 0 <= val_acc_mean < 0.01 and config["stop_on_lowacc"]:
                     raise ValueError(
                         f"Accuracy seems very low at epoch {report_epoch}, acc {val_acc_mean}. "
                         f"Most likely optimization diverged, try setting  a smaller learning_rate than {config['learning_rate']}"
@@ -1547,7 +1532,7 @@ class Segmenter:
             )
 
         if self.global_rank == 0:
-            print("testing_files files {len(testing_files)}")
+            print(f"testing_files files {len(testing_files)}")
 
         if len(testing_files) == 0:
             warnings.warn("No testing_files files found!")

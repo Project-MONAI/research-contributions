@@ -3,10 +3,18 @@ image_key: image
 label_key: label
 transforms_train:
   _target_: Compose
+
   transforms:
-  - _target_: LoadImaged
-    keys: ["@image_key", "@label_key"]
-    image_only: true
+  - _target_: Compose
+    transforms:
+    - _target_: LoadImaged
+      keys: "@image_key"
+      dtype: "$np.float32"
+      image_only: false
+    - _target_: LoadImaged
+      keys: "@label_key"
+      dtype: "$np.uint8"
+      image_only: false
   - _target_: EnsureChannelFirstd
     keys: ["@image_key", "@label_key"]
   - PLACEHOLDER_INTENSITY_NORMALIZATION
@@ -20,7 +28,7 @@ transforms_train:
     align_corners: [true, true]
   - _target_: CastToTyped
     keys: ["@image_key", "@label_key"]
-    dtype: ["$torch.float32", "$torch.float32"]
+    dtype: ["$torch.float32", "$torch.uint8"]
   - _target_: EnsureTyped
     keys: ["@image_key", "@label_key"]
     track_meta: true
@@ -55,7 +63,7 @@ transforms_train:
     prob: 0.16
 
   - _target_: IdentityD   # make image up-to-date, before this line the cropping hasn't been applied
-    keys: ["@image_key"]
+    keys: ["@image_key", "@label_key"]
 
   - _target_: RandGaussianSmoothd
     keys: "@image_key"

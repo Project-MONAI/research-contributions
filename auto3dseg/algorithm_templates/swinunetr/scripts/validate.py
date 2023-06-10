@@ -22,6 +22,7 @@ import yaml
 import monai
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
+from monai.auto3dseg.utils import datafold_read
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch
@@ -76,25 +77,20 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         ]
     )
 
-    datalist = ConfigParser.load_config_file(data_list_file_path)
+    if "class_names" in parser and isinstance(parser["class_names"], list) and "index" in parser["class_names"][0]:
+        class_index = [x["index"] for x in parser["class_names"]]
 
-    list_valid = []
-    for item in datalist["training"]:
-        if item["fold"] == fold:
-            item.pop("fold", None)
-            list_valid.append(item)
+        validate_transforms = transforms.Compose(
+            [
+                validate_transforms,
+                transforms.Lambdad(
+                    keys="label",
+                    func=lambda x: torch.cat([sum([x == i for i in c]) for c in class_index], dim=0).to(dtype=x.dtype),
+                ),
+            ]
+        )
 
-    files = []
-    for _i in range(len(list_valid)):
-        str_img = os.path.join(data_file_base_dir, list_valid[_i]["image"])
-        str_seg = os.path.join(data_file_base_dir, list_valid[_i]["label"])
-
-        if (not os.path.exists(str_img)) or (not os.path.exists(str_seg)):
-            continue
-
-        files.append({"image": str_img, "label": str_seg})
-
-    val_files = files
+    _, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
 
     val_ds = monai.data.Dataset(data=val_files, transform=validate_transforms)
     val_loader = ThreadDataLoader(val_ds, num_workers=2, batch_size=1, shuffle=False)
@@ -124,7 +120,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if softmax:
         post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
     else:
-        post_transforms += [transforms.Activations(sigmoid=True), transforms.AsDiscreted(keys="pred", threshold=0.5)]
+        post_transforms += [
+            transforms.Activationsd(keys="pred", sigmoid=True),
+            transforms.AsDiscreted(keys="pred", threshold=0.5),
+        ]
 
     if save_mask:
         post_transforms += [
@@ -184,7 +183,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 raise RuntimeError("Validate not finishing due to OOM.")
 
             value = compute_dice(
-                y_pred=val_data[0]["pred"],
+                y_pred=val_data[0]["pred"][None, ...],
                 y=val_data[0]["label"][None, ...].to(val_data[0]["pred"].device),
                 include_background=not softmax,
                 num_classes=output_classes,

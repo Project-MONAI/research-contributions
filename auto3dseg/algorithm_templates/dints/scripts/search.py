@@ -29,6 +29,8 @@ from torch.utils.tensorboard import SummaryWriter
 import monai
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
+from monai.apps.utils import DEFAULT_FMT
+from monai.auto3dseg.utils import datafold_read
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, partition_dataset
@@ -40,6 +42,33 @@ try:
     from apex.contrib.clip_grad import clip_grad_norm_
 except ModuleNotFoundError:
     from torch.nn.utils import clip_grad_norm_
+
+
+CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"monai_default": {"format": DEFAULT_FMT}},
+    "loggers": {
+        "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
+    },
+    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+    "handlers": {
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": "runner.log",
+            "mode": "a",  # append or overwrite
+            "level": "DEBUG",
+            "formatter": "monai_default",
+            "filters": ["rank_filter"],
+        },
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "INFO",
+            "formatter": "monai_default",
+            "filters": ["rank_filter"],
+        },
+    },
+}
 
 
 def try_except(func, default=None, expected_exc=(Exception,)):
@@ -68,10 +97,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
     determ = parser.get_parsed_content("searching#determ")
     fold = parser.get_parsed_content("fold")
+    log_output_file = parser.get_parsed_content("searching#log_output_file")
     num_images_per_batch = parser.get_parsed_content("searching#num_images_per_batch")
     num_epochs = parser.get_parsed_content("searching#num_epochs")
     num_epochs_per_validation = parser.get_parsed_content("searching#num_epochs_per_validation")
     num_epochs_warmup = parser.get_parsed_content("searching#num_warmup_epochs")
+    num_patches_per_image = parser.get_parsed_content("searching#num_patches_per_image")
     num_sw_batch_size = parser.get_parsed_content("searching#num_sw_batch_size")
     output_classes = parser.get_parsed_content("searching#output_classes")
     overlap_ratio = parser.get_parsed_content("searching#overlap_ratio")
@@ -79,6 +110,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     ram_cost_factor = parser.get_parsed_content("searching#ram_cost_factor")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     softmax = parser.get_parsed_content("searching#softmax")
+
+    # update transforms
+    for _i in range(len(parser["transforms_train"]["transforms"])):
+        if (
+            "crop" in parser["transforms_train"]["transforms"][_i]["_target_"].lower()
+            and "num_samples" in parser["transforms_train"]["transforms"][_i]
+        ):
+            parser["transforms_train"]["transforms"][_i]["num_samples"] = num_patches_per_image
 
     train_transforms = parser.get_parsed_content("transforms_train")
     val_transforms = parser.get_parsed_content("transforms_validate")
@@ -89,13 +128,16 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if determ:
         set_determinism(seed=0)
 
-    logger.debug(f"number of GPUs:, {torch.cuda.device_count()}")
+    CONFIG["handlers"]["file"]["filename"] = log_output_file
+    logging.config.dictConfig(CONFIG)
+
+    logger.debug(f"number of GPUs: {torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
         dist.init_process_group(backend="nccl", init_method="env://")
         world_size = dist.get_world_size()
     else:
         world_size = 1
-    logger.debug(f"world_size:, {world_size}")
+    logger.debug(f"world_size: {world_size}")
 
     datalist = ConfigParser.load_config_file(data_list_file_path)
 
@@ -109,17 +151,18 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             item.pop("fold", None)
             list_train.append(item)
 
-    files = []
-    for _i in range(len(list_train)):
-        str_img = os.path.join(data_file_base_dir, list_train[_i]["image"])
-        str_seg = os.path.join(data_file_base_dir, list_train[_i]["label"])
+    train_data_list_key = parser.get_parsed_content("training#data_list_key")
+    valid_data_list_key = parser.get_parsed_content("validate#data_list_key")
+    if valid_data_list_key is not None:
+        train_files, _ = datafold_read(
+            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key=train_data_list_key
+        )
+        val_files, _ = datafold_read(
+            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key=valid_data_list_key
+        )
+    else:
+        train_files, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
 
-        if (not os.path.exists(str_img)) or (not os.path.exists(str_seg)):
-            continue
-
-        files.append({"image": str_img, "label": str_seg})
-
-    train_files = files
     random.shuffle(train_files)
 
     train_files_w = train_files[: len(train_files) // 2]
@@ -127,26 +170,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         train_files_w = partition_dataset(
             data=train_files_w, shuffle=True, num_partitions=world_size, even_divisible=True
         )[dist.get_rank()]
-    logger.debug(f"train_files_w:, {len(train_files_w)}")
+    logger.debug(f"train_files_w: {len(train_files_w)}")
 
     train_files_a = train_files[len(train_files) // 2 :]
     if torch.cuda.device_count() > 1:
         train_files_a = partition_dataset(
             data=train_files_a, shuffle=True, num_partitions=world_size, even_divisible=True
         )[dist.get_rank()]
-    logger.debug(f"train_files_a:, {len(train_files_a)}")
-
-    files = []
-    for _i in range(len(list_valid)):
-        str_img = os.path.join(data_file_base_dir, list_valid[_i]["image"])
-        str_seg = os.path.join(data_file_base_dir, list_valid[_i]["label"])
-
-        if (not os.path.exists(str_img)) or (not os.path.exists(str_seg)):
-            continue
-
-        files.append({"image": str_img, "label": str_seg})
-
-    val_files = files
+    logger.debug(f"train_files_a: {len(train_files_a)}")
 
     if torch.cuda.device_count() > 1:
         if len(val_files) < world_size:
@@ -155,7 +186,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         val_files = partition_dataset(data=val_files, shuffle=False, num_partitions=world_size, even_divisible=False)[
             dist.get_rank()
         ]
-    logger.debug(f"val_files:, {len(val_files)}")
+    logger.debug(f"val_files: {len(val_files)}")
 
     train_cache_rate = float(parser.get_parsed_content("searching#train_cache_rate"))
     validate_cache_rate = float(parser.get_parsed_content("searching#validate_cache_rate"))
@@ -230,9 +261,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     arch_optimizer_c = arch_optimizer_c_part.instantiate(params=[dints_space.log_alpha_c])
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        logger.debug(f"num_epochs, {num_epochs}")
-        logger.debug(f"num_epochs_warmup, {num_epochs_warmup}")
-        logger.debug(f"num_epochs_per_validation, {num_epochs_per_validation}")
+        logger.debug(f"num_epochs: {num_epochs}")
+        logger.debug(f"num_epochs_warmup: {num_epochs_warmup}")
+        logger.debug(f"num_epochs_per_validation: {num_epochs_per_validation}")
 
     lr_scheduler_part = parser.get_parsed_content("searching#lr_scheduler", instantiate=False)
     lr_scheduler = lr_scheduler_part.instantiate(optimizer=optimizer)
@@ -502,7 +533,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 metric = metric.tolist()
                 if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     for _c in range(metric_dim):
-                        logger.debug(f"evaluation metric - class {_c + 1:d}:, {metric[2 * _c] / metric[2 * _c + 1]}")
+                        logger.debug(f"evaluation metric - class {_c + 1:d}: {metric[2 * _c] / metric[2 * _c + 1]}")
                     avg_metric = 0
                     for _c in range(metric_dim):
                         avg_metric += metric[2 * _c] / metric[2 * _c + 1]

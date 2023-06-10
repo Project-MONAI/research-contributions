@@ -23,6 +23,7 @@ import monai
 from monai import transforms
 from monai.apps.auto3dseg.auto_runner import logger
 from monai.apps.utils import DEFAULT_FMT
+from monai.auto3dseg.utils import datafold_read
 from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch
@@ -143,25 +144,26 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         ]
     )
 
-    datalist = ConfigParser.load_config_file(data_list_file_path)
+    if "class_names" in parser and isinstance(parser["class_names"], list) and "index" in parser["class_names"][0]:
+        class_index = [x["index"] for x in parser["class_names"]]
 
-    list_valid = []
-    for item in datalist["training"]:
-        if item["fold"] == fold:
-            item.pop("fold", None)
-            list_valid.append(item)
+        validate_transforms = transforms.Compose(
+            [
+                validate_transforms,
+                transforms.Lambdad(
+                    keys="label",
+                    func=lambda x: torch.cat([sum([x == i for i in c]) for c in class_index], dim=0).to(dtype=x.dtype),
+                ),
+            ]
+        )
 
-    files = []
-    for _i in range(len(list_valid)):
-        str_img = os.path.join(data_file_base_dir, list_valid[_i]["image"])
-        str_seg = os.path.join(data_file_base_dir, list_valid[_i]["label"])
-
-        if (not os.path.exists(str_img)) or (not os.path.exists(str_seg)):
-            continue
-
-        files.append({"image": str_img, "label": str_seg})
-
-    val_files = files
+    valid_data_list_key = parser.get_parsed_content("validate#data_list_key")
+    if valid_data_list_key is not None:
+        val_files, _ = datafold_read(
+            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key=valid_data_list_key
+        )
+    else:
+        _, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
 
     val_ds = monai.data.Dataset(data=val_files, transform=validate_transforms)
     val_loader = ThreadDataLoader(val_ds, num_workers=2, batch_size=1, shuffle=False)
@@ -196,7 +198,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if softmax:
         post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
     else:
-        post_transforms += [transforms.AsDiscreted(keys="pred", threshold=0.5)]
+        post_transforms += [
+            transforms.Activationsd(keys="pred", sigmoid=True),
+            transforms.AsDiscreted(keys="pred", threshold=0.5),
+        ]
 
     if save_mask:
         post_transforms += [
@@ -213,6 +218,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     post_transforms = transforms.Compose(post_transforms)
 
     metric_dim = output_classes - 1 if softmax else output_classes
+    metric_mat = []
 
     row = ["case_name"]
     for _i in range(metric_dim):
@@ -292,6 +298,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
             logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
+            metric_vals = value.cpu().numpy()
+            if len(metric_mat) == 0:
+                metric_mat = metric_vals
+            else:
+                metric_mat = np.concatenate((metric_mat, metric_vals), axis=0)
+
             print_message = ""
             print_message += str(_index + 1)
             print_message += ", "
@@ -323,12 +335,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         metric = metric.tolist()
         for _c in range(metric_dim):
-            logger.debug(f"evaluation metric - class {_c + 1:d}:", metric[2 * _c] / metric[2 * _c + 1])
+            logger.debug(f"evaluation metric - class {_c + 1:d}: {metric[2 * _c] / metric[2 * _c + 1]}")
         avg_metric = 0
         for _c in range(metric_dim):
             avg_metric += metric[2 * _c] / metric[2 * _c + 1]
         avg_metric = avg_metric / float(metric_dim)
-        logger.debug(f"avg_metric, {avg_metric}")
+        logger.debug(f"avg_metric: {avg_metric}")
 
         dict_file = {}
         dict_file["acc"] = float(avg_metric)
