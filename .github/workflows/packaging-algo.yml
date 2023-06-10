@@ -40,3 +40,42 @@ jobs:
       with:
         name: ${{ steps.name.outputs.sha_short }}
         path: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz
+    - uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.PR_MAINTAIN }}
+        repository: Project-MONAI/MONAI
+        ref: dev
+        path: monai_src_dir
+    - name: make changes
+      id: hash_code
+      run: |
+        cd monai_src_dir
+        git config --global user.name 'monai-bot'
+        git config --global user.email 'monai.miccai2019@gmail.com'
+
+        # modify hash
+        filename="monai/apps/auto3dseg/bundle_gen.py"
+        current_hash=$(grep -oE "[0-9a-f]{7}" $filename)
+        file_content=$(cat $filename | sed s/$current_hash/${{ steps.name.outputs.sha_short }}/)
+        echo $file_content > $filename
+
+        git add .
+        git diff --cached | cat
+        changes=
+        if [ -n "$(git status --porcelain)" ]; then
+          changes="true"
+        fi
+        echo "format=$changes" >> $GITHUB_OUTPUT
+      shell: bash
+    - name: make a PR
+      if: steps.hash_code.outputs.format == 'true'
+      run: |
+        cd src_dir/
+        git commit -sam "[MONAI] algo_template hash update"
+        git diff @~1
+        git checkout -b auto-update-hash
+        git push -f --set-upstream origin auto-update-hash
+        gh pr create --fill --title "auto3dseg algo_template hash update" --base dev --head "auto-update-hash"
+      shell: bash
+
+
