@@ -113,8 +113,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     # update transforms
     for _i in range(len(parser["transforms_train"]["transforms"])):
-        if ("crop" in parser["transforms_train"]["transforms"][_i]["_target_"].lower()
-            and "num_samples" in parser["transforms_train"]["transforms"][_i]):
+        if (
+            "crop" in parser["transforms_train"]["transforms"][_i]["_target_"].lower()
+            and "num_samples" in parser["transforms_train"]["transforms"][_i]
+        ):
             parser["transforms_train"]["transforms"][_i]["num_samples"] = num_patches_per_image
 
     train_transforms = parser.get_parsed_content("transforms_train")
