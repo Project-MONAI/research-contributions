@@ -28,13 +28,13 @@ jobs:
         echo $release_version
         cd auto3dseg/
         tar -cvzf "$release_version".tar.gz algorithm_templates
-    # - name: Upload ${{ steps.name.outputs.sha_short }}
-    #   uses: svenstaro/upload-release-action@v2
-    #   with:
-    #     tag: ${{ github.event.inputs.tag_name }}
-    #     file: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz
-    #     asset_name: ${{ steps.name.outputs.sha_short }}.tar.gz
-    #     overwrite: false
+    - name: Upload ${{ steps.name.outputs.sha_short }}
+      uses: svenstaro/upload-release-action@v2
+      with:
+        tag: ${{ github.event.inputs.tag_name }}
+        file: auto3dseg/${{ steps.name.outputs.sha_short }}.tar.gz
+        asset_name: ${{ steps.name.outputs.sha_short }}.tar.gz
+        overwrite: false
     - name: Artifact
       uses: actions/upload-artifact@v3
       with:
@@ -66,15 +66,15 @@ jobs:
         fi
         echo "format=$changes" >> $GITHUB_OUTPUT
       shell: bash
-    # - name: make a PR
-    #   if: steps.hash_code.outputs.format == 'true'
-    #   run: |
-    #     cd src_dir/
-    #     git commit -sam "[MONAI] algo_template hash update"
-    #     git diff @~1
-    #     git checkout -b auto-update-hash
-    #     git push -f --set-upstream origin auto-update-hash
-    #     gh pr create --fill --title "auto3dseg algo_template hash update" --base dev --head "auto-update-hash"
-    #   shell: bash
+    - name: make a PR
+      if: steps.hash_code.outputs.format == 'true'
+      run: |
+        cd monai_src_dir
+        git commit -sam "[MONAI] algo_template hash update"
+        git diff @~1
+        git checkout -b auto-update-hash
+        git push -f --set-upstream origin auto-update-hash
+        gh pr create --fill --title "Auto3DSeg algo_template hash update" --base dev --head "auto-update-hash"
+      shell: bash
 
 
