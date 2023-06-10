@@ -576,6 +576,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                     raise e
                                 finished = False
+                                
+                            if finished:
+                                break
                         if not finished:
                             raise RuntimeError(f"{val_filename} validation failed due to OOM.")
                         val_outputs = val_outputs[None, ...]
@@ -715,7 +718,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             torch.cuda.empty_cache()
                         if finished:
                             break
-                        
+
                     if not finished:
                         raise RuntimeError(f"{val_filename} validation at original resolution failed due to OOM.")
                     
