@@ -576,7 +576,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                     raise e
                                 finished = False
-                                
+
                             if finished:
                                 break
                         if not finished:
@@ -721,7 +721,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     if not finished:
                         raise RuntimeError(f"{val_filename} validation at original resolution failed due to OOM.")
-                    
+
                     # move all to cpu to avoid potential out memory in invert transform
                     val_data["pred"] = val_data["pred"].to("cpu")
                     val_data["image"] = val_data["image"].to("cpu")
