@@ -2,9 +2,6 @@ name: release
 # generating package artefacts from the main branch
 
 on:
-  push:
-    branches:
-      - test-pr
   workflow_dispatch:
     inputs:
       tag_name:
