@@ -78,5 +78,3 @@ jobs:
       shell: bash
       env:
         GITHUB_TOKEN: ${{ secrets.PR_MAINTAIN_BOT }}
-
-
