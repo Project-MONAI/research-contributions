@@ -85,7 +85,7 @@ jobs:
       uses: peter-evans/create-or-update-comment@v2
       if: github.event.pull_request.number != ''
       with:
-        token: ${{ secrets.PR_MAINTAIN }}
+        token: ${{ secrets.PR_MAINTAIN_BOT }}
         repository: ${{ github.event.client_payload.github.payload.repository.full_name }}
         comment-id: ${{ github.event.client_payload.github.payload.comment.id }}
         reaction-type: rocket
