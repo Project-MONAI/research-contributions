@@ -20,7 +20,8 @@ training:
   num_epochs_per_validation: 2
   num_patches_per_image: 1
   num_patches_per_iter: 1
-  num_sw_batch_size: "$@training#num_patches_per_iter"
+  # num_sw_batch_size: "$@training#num_patches_per_iter"
+  num_sw_batch_size: null
   num_workers: 8
   num_workers_validation: 2
   num_cache_workers: 8
