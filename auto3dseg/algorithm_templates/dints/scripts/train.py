@@ -610,7 +610,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 val_images = val_data["image"].to(_device_in)
                                 val_labels = val_data["label"].to(_device_out)
 
-                                if num_sw_batch_size == None:
+                                if num_sw_batch_size is None:
                                     sw_batch_size = num_patches_per_iter * 12 if _device_out == "cpu" else 1
                                 else:
                                     sw_batch_size = num_sw_batch_size
@@ -773,7 +773,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             val_images = val_data["image"].to(_device_in)
                             val_labels = val_data["label"].to(_device_out)
 
-                            if num_sw_batch_size == None:
+                            if num_sw_batch_size is None:
                                 sw_batch_size = num_patches_per_iter * 12 if _device_out == "cpu" else 1
                             else:
                                 sw_batch_size = num_sw_batch_size
