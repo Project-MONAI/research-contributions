@@ -626,7 +626,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                         sw_device=device,
                                         device=_device_out,
                                     )
-                                val_outputs = post_pred(val_outputs[0, ...])
 
                                 finished = True
 
@@ -639,7 +638,17 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             if finished:
                                 break
 
+                        del val_images
+                        val_labels = val_labels.cpu()
+                        val_outputs = val_outputs.cpu()
+                        torch.cuda.empty_cache()
+                        gc.collect()
+
+                        val_outputs = post_pred(val_outputs[0, ...])
                         val_outputs = val_outputs[None, ...]
+
+                        val_labels = val_labels.to(_device_in)
+                        val_outputs = val_outputs.to(_device_in)
 
                         if softmax:
                             val_labels = val_labels.int()
@@ -656,7 +665,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
-                        del val_images, val_labels, val_outputs
+                        del val_labels, val_outputs
                         torch.cuda.empty_cache()
                         gc.collect()
 
