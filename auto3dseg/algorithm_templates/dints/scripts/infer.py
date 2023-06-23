@@ -312,7 +312,6 @@ class InferClass:
                 torch.cuda.empty_cache()
 
                 infer_data = [self.post_transforms(i) for i in decollate_batch(infer_data)]
-                infer_data = [self.post_transforms(i) for i in monai.data.decollate_batch(infer_data)]
 
         return
 
