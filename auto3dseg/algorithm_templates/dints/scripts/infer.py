@@ -10,11 +10,11 @@
 # limitations under the License.
 
 import logging
-import numpy as np
 import os
 import sys
 from typing import Optional, Sequence, Union
 
+import numpy as np
 import torch
 import torch.distributed as dist
 

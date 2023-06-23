@@ -222,12 +222,7 @@ class DintsAlgo(BundleAlgo):
                     new_crop_transforms = {
                         "_target_": "Compose",
                         "transforms": [
-                            {
-                                "_target_": "CopyItemsd",
-                                "keys": "@label_key",
-                                "times": 1,
-                                "names": "crop_label",
-                            },
+                            {"_target_": "CopyItemsd", "keys": "@label_key", "times": 1, "names": "crop_label"},
                             {
                                 "_target_": "Lambdad",
                                 "keys": "crop_label",
@@ -242,11 +237,7 @@ class DintsAlgo(BundleAlgo):
                                 "num_samples": "@training#num_patches_per_image",
                                 "warn": False,
                             },
-                            {
-                                "_target_": "Lambdad",
-                                "keys": "crop_label",
-                                "func": f"$lambda x: 0",
-                            },
+                            {"_target_": "Lambdad", "keys": "crop_label", "func": f"$lambda x: 0"},
                         ],
                     }
                     transforms_train.update({"transforms_train#transforms#9": new_crop_transforms})

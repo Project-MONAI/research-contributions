@@ -378,7 +378,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         post_pred = transforms.Compose([transforms.EnsureType(), transforms.AsDiscrete(argmax=True, to_onehot=None)])
     else:
         post_pred = transforms.Compose(
-            [transforms.EnsureType(), transforms.Activations(sigmoid=True), transforms.AsDiscrete(threshold=0.5 + np.finfo(np.float32).eps)]
+            [
+                transforms.EnsureType(),
+                transforms.Activations(sigmoid=True),
+                transforms.AsDiscrete(threshold=0.5 + np.finfo(np.float32).eps),
+            ]
         )
 
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
