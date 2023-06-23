@@ -4,9 +4,6 @@ name: integration
 on:
   repository_dispatch:
     type: [integration-test-command]
-  push:
-    branches:
-      - temp-test
 
 jobs:
   integration-py3:
@@ -75,7 +72,6 @@ jobs:
         export MKL_NUM_THREADS=4
         export MONAI_TESTING_ALGO_TEMPLATE=algorithm_templates
         export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
-        python -c "from torch.utils.tensorboard import SummaryWriter; print(SummaryWriter)"
         python -m unittest -vvv tests.test_auto3dseg_ensemble
         python -m unittest -vvv tests.test_auto3dseg_hpo
         python -m unittest -vvv tests.test_integration_autorunner
