@@ -4,6 +4,9 @@ name: integration
 on:
   repository_dispatch:
     type: [integration-test-command]
+  push:
+    branches:
+      - temp-test
 
 jobs:
   integration-py3:
@@ -71,10 +74,12 @@ jobs:
         export OMP_NUM_THREADS=4
         export MKL_NUM_THREADS=4
         export MONAI_TESTING_ALGO_TEMPLATE=algorithm_templates
-        python -m tests.test_auto3dseg_ensemble
-        python -m tests.test_auto3dseg_hpo
-        python -m tests.test_integration_autorunner
-        python -m tests.test_integration_gpu_customization
+        export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+        python -c "from torch.utils.tensorboard import SummaryWriter; print(SummaryWriter)"
+        python -m unittest -vvv tests.test_auto3dseg_ensemble
+        python -m unittest -vvv tests.test_auto3dseg_hpo
+        python -m unittest -vvv tests.test_integration_autorunner
+        python -m unittest -vvv tests.test_integration_gpu_customization
 
     - name: Clean directory
       run: |
@@ -82,8 +87,7 @@ jobs:
         rm -rf core
 
     - name: Add reaction
-      uses: peter-evans/create-or-update-comment@v2
-      if: github.event.pull_request.number != ''
+      uses: peter-evans/create-or-update-comment@v1
       with:
         token: ${{ secrets.PR_MAINTAIN_BOT }}
         repository: ${{ github.event.client_payload.github.payload.repository.full_name }}
