@@ -74,6 +74,7 @@ jobs:
         export OMP_NUM_THREADS=4
         export MKL_NUM_THREADS=4
         export MONAI_TESTING_ALGO_TEMPLATE=algorithm_templates
+        python -c "from torch.utils.tensorboard import SummaryWriter; print(SummaryWriter)"
         python -m unittest -vvv tests.test_auto3dseg_ensemble
         python -m unittest -vvv tests.test_auto3dseg_hpo
         python -m unittest -vvv tests.test_integration_autorunner
