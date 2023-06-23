@@ -116,10 +116,12 @@ class InferClass:
         data_list_file_path = parser.get_parsed_content("data_list_file_path")
         self.fast = parser.get_parsed_content("infer")["fast"]
         log_output_file = parser.get_parsed_content("infer#log_output_file")
+        self.num_patches_per_iter = parser.get_parsed_content("training#num_patches_per_iter")
         self.num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
         self.overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
         self.patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
         softmax = parser.get_parsed_content("training#softmax")
+        self.sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
 
         ckpt_name = parser.get_parsed_content("infer")["ckpt_name"]
         data_list_key = parser.get_parsed_content("infer")["data_list_key"]
@@ -198,27 +200,31 @@ class InferClass:
         batch_data = self.infer_transforms(image_file)
         batch_data = list_data_collate([batch_data])
 
-        infer_images = None
-        infer_outputs = None
         finished = None
+        device_list_input = None
+        device_list_output = None
 
-        device_list_input = [self.device, self.device, "cpu"]
-        device_list_output = [self.device, "cpu", "cpu"]
+        if self.sw_input_on_cpu:
+            device_list_input = ["cpu"]
+            device_list_output = ["cpu"]
+        else:
+            device_list_input = [self.device, self.device, "cpu"]
+            device_list_output = [self.device, "cpu", "cpu"]
 
         for _device_in, _device_out in zip(device_list_input, device_list_output):
             try:
                 infer_images = batch_data["image"].to(_device_in)
 
-                if _device_in != self.device or _device_out != self.device:
-                    self.model = self.model.cpu()
-                    torch.cuda.empty_cache()
-                    self.model = self.model.to(self.device)
+                if self.num_sw_batch_size is None:
+                    sw_batch_size = self.num_patches_per_iter * 12 if _device_out == "cpu" else 1
+                else:
+                    sw_batch_size = self.num_sw_batch_size
 
                 with torch.cuda.amp.autocast(enabled=self.amp):
                     batch_data["pred"] = sliding_window_inference(
                         inputs=infer_images,
                         roi_size=self.patch_size_valid,
-                        sw_batch_size=self.num_sw_batch_size,
+                        sw_batch_size=sw_batch_size,
                         predictor=self.model,
                         mode="gaussian",
                         overlap=self.overlap_ratio,
@@ -260,27 +266,31 @@ class InferClass:
             for infer_data in self.infer_loader:
                 torch.cuda.empty_cache()
 
-                infer_images = None
-                infer_outputs = None
                 finished = None
+                device_list_input = None
+                device_list_output = None
 
-                device_list_input = [device, device, "cpu"]
-                device_list_output = [device, "cpu", "cpu"]
+                if self.sw_input_on_cpu:
+                    device_list_input = ["cpu"]
+                    device_list_output = ["cpu"]
+                else:
+                    device_list_input = [self.device, self.device, "cpu"]
+                    device_list_output = [self.device, "cpu", "cpu"]
 
                 for _device_in, _device_out in zip(device_list_input, device_list_output):
                     try:
                         infer_images = infer_data["image"].to(_device_in)
 
-                        if _device_in != self.device or _device_out != self.device:
-                            self.model = self.model.cpu()
-                            torch.cuda.empty_cache()
-                            self.model = self.model.to(self.device)
+                        if self.num_sw_batch_size is None:
+                            sw_batch_size = self.num_patches_per_iter * 12 if _device_out == "cpu" else 1
+                        else:
+                            sw_batch_size = self.num_sw_batch_size
 
                         with torch.cuda.amp.autocast(enabled=self.amp):
                             infer_data["pred"] = sliding_window_inference(
                                 inputs=infer_images,
                                 roi_size=self.patch_size_valid,
-                                sw_batch_size=self.num_sw_batch_size,
+                                sw_batch_size=sw_batch_size,
                                 predictor=self.model,
                                 mode="gaussian",
                                 overlap=self.overlap_ratio,

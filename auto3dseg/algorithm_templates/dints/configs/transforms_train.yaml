@@ -44,7 +44,7 @@ transforms_train:
   - _target_: RandCropByLabelClassesd
     keys: ["@image_key", "@label_key"]
     label_key: "@label_key"
-    num_classes: "@training#output_classes"
+    num_classes: "$@training#output_classes"
     spatial_size: "@training#patch_size"
     num_samples: "@training#num_patches_per_image"
     warn: false

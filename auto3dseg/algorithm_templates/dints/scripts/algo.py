@@ -219,6 +219,38 @@ class DintsAlgo(BundleAlgo):
                     hyper_parameters.update({"training#output_classes": len(data_src_cfg["class_names"])})
                     hyper_parameters_search.update({"searching#output_classes": len(data_src_cfg["class_names"])})
 
+                    new_crop_transforms = {
+                        "_target_": "Compose",
+                        "transforms": [
+                            {
+                                "_target_": "CopyItemsd",
+                                "keys": "@label_key",
+                                "times": 1,
+                                "names": "crop_label",
+                            },
+                            {
+                                "_target_": "Lambdad",
+                                "keys": "crop_label",
+                                "func": f"$lambda x: torch.cat([(torch.sum(x, dim=0, keepdim=True) < 1).to(dtype=x.dtype), x], dim=0)",
+                            },
+                            {
+                                "_target_": "RandCropByLabelClassesd",
+                                "keys": ["@image_key", "@label_key"],
+                                "label_key": "crop_label",
+                                "num_classes": None,
+                                "spatial_size": "@training#patch_size",
+                                "num_samples": "@training#num_patches_per_image",
+                                "warn": False,
+                            },
+                            {
+                                "_target_": "Lambdad",
+                                "keys": "crop_label",
+                                "func": f"$lambda x: 0",
+                            },
+                        ],
+                    }
+                    transforms_train.update({"transforms_train#transforms#9": new_crop_transforms})
+
             fill_records = {
                 "hyper_parameters.yaml": hyper_parameters,
                 "hyper_parameters_search.yaml": hyper_parameters_search,

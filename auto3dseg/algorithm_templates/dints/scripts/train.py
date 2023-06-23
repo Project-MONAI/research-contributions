@@ -206,8 +206,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     overlap_ratio_train = parser.get_parsed_content("training#overlap_ratio_train")
     patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
     random_seed = parser.get_parsed_content("training#random_seed")
-    sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     softmax = parser.get_parsed_content("training#softmax")
+    sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     valid_at_orig_resolution_at_last = parser.get_parsed_content("training#valid_at_orig_resolution_at_last")
     valid_at_orig_resolution_only = parser.get_parsed_content("training#valid_at_orig_resolution_only")
 
