@@ -202,7 +202,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     else:
         post_transforms += [
             transforms.Activationsd(keys="pred", sigmoid=True),
-            transforms.AsDiscreted(keys="pred", threshold=0.5),
+            transforms.AsDiscreted(keys="pred", threshold=0.5 + np.finfo(np.float32).eps),
         ]
 
     if save_mask:

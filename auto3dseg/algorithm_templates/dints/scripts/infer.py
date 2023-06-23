@@ -10,6 +10,7 @@
 # limitations under the License.
 
 import logging
+import numpy as np
 import os
 import sys
 from typing import Optional, Sequence, Union
@@ -176,7 +177,7 @@ class InferClass:
         if softmax:
             post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
         else:
-            post_transforms += [transforms.AsDiscreted(keys="pred", threshold=0.5)]
+            post_transforms += [transforms.AsDiscreted(keys="pred", threshold=0.5 + np.finfo(np.float32).eps)]
 
         post_transforms += [
             transforms.SaveImaged(
