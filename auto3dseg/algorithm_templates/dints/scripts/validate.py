@@ -258,7 +258,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         sw_batch_size = num_patches_per_iter * 12 if _device_out == "cpu" else 1
                     else:
                         sw_batch_size = num_sw_batch_size
-                        
+
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_data["pred"] = sliding_window_inference(
                             inputs=val_images,
