@@ -206,8 +206,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     overlap_ratio_train = parser.get_parsed_content("training#overlap_ratio_train")
     patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
     random_seed = parser.get_parsed_content("training#random_seed")
-    sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     softmax = parser.get_parsed_content("training#softmax")
+    sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     valid_at_orig_resolution_at_last = parser.get_parsed_content("training#valid_at_orig_resolution_at_last")
     valid_at_orig_resolution_only = parser.get_parsed_content("training#valid_at_orig_resolution_only")
 
@@ -378,7 +378,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         post_pred = transforms.Compose([transforms.EnsureType(), transforms.AsDiscrete(argmax=True, to_onehot=None)])
     else:
         post_pred = transforms.Compose(
-            [transforms.EnsureType(), transforms.Activations(sigmoid=True), transforms.AsDiscrete(threshold=0.5)]
+            [
+                transforms.EnsureType(),
+                transforms.Activations(sigmoid=True),
+                transforms.AsDiscrete(threshold=0.5 + np.finfo(np.float32).eps),
+            ]
         )
 
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
@@ -400,7 +404,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         else:
             post_transforms += [
                 transforms.Activationsd(keys="pred", sigmoid=True),
-                transforms.AsDiscreted(keys="pred", threshold=0.5),
+                transforms.AsDiscreted(keys="pred", threshold=0.5 + np.finfo(np.float32).eps),
             ]
 
         post_transforms = transforms.Compose(post_transforms)
@@ -626,7 +630,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                         sw_device=device,
                                         device=_device_out,
                                     )
-                                val_outputs = post_pred(val_outputs[0, ...])
 
                                 finished = True
 
@@ -639,7 +642,17 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             if finished:
                                 break
 
+                        del val_images
+                        val_labels = val_labels.cpu()
+                        val_outputs = val_outputs.cpu()
+                        torch.cuda.empty_cache()
+                        gc.collect()
+
+                        val_outputs = post_pred(val_outputs[0, ...])
                         val_outputs = val_outputs[None, ...]
+
+                        val_labels = val_labels.to(_device_in)
+                        val_outputs = val_outputs.to(_device_in)
 
                         if softmax:
                             val_labels = val_labels.int()
@@ -656,7 +669,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
-                        del val_images, val_labels, val_outputs
+                        del val_labels, val_outputs
                         torch.cuda.empty_cache()
                         gc.collect()
 
