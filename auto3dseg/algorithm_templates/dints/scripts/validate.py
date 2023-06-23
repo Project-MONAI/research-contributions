@@ -318,7 +318,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             print_message += val_data[0]["pred"].meta["filename_or_obj"]
             print_message += ", "
             for _k in range(metric_dim):
-                if output_classes == 2:
+                if output_classes == 2 and softmax:
                     print_message += f"{metric_vals.squeeze():.5f}"
                 else:
                     print_message += f"{metric_vals.squeeze()[_k]:.5f}"
