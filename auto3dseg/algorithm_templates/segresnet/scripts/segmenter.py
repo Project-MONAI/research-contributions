@@ -606,7 +606,7 @@ class Segmenter:
                     "num_crops_per_image": config["num_crops_per_image"],
                     "max_samples_per_class": config["max_samples_per_class"],
                 },
-                extra_modalitie=config["extra_modalities"],
+                extra_modalities=config["extra_modalities"],
                 custom_transforms=custom_transforms,
                 crop_foreground=config.get("crop_foreground", True),
                 debug=config["debug"],
