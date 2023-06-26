@@ -151,7 +151,31 @@ def pre_operation(config_file, **override):
 
                     parser["training"].update({"num_patches_per_iter": batch_size})
                     parser["training"].update({"num_patches_per_image": 2 * batch_size})
-                    parser["training"].update({"num_epochs": int(400.0 / float(batch_size))})
+
+                    # estimate data size based on number of images and image size
+                    _factor = 1.0
+
+                    try:
+                        _factor *= 1251.0 / float(parser["stats_summary"]["n_cases"])
+                        _mean_shape = parser["stats_summary"]["image_stats"]["shape"]["mean"]
+                        _factor *= float(_mean_shape[0]) / 240.0
+                        _factor *= float(_mean_shape[1]) / 240.0
+                        _factor *= float(_mean_shape[2]) / 155.0
+                    except BaseException:
+                        pass
+
+                    _patch_size = parser["training"]["patch_size"]
+                    _factor *= 96.0 / float(_patch_size[0])
+                    _factor *= 96.0 / float(_patch_size[1])
+                    _factor *= 96.0 / float(_patch_size[2])
+
+                    _factor /= 6.0
+                    _factor = max(1.0, _factor)
+
+                    _estimated_epochs = 400.0
+                    _estimated_epochs *= _factor
+
+                    parser["training"].update({"num_epochs": int(_estimated_epochs / float(batch_size))})
 
                     ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
 
