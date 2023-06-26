@@ -99,7 +99,6 @@ def pre_operation(config_file, **override):
                     try:
                         _factor *= 1251.0 / float(parser["stats_summary"]["n_cases"])
                         _mean_shape = parser["stats_summary"]["image_stats"]["shape"]["mean"]
-                        print("_mean_shape", _mean_shape)
                         _factor *= float(_mean_shape[0]) / 240.0
                         _factor *= float(_mean_shape[1]) / 240.0
                         _factor *= float(_mean_shape[2]) / 155.0
