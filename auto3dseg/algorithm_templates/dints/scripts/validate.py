@@ -97,7 +97,7 @@ def pre_operation(config_file, **override):
 
                     # estimate data size based on number of images and image size
                     _factor = 1.0
-                    
+
                     try:
                         _factor *= 1251.0 / float(parser["stats_summary"]["n_cases"])
                         _mean_shape = parser["stats_summary"]["image_stats"]["shape"]["mean"]
@@ -106,7 +106,7 @@ def pre_operation(config_file, **override):
                         _factor *= float(_mean_shape[2]) / 155.0
                     except BaseException:
                         pass
-                    
+
                     _patch_size = parser["training"]["patch_size"]
                     _factor *= 96.0 / float(_patch_size[0])
                     _factor *= 96.0 / float(_patch_size[1])
