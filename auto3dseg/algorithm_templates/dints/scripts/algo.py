@@ -26,6 +26,15 @@ from monai.bundle import ConfigParser
 logger = get_logger(module_name=__name__)
 
 
+def modify_hierarchical_dict(hierarchical_dict, keys, value):
+    if len(keys) == 1:
+        hierarchical_dict[keys[0]] = value
+    else:
+        if keys[0] not in hierarchical_dict:
+            hierarchical_dict[keys[0]] = {}
+        modify_hierarchical_dict(hierarchical_dict[keys[0]], keys[1:], value)
+
+
 def get_mem_from_visible_gpus():
     available_mem_visible_gpus = []
     for d in range(torch.cuda.device_count()):
@@ -85,6 +94,16 @@ class DintsAlgo(BundleAlgo):
                     hyper_parameters_search.update({"searching#softmax": False})
             except BaseException:
                 pass
+
+            stat_summary_dict = {}
+            _keys = ["image_stats", "shape", "mean"]
+            _value = data_stats["stats_summary#image_stats#shape#mean"]
+            modify_hierarchical_dict(stat_summary_dict, _keys, _value)
+            _keys = ["n_cases"]
+            _value = data_stats["stats_summary#n_cases"]
+            modify_hierarchical_dict(stat_summary_dict, _keys, _value)
+            hyper_parameters.update({"stats_summary": stat_summary_dict})
+            hyper_parameters_search.update({"stats_summary": stat_summary_dict})
 
             input_channels = data_stats["stats_summary#image_stats#channels#max"]
             output_classes = len(data_stats["stats_summary#label_stats#labels"])
