@@ -22,7 +22,7 @@ import random
 import sys
 import time
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Sequence, Union
 
 import numpy as np
@@ -51,14 +51,17 @@ try:
 except ModuleNotFoundError:
     from torch.nn.utils import clip_grad_norm_
 
-
-_libcudart = ctypes.CDLL("libcudart.so")
-# Set device limit on the current device
-# cudaLimitMaxL2FetchGranularity = 0x05
-p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
-_libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
-_libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
-assert p_value.contents.value == 128
+try:
+    _libcudart = ctypes.CDLL("libcudart.so")
+except OSError:
+    print("Warning: cannot find libcudart.so or AMD ROCm platform, set device limit is disabled")
+else:
+    # Set device limit on the current device
+    # cudaLimitMaxL2FetchGranularity = 0x05
+    p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
+    _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
+    _libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
+    assert p_value.contents.value == 128
 
 torch.backends.cudnn.benchmark = True
 
@@ -151,7 +154,31 @@ def pre_operation(config_file, **override):
 
                     parser["training"].update({"num_patches_per_iter": batch_size})
                     parser["training"].update({"num_patches_per_image": 2 * batch_size})
-                    parser["training"].update({"num_epochs": int(400.0 / float(batch_size))})
+
+                    # estimate data size based on number of images and image size
+                    _factor = 1.0
+
+                    try:
+                        _factor *= 1251.0 / float(parser["stats_summary"]["n_cases"])
+                        _mean_shape = parser["stats_summary"]["image_stats"]["shape"]["mean"]
+                        _factor *= float(_mean_shape[0]) / 240.0
+                        _factor *= float(_mean_shape[1]) / 240.0
+                        _factor *= float(_mean_shape[2]) / 155.0
+                    except BaseException:
+                        pass
+
+                    _patch_size = parser["training"]["patch_size"]
+                    _factor *= 96.0 / float(_patch_size[0])
+                    _factor *= 96.0 / float(_patch_size[1])
+                    _factor *= 96.0 / float(_patch_size[2])
+
+                    _factor /= 6.0
+                    _factor = max(1.0, _factor)
+
+                    _estimated_epochs = 400.0
+                    _estimated_epochs *= _factor
+
+                    parser["training"].update({"num_epochs": int(_estimated_epochs / float(batch_size))})
 
                     ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
 
@@ -165,7 +192,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     logger.debug(f"number of GPUs: {torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
         logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
-        dist.init_process_group(backend="nccl", init_method="env://")
+        dist.init_process_group(backend="nccl", init_method="env://", timeout=timedelta(seconds=7200))
         world_size = dist.get_world_size()
     else:
         world_size = 1
@@ -199,15 +226,15 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     num_images_per_batch = parser.get_parsed_content("training#num_images_per_batch")
     num_epochs = parser.get_parsed_content("training#num_epochs")
     num_epochs_per_validation = parser.get_parsed_content("training#num_epochs_per_validation")
-    num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
     num_patches_per_iter = parser.get_parsed_content("training#num_patches_per_iter")
+    num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
     overlap_ratio_train = parser.get_parsed_content("training#overlap_ratio_train")
     patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
     random_seed = parser.get_parsed_content("training#random_seed")
-    sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     softmax = parser.get_parsed_content("training#softmax")
+    sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     valid_at_orig_resolution_at_last = parser.get_parsed_content("training#valid_at_orig_resolution_at_last")
     valid_at_orig_resolution_only = parser.get_parsed_content("training#valid_at_orig_resolution_only")
 
@@ -378,7 +405,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         post_pred = transforms.Compose([transforms.EnsureType(), transforms.AsDiscrete(argmax=True, to_onehot=None)])
     else:
         post_pred = transforms.Compose(
-            [transforms.EnsureType(), transforms.Activations(sigmoid=True), transforms.AsDiscrete(threshold=0.5)]
+            [
+                transforms.EnsureType(),
+                transforms.Activations(sigmoid=True),
+                transforms.AsDiscrete(threshold=0.5 + np.finfo(np.float32).eps),
+            ]
         )
 
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
@@ -400,7 +431,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         else:
             post_transforms += [
                 transforms.Activationsd(keys="pred", sigmoid=True),
-                transforms.AsDiscreted(keys="pred", threshold=0.5),
+                transforms.AsDiscreted(keys="pred", threshold=0.5 + np.finfo(np.float32).eps),
             ]
 
         post_transforms = transforms.Compose(post_transforms)
@@ -550,7 +581,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 lr_scheduler.step()
 
                 if torch.cuda.device_count() > 1:
-                    dist.barrier()
                     dist.all_reduce(loss_torch, op=torch.distributed.ReduceOp.SUM)
 
                 loss_torch = loss_torch.tolist()
@@ -588,9 +618,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     _index = 0
                     for val_data in val_loader:
-                        val_images = None
-                        val_labels = None
-                        val_outputs = None
                         finished = None
                         device_list_input = None
                         device_list_output = None
@@ -614,18 +641,22 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 val_images = val_data["image"].to(_device_in)
                                 val_labels = val_data["label"].to(_device_out)
 
+                                if num_sw_batch_size is None:
+                                    sw_batch_size = num_patches_per_iter * 12 if _device_out == "cpu" else 1
+                                else:
+                                    sw_batch_size = num_sw_batch_size
+
                                 with autocast(enabled=amp):
                                     val_outputs = sliding_window_inference(
                                         inputs=val_images,
                                         roi_size=patch_size_valid,
-                                        sw_batch_size=num_sw_batch_size,
+                                        sw_batch_size=sw_batch_size,
                                         predictor=model,
                                         mode="gaussian",
                                         overlap=overlap_ratio_train,
                                         sw_device=device,
                                         device=_device_out,
                                     )
-                                val_outputs = post_pred(val_outputs[0, ...])
 
                                 finished = True
 
@@ -638,7 +669,17 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             if finished:
                                 break
 
+                        del val_images
+                        val_labels = val_labels.cpu()
+                        val_outputs = val_outputs.cpu()
+                        torch.cuda.empty_cache()
+                        gc.collect()
+
+                        val_outputs = post_pred(val_outputs[0, ...])
                         val_outputs = val_outputs[None, ...]
+
+                        val_labels = val_labels.to(_device_in)
+                        val_outputs = val_outputs.to(_device_in)
 
                         if softmax:
                             val_labels = val_labels.int()
@@ -655,7 +696,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
-                        del val_images, val_labels, val_outputs
+                        del val_labels, val_outputs
                         torch.cuda.empty_cache()
                         gc.collect()
 
@@ -668,7 +709,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         _index += 1
 
                     if torch.cuda.device_count() > 1:
-                        dist.barrier()
                         dist.all_reduce(metric, op=torch.distributed.ReduceOp.SUM)
 
                     metric = metric.tolist()
@@ -757,13 +797,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in orig_val_loader:
-                    val_images = None
-                    val_labels = None
-                    val_outputs = None
                     finished = None
-
                     device_list_input = None
                     device_list_output = None
+
                     if sw_input_on_cpu:
                         device_list_input = ["cpu"]
                         device_list_output = ["cpu"]
@@ -776,11 +813,16 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             val_images = val_data["image"].to(_device_in)
                             val_labels = val_data["label"].to(_device_out)
 
+                            if num_sw_batch_size is None:
+                                sw_batch_size = num_patches_per_iter * 12 if _device_out == "cpu" else 1
+                            else:
+                                sw_batch_size = num_sw_batch_size
+
                             with autocast(enabled=amp):
                                 val_data["pred"] = sliding_window_inference(
                                     inputs=val_images,
                                     roi_size=patch_size_valid,
-                                    sw_batch_size=num_sw_batch_size,
+                                    sw_batch_size=sw_batch_size,
                                     predictor=model,
                                     mode="gaussian",
                                     overlap=overlap_ratio,
@@ -803,12 +845,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     val_data["image"] = val_data["image"].cpu()
                     val_data["label"] = val_data["label"].cpu()
                     val_data["pred"] = val_data["pred"].cpu()
-                    val_labels = val_labels.cpu()
                     torch.cuda.empty_cache()
                     gc.collect()
 
                     val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
                     val_outputs = val_data[0]["pred"][None, ...]
+
+                    val_labels = val_labels.to(_device_in)
+                    val_outputs = val_outputs.to(_device_in)
 
                     if softmax:
                         val_labels = val_labels.int()
@@ -833,7 +877,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     _index += 1
 
                 if torch.cuda.device_count() > 1:
-                    dist.barrier()
                     dist.all_reduce(metric, op=torch.distributed.ReduceOp.SUM)
 
                 metric = metric.tolist()

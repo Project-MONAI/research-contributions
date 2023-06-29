@@ -94,7 +94,31 @@ def pre_operation(config_file, **override):
 
                     parser["training"].update({"num_patches_per_iter": batch_size})
                     parser["training"].update({"num_patches_per_image": 2 * batch_size})
-                    parser["training"].update({"num_epochs": int(400.0 / float(batch_size))})
+
+                    # estimate data size based on number of images and image size
+                    _factor = 1.0
+
+                    try:
+                        _factor *= 1251.0 / float(parser["stats_summary"]["n_cases"])
+                        _mean_shape = parser["stats_summary"]["image_stats"]["shape"]["mean"]
+                        _factor *= float(_mean_shape[0]) / 240.0
+                        _factor *= float(_mean_shape[1]) / 240.0
+                        _factor *= float(_mean_shape[2]) / 155.0
+                    except BaseException:
+                        pass
+
+                    _patch_size = parser["training"]["patch_size"]
+                    _factor *= 96.0 / float(_patch_size[0])
+                    _factor *= 96.0 / float(_patch_size[1])
+                    _factor *= 96.0 / float(_patch_size[2])
+
+                    _factor /= 6.0
+                    _factor = max(1.0, _factor)
+
+                    _estimated_epochs = 400.0
+                    _estimated_epochs *= _factor
+
+                    parser["training"].update({"num_epochs": int(_estimated_epochs / float(batch_size))})
 
                     ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
 
@@ -118,11 +142,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
     fold = parser.get_parsed_content("fold")
     log_output_file = parser.get_parsed_content("validate#log_output_file")
+    num_patches_per_iter = parser.get_parsed_content("training#num_patches_per_iter")
     num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
     patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
     softmax = parser.get_parsed_content("training#softmax")
+    sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
 
     ckpt_name = parser.get_parsed_content("validate")["ckpt_name"]
     output_path = parser.get_parsed_content("validate")["output_path"]
@@ -200,7 +226,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     else:
         post_transforms += [
             transforms.Activationsd(keys="pred", sigmoid=True),
-            transforms.AsDiscreted(keys="pred", threshold=0.5),
+            transforms.AsDiscreted(keys="pred", threshold=0.5 + np.finfo(np.float32).eps),
         ]
 
     if save_mask:
@@ -236,29 +262,32 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         for val_data in val_loader:
             torch.cuda.empty_cache()
 
-            val_images = None
-            val_labels = None
-            val_outputs = None
             finished = None
+            device_list_input = None
+            device_list_output = None
 
-            device_list_input = [device, device, "cpu"]
-            device_list_output = [device, "cpu", "cpu"]
+            if sw_input_on_cpu:
+                device_list_input = ["cpu"]
+                device_list_output = ["cpu"]
+            else:
+                device_list_input = [device, device, "cpu"]
+                device_list_output = [device, "cpu", "cpu"]
 
             for _device_in, _device_out in zip(device_list_input, device_list_output):
                 try:
                     val_images = val_data["image"].to(_device_in)
                     val_labels = val_data["label"].to(_device_out)
 
-                    if _device_in != device or _device_out != device:
-                        model = model.cpu()
-                        torch.cuda.empty_cache()
-                        model = model.to(device)
+                    if num_sw_batch_size is None:
+                        sw_batch_size = num_patches_per_iter * 12 if _device_out == "cpu" else 1
+                    else:
+                        sw_batch_size = num_sw_batch_size
 
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_data["pred"] = sliding_window_inference(
                             inputs=val_images,
                             roi_size=patch_size_valid,
-                            sw_batch_size=num_sw_batch_size,
+                            sw_batch_size=sw_batch_size,
                             predictor=model,
                             mode="gaussian",
                             overlap=overlap_ratio,
@@ -268,7 +297,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     finished = True
 
-                except BaseException:
+                except RuntimeError as e:
+                    if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
+                        raise e
+
                     finished = False
 
                 if finished:
@@ -310,7 +342,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             print_message += val_data[0]["pred"].meta["filename_or_obj"]
             print_message += ", "
             for _k in range(metric_dim):
-                if output_classes == 2:
+                if output_classes == 2 and softmax:
                     print_message += f"{metric_vals.squeeze():.5f}"
                 else:
                     print_message += f"{metric_vals.squeeze()[_k]:.5f}"

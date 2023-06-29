@@ -246,7 +246,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         post_label = transforms.Compose([transforms.EnsureType(), transforms.AsDiscrete(to_onehot=output_classes)])
     else:
         post_pred = transforms.Compose(
-            [transforms.EnsureType(), transforms.Activations(sigmoid=True), transforms.AsDiscrete(threshold=0.5)]
+            [
+                transforms.EnsureType(),
+                transforms.Activations(sigmoid=True),
+                transforms.AsDiscrete(threshold=0.5 + np.finfo(np.float32).eps),
+            ]
         )
 
     loss_function = parser.get_parsed_content("searching#loss")

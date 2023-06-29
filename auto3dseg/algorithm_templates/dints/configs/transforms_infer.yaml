@@ -20,6 +20,3 @@ transforms_infer:
   - _target_: CastToTyped
     keys: "@image_key"
     dtype: "$torch.float32"
-  - _target_: CastToTyped
-    keys: "@image_key"
-    dtype: "$torch.float32"
