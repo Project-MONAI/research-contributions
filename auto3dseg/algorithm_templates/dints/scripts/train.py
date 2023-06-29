@@ -639,7 +639,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 val_labels = val_data["label"].to(_device_out)
 
                                 if num_sw_batch_size is None:
-                                    sw_batch_size = num_patches_per_iter * 12 if _device_out == "cpu" else 1
+                                    sw_batch_size = num_patches_per_iter * 8 if _device_out == "cpu" else 1
                                 else:
                                     sw_batch_size = num_sw_batch_size
 
@@ -811,7 +811,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             val_labels = val_data["label"].to(_device_out)
 
                             if num_sw_batch_size is None:
-                                sw_batch_size = num_patches_per_iter * 12 if _device_out == "cpu" else 1
+                                sw_batch_size = num_patches_per_iter * 8 if _device_out == "cpu" else 1
                             else:
                                 sw_batch_size = num_sw_batch_size
 
@@ -850,6 +850,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     val_labels = val_labels.to(_device_in)
                     val_outputs = val_outputs.to(_device_in)
+
+                    del val_data
+                    gc.collect()
 
                     if softmax:
                         val_labels = val_labels.int()
