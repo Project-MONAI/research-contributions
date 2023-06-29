@@ -24,6 +24,13 @@ from monai.bundle import ConfigParser
 
 logger = get_logger(module_name=__name__)
 
+def modify_hierarchical_dict(hierarchical_dict, keys, value):
+    if len(keys) == 1:
+        hierarchical_dict[keys[0]] = value
+    else:
+        if keys[0] not in hierarchical_dict:
+            hierarchical_dict[keys[0]] = {}
+        modify_hierarchical_dict(hierarchical_dict[keys[0]], keys[1:], value)
 
 def get_mem_from_visible_gpus():
     available_mem_visible_gpus = []
@@ -236,7 +243,28 @@ class SwinunetrAlgo(BundleAlgo):
 
                 if "sigmoid" in data_src_cfg and isinstance(data_src_cfg["sigmoid"], bool) and data_src_cfg["sigmoid"]:
                     hyper_parameters.update({"output_classes": len(data_src_cfg["class_names"])})
-
+                    new_crop_transforms = {
+                        "_target_": "Compose",
+                        "transforms": [
+                            {"_target_": "CopyItemsd", "keys": "@label_key", "times": 1, "names": "crop_label"},
+                            {
+                                "_target_": "Lambdad",
+                                "keys": "crop_label",
+                                "func": f"$lambda x: torch.cat([(torch.sum(x, dim=0, keepdim=True) < 1).to(dtype=x.dtype), x], dim=0)",
+                            },
+                            {
+                                "_target_": "RandCropByLabelClassesd",
+                                "keys": ["@image_key", "@label_key"],
+                                "label_key": "crop_label",
+                                "num_classes": None,
+                                "spatial_size": "@training#patch_size",
+                                "num_samples": "@training#num_patches_per_image",
+                                "warn": False,
+                            },
+                            {"_target_": "Lambdad", "keys": "crop_label", "func": f"$lambda x: 0"},
+                        ],
+                    }
+                    transforms_train.update({"transforms_train#transforms#9": new_crop_transforms})
             fill_records = {
                 "hyper_parameters.yaml": hyper_parameters,
                 "network.yaml": network,
