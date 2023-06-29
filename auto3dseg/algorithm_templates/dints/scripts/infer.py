@@ -241,7 +241,7 @@ class InferClass:
                 infer_images = batch_data["image"].to(_device_in)
 
                 if self.num_sw_batch_size is None:
-                    sw_batch_size = self.num_patches_per_iter * 12 if _device_out == "cpu" else 1
+                    sw_batch_size = self.num_patches_per_iter * 8 if _device_out == "cpu" else 1
                 else:
                     sw_batch_size = self.num_sw_batch_size
 
@@ -307,7 +307,7 @@ class InferClass:
                         infer_images = infer_data["image"].to(_device_in)
 
                         if self.num_sw_batch_size is None:
-                            sw_batch_size = self.num_patches_per_iter * 12 if _device_out == "cpu" else 1
+                            sw_batch_size = self.num_patches_per_iter * 8 if _device_out == "cpu" else 1
                         else:
                             sw_batch_size = self.num_sw_batch_size
 
