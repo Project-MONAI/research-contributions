@@ -51,14 +51,17 @@ try:
 except ModuleNotFoundError:
     from torch.nn.utils import clip_grad_norm_
 
-
-_libcudart = ctypes.CDLL("libcudart.so")
-# Set device limit on the current device
-# cudaLimitMaxL2FetchGranularity = 0x05
-p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
-_libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
-_libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
-assert p_value.contents.value == 128
+try:
+    _libcudart = ctypes.CDLL("libcudart.so")
+except OSError:
+    print("Warning: cannot find libcudart.so or AMD ROCm platform, set device limit is disabled")
+else:
+    # Set device limit on the current device
+    # cudaLimitMaxL2FetchGranularity = 0x05
+    p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
+    _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
+    _libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
+    assert p_value.contents.value == 128
 
 torch.backends.cudnn.benchmark = True
 
