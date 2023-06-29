@@ -136,6 +136,7 @@ class InferClass:
         for _device_in, _device_out in zip(device_list_input, device_list_output):
             try:
                 logger.debug(f"Working on {image_file} on device {_device_in}/{_device_out} in/out.")
+                batch_data["pred"] = None
                 with torch.cuda.amp.autocast(enabled=self.amp):
                     batch_data["pred"] = sliding_window_inference(
                         inputs=batch_data["image"].to(_device_in),

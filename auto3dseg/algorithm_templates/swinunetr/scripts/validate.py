@@ -156,6 +156,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             device_list_output = [device, "cpu", "cpu"]
             for _device_in, _device_out in zip(device_list_input, device_list_output):
                 try:
+                    val_data["pred"] = None
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_data["pred"] = sliding_window_inference(
                             inputs=val_data["image"].to(_device_in),
