@@ -123,7 +123,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         post_transforms = [transforms.Activationsd(keys="pred", sigmoid=True)] + \
             post_transforms + \
             [transforms.AsDiscreted(keys="pred", threshold=0.5)]
-        
+
     if save_mask:
         post_transforms += [
             transforms.SaveImaged(

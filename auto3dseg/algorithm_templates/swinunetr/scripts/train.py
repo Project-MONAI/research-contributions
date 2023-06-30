@@ -333,7 +333,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         )
 
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
-        
+
         post_transforms = [
             transforms.Invertd(
                 keys="pred",
@@ -725,7 +725,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         if finished:
                             break
 
-                    if finished: 
+                    if finished:
                         # move all to cpu to avoid potential out memory in invert transform
                         val_data["pred"] = val_data["pred"].to("cpu")
                         val_data["image"] = val_data["image"].to("cpu")
@@ -740,10 +740,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             include_background=not softmax,
                             num_classes=output_classes,
                         ).to(device)
-                    else: 
+                    else:
                         logger.debug(f'{val_filename} is skipped due to OOM, using NaN dice values')
-                        value = torch.full((1, metric_dim), float('nan')).to(device)    
-                                            
+                        value = torch.full((1, metric_dim), float('nan')).to(device)
+
                     logger.debug(
                         f"Validation Dice score at original resolution: {_index + 1} / {len(orig_val_loader)}/ {val_filename}: {value}"
                     )
