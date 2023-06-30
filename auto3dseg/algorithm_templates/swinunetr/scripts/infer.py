@@ -89,6 +89,7 @@ class InferClass:
         logger.debug(f"Checkpoint {ckpt_name:s} loaded.")
 
         post_transforms = [
+            transforms.Activationsd(keys="pred", softmax=softmax, sigmoid=not softmax),
             transforms.Invertd(
                 keys="pred",
                 transform=self.infer_transforms,
@@ -98,8 +99,7 @@ class InferClass:
                 meta_key_postfix="meta_dict",
                 nearest_interp=False,
                 to_tensor=True,
-            ),
-            transforms.Activationsd(keys="pred", softmax=softmax, sigmoid=not softmax),
+            )
         ]
         # return pred probs
         self.post_transforms_prob = transforms.Compose(post_transforms)
