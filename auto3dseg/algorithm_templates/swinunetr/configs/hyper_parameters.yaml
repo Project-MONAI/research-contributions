@@ -68,6 +68,7 @@ lr_scheduler:
   optimizer: "$@optimizer"
   warmup_steps: $@num_epochs//100
   t_total: '$@num_epochs // @num_epochs_per_validation + 1'
+  warmup_multiplier: 0.1
 
 # fine-tuning
 finetune:

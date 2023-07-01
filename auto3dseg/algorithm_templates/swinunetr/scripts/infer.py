@@ -89,6 +89,7 @@ class InferClass:
         logger.debug(f"Checkpoint {ckpt_name:s} loaded.")
 
         post_transforms = [
+            transforms.Activationsd(keys="pred", softmax=softmax, sigmoid=not softmax),
             transforms.Invertd(
                 keys="pred",
                 transform=self.infer_transforms,
@@ -99,7 +100,6 @@ class InferClass:
                 nearest_interp=False,
                 to_tensor=True,
             ),
-            transforms.Activationsd(keys="pred", softmax=softmax, sigmoid=not softmax),
         ]
         # return pred probs
         self.post_transforms_prob = transforms.Compose(post_transforms)
@@ -136,6 +136,7 @@ class InferClass:
         for _device_in, _device_out in zip(device_list_input, device_list_output):
             try:
                 logger.debug(f"Working on {image_file} on device {_device_in}/{_device_out} in/out.")
+                batch_data["pred"] = None
                 with torch.cuda.amp.autocast(enabled=self.amp):
                     batch_data["pred"] = sliding_window_inference(
                         inputs=batch_data["image"].to(_device_in),
