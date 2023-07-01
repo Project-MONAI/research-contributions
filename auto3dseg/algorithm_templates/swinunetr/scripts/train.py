@@ -333,7 +333,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         )
 
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
-
         post_transforms = [
             transforms.Invertd(
                 keys="pred",
@@ -349,9 +348,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if softmax:
             post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
         else:
-            post_transforms = [transforms.Activationsd(keys="pred", sigmoid=True)] + \
-                post_transforms + \
-                [transforms.AsDiscreted(keys="pred", threshold=0.5)]
+            post_transforms = (
+                [transforms.Activationsd(keys="pred", sigmoid=True)]
+                + post_transforms
+                + [transforms.AsDiscreted(keys="pred", threshold=0.5)]
+            )
         post_transforms = transforms.Compose(post_transforms)
 
     loss_function = parser.get_parsed_content("loss")
@@ -591,8 +592,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             ).to(device)
                         else:
                             # During training, allow validation OOM for some big data to avoid crush.
-                            logger.debug(f'{val_filename} is skipped due to OOM, using NaN dice values')
-                            value = torch.full((1, metric_dim), float('nan')).to(device)
+                            logger.debug(f"{val_filename} is skipped due to OOM, using NaN dice values")
+                            value = torch.full((1, metric_dim), float("nan")).to(device)
 
                         logger.debug(f"{_index + 1} / {len(val_loader)}/ {val_filename}: {value}")
 
@@ -741,8 +742,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             num_classes=output_classes,
                         ).to(device)
                     else:
-                        logger.debug(f'{val_filename} is skipped due to OOM, using NaN dice values')
-                        value = torch.full((1, metric_dim), float('nan')).to(device)
+                        logger.debug(f"{val_filename} is skipped due to OOM, using NaN dice values")
+                        value = torch.full((1, metric_dim), float("nan")).to(device)
 
                     logger.debug(
                         f"Validation Dice score at original resolution: {_index + 1} / {len(orig_val_loader)}/ {val_filename}: {value}"

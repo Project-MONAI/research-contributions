@@ -99,7 +99,7 @@ class InferClass:
                 meta_key_postfix="meta_dict",
                 nearest_interp=False,
                 to_tensor=True,
-            )
+            ),
         ]
         # return pred probs
         self.post_transforms_prob = transforms.Compose(post_transforms)

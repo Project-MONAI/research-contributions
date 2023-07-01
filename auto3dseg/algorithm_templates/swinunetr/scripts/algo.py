@@ -24,6 +24,7 @@ from monai.bundle import ConfigParser
 
 logger = get_logger(module_name=__name__)
 
+
 def modify_hierarchical_dict(hierarchical_dict, keys, value):
     if len(keys) == 1:
         hierarchical_dict[keys[0]] = value
@@ -31,6 +32,7 @@ def modify_hierarchical_dict(hierarchical_dict, keys, value):
         if keys[0] not in hierarchical_dict:
             hierarchical_dict[keys[0]] = {}
         modify_hierarchical_dict(hierarchical_dict[keys[0]], keys[1:], value)
+
 
 def get_mem_from_visible_gpus():
     available_mem_visible_gpus = []
