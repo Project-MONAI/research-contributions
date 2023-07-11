@@ -77,11 +77,7 @@ finetune:
   pretrained_ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
 
   overwrite:
-    learning_rate: 0.0005
-    optimizer:
-      _target_: torch.optim.Adam
-      lr: "@training#learning_rate"
-      weight_decay: 4.0e-05
+    learning_rate: 0.001
     lr_scheduler:
       _target_: torch.optim.lr_scheduler.ConstantLR
       optimizer: "$@training#optimizer"
@@ -89,6 +85,7 @@ finetune:
       total_iters: '$@training#num_epochs // @training#num_epochs_per_validation + 1'
     adapt_valid_mode: false
     early_stop_mode: false
+    num_epochs: 20
     num_epochs_per_validation: 1
 
 # validation

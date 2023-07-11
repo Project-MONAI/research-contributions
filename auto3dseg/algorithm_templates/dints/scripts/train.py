@@ -480,6 +480,22 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     best_metric = -1
     best_metric_epoch = -1
+
+    if finetune["activate_finetune"] and os.path.isfile(os.path.join(ckpt_path, "progress.yaml")):
+        with open(os.path.join(ckpt_path, "progress.yaml"), "r") as in_file:
+            _progress = yaml.safe_load(in_file)
+
+        if isinstance(_progress, list):
+            for _i in range(len(_progress)):
+                _result = _progress[-1 - _i]
+                if _result["inverted_best_validation"] == False:
+                    best_metric = _result["best_avg_dice_score"]
+                    best_metric = float(best_metric)
+                    best_metric_epoch = _result["best_avg_dice_score_epoch"]
+                    best_metric_epoch = int(best_metric_epoch)
+                    logger.debug(f"The optimal checkpoints to date have been successfully loaded, boasting a peak metric of {best_metric:.3f}.")
+                    break
+
     idx_iter = 0
     metric_dim = output_classes - 1 if softmax else output_classes
     val_devices_input = {}
