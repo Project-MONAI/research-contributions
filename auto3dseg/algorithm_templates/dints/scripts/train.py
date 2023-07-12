@@ -173,7 +173,7 @@ def pre_operation(config_file, **override):
                     _factor *= 96.0 / float(_patch_size[2])
 
                     _factor /= 6.0
-                    _factor /= 6.0 # further reduce training time
+                    _factor /= 6.0  # further reduce training time
                     _factor = max(1.0, _factor)
 
                     _estimated_epochs = 400.0
@@ -216,7 +216,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     parser.read_config(config_file_)
     parser.update(pairs=_args)
 
-    if parser["finetune"]["activate_finetune"] == True and "overwrite" in parser["finetune"]:
+    if parser["finetune"]["activate_finetune"] and "overwrite" in parser["finetune"]:
         parser["training"].update(parser["finetune"]["overwrite"])
         parser["finetune"].pop("overwrite")
 
@@ -488,12 +488,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if isinstance(_progress, list):
             for _i in range(len(_progress)):
                 _result = _progress[-1 - _i]
-                if _result["inverted_best_validation"] == False:
+                if not _result["inverted_best_validation"]:
                     best_metric = _result["best_avg_dice_score"]
                     best_metric = float(best_metric)
                     best_metric_epoch = _result["best_avg_dice_score_epoch"]
                     best_metric_epoch = int(best_metric_epoch)
-                    logger.debug(f"The optimal checkpoints to date have been successfully loaded, boasting a peak metric of {best_metric:.3f}.")
+                    logger.debug(
+                        f"The optimal checkpoints to date have been successfully loaded, boasting a peak metric of {best_metric:.3f}."
+                    )
                     break
 
     idx_iter = 0

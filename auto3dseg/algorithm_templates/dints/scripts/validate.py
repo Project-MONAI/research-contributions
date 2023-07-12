@@ -113,7 +113,7 @@ def pre_operation(config_file, **override):
                     _factor *= 96.0 / float(_patch_size[2])
 
                     _factor /= 6.0
-                    _factor /= 6.0 # further reduce training time
+                    _factor /= 6.0  # further reduce training time
                     _factor = max(1.0, _factor)
 
                     _estimated_epochs = 400.0
