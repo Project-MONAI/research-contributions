@@ -173,7 +173,6 @@ def pre_operation(config_file, **override):
                     _factor *= 96.0 / float(_patch_size[2])
 
                     _factor /= 6.0
-                    _factor /= 6.0  # further reduce training time
                     _factor = max(1.0, _factor)
 
                     _estimated_epochs = 400.0
@@ -215,10 +214,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     parser = ConfigParser()
     parser.read_config(config_file_)
     parser.update(pairs=_args)
-
-    if parser["finetune"]["activate_finetune"] and "overwrite" in parser["finetune"]:
-        parser["training"].update(parser["finetune"]["overwrite"])
-        parser["finetune"].pop("overwrite")
 
     amp = parser.get_parsed_content("training#amp")
     bundle_root = parser.get_parsed_content("bundle_root")
@@ -462,7 +457,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if torch.cuda.device_count() > 1:
         model = DistributedDataParallel(model, device_ids=[device], find_unused_parameters=True)
 
-    if finetune["activate_finetune"] and os.path.isfile(finetune["pretrained_ckpt_name"]):
+    if finetune["activate"] and os.path.isfile(finetune["pretrained_ckpt_name"]):
         logger.debug("fine-tuning pre-trained checkpoint {:s}".format(finetune["pretrained_ckpt_name"]))
         if torch.cuda.device_count() > 1:
             model.module.load_state_dict(torch.load(finetune["pretrained_ckpt_name"], map_location=device))
@@ -480,24 +475,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     best_metric = -1
     best_metric_epoch = -1
-
-    if finetune["activate_finetune"] and os.path.isfile(os.path.join(ckpt_path, "progress.yaml")):
-        with open(os.path.join(ckpt_path, "progress.yaml"), "r") as in_file:
-            _progress = yaml.safe_load(in_file)
-
-        if isinstance(_progress, list):
-            for _i in range(len(_progress)):
-                _result = _progress[-1 - _i]
-                if not _result["inverted_best_validation"]:
-                    best_metric = _result["best_avg_dice_score"]
-                    best_metric = float(best_metric)
-                    best_metric_epoch = _result["best_avg_dice_score_epoch"]
-                    best_metric_epoch = int(best_metric_epoch)
-                    logger.debug(
-                        f"The optimal checkpoints to date have been successfully loaded, boasting a peak metric of {best_metric:.3f}."
-                    )
-                    break
-
     idx_iter = 0
     metric_dim = output_classes - 1 if softmax else output_classes
     val_devices_input = {}
