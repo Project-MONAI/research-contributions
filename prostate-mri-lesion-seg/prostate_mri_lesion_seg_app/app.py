@@ -94,7 +94,7 @@ class AIProstateLesionSegApp(Application):
 
     def run(self, *args, **kwargs):
         # This method calls the base class to run. Can be omitted if simply calling through.
-        
+
         self._logger.debug(f"Begin {self.run.__name__}")
         super().run(*args, **kwargs)
         self._logger.debug(f"End {self.run.__name__}")
@@ -145,5 +145,5 @@ if __name__ == "__main__":
     #     -m <model file>, for model file path
     # e.g.
     #     python3 app.py -i input -m model.ts
-    
+
     AIProstateLesionSegApp(do_run=True)
