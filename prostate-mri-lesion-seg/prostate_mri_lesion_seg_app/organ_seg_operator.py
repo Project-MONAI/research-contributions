@@ -1,6 +1,7 @@
 import logging
 from os import path
 from typing import Optional
+
 from numpy import uint8
 
 # MONAI Deploy App SDK imports
@@ -23,6 +24,7 @@ from monai.transforms import (
     Spacingd,
 )
 
+
 @md.input("image", Image, IOType.IN_MEMORY)
 @md.output("seg_image", Image, IOType.IN_MEMORY)
 @md.env(pip_packages=["monai>=1.0.1", "torch>=1.12.1", "numpy>=1.21", "nibabel"])
@@ -30,7 +32,6 @@ class ProstateSegOperator(Operator):
     """Performs Prostate segmentation with a 3D image converted from a DICOM MRI (T2) series."""
 
     def __init__(self, model_name: Optional[str] = ""):
-
         self.logger = logging.getLogger("{}.{}".format(__name__, type(self).__name__))
         super().__init__()
         self._input_dataset_key = "image"
@@ -38,7 +39,6 @@ class ProstateSegOperator(Operator):
         self._model_name = model_name.strip() if isinstance(model_name, str) else ""
 
     def compute(self, op_input: InputContext, op_output: OutputContext, context: ExecutionContext):
-
         input_image = op_input.get("image")
         if not input_image:
             raise ValueError("Input image is not found.")
@@ -52,14 +52,7 @@ class ProstateSegOperator(Operator):
 
         # Delegates inference and saving output to the built-in operator.
         infer_operator = MonaiSegInferenceOperator(
-            (
-                128,
-                128,
-                16,
-            ),
-            pre_transforms,
-            post_transforms,
-            model_name=self._model_name,
+            (128, 128, 16), pre_transforms, post_transforms, model_name=self._model_name
         )
 
         # Setting the keys used in the dictionary based transforms may change.
@@ -76,16 +69,13 @@ class ProstateSegOperator(Operator):
         return Compose(
             [
                 LoadImaged(keys=my_key, reader=img_reader),
-                DataStatsd(keys=my_key, name='Loaded image'),
-
+                DataStatsd(keys=my_key, name="Loaded image"),
                 EnsureChannelFirstd(keys=my_key),
-                DataStatsd(keys=my_key, name='Channel-first image'),
-
+                DataStatsd(keys=my_key, name="Channel-first image"),
                 Orientationd(keys=my_key, axcodes="RAS"),
                 Spacingd(keys=my_key, pixdim=[1.0, 1.0, 1.0], mode=["bilinear"]),
                 NormalizeIntensityd(keys=my_key, nonzero=True, channel_wise=True),
-                DataStatsd(keys=my_key, name='Resampled and normalized image'),
-
+                DataStatsd(keys=my_key, name="Resampled and normalized image"),
                 EnsureTyped(keys=my_key),
             ]
         )
@@ -97,12 +87,16 @@ class ProstateSegOperator(Operator):
         return Compose(
             [
                 Activationsd(keys=pred_key, softmax=True),
-                DataStatsd(keys=pred_key, name='Model output'),
-
-                Invertd(keys=pred_key, transform=pre_transforms, orig_keys=self._input_dataset_key, nearest_interp=False, to_tensor=True),
-                DataStatsd(keys=pred_key, name='Inverted output'),
-
+                DataStatsd(keys=pred_key, name="Model output"),
+                Invertd(
+                    keys=pred_key,
+                    transform=pre_transforms,
+                    orig_keys=self._input_dataset_key,
+                    nearest_interp=False,
+                    to_tensor=True,
+                ),
+                DataStatsd(keys=pred_key, name="Inverted output"),
                 AsDiscreted(keys=pred_key, argmax=True, threshold=0.5),
-                DataStatsd(keys=pred_key, name='AsDiscrete output'),
+                DataStatsd(keys=pred_key, name="AsDiscrete output"),
             ]
         )
