@@ -132,10 +132,10 @@ class ProstateSegOperator(Operator):
             [
                 LoadImaged(keys=my_key, reader=img_reader),
                 DataStatsd(keys=my_key, name='Loaded image'),
-                
+
                 EnsureChannelFirstd(keys=my_key),
                 DataStatsd(keys=my_key, name='Channel-first image'),
-                
+
                 Orientationd(keys=my_key, axcodes="RAS"),
                 Spacingd(keys=my_key, pixdim=[1.0, 1.0, 1.0], mode=["bilinear"]),
                 NormalizeIntensityd(keys=my_key, nonzero=True, channel_wise=True),
@@ -145,7 +145,7 @@ class ProstateSegOperator(Operator):
             ]
         )
 
-    def post_process(self, pre_transforms: Compose, out_dir: str = "./") -> Compose:        
+    def post_process(self, pre_transforms: Compose, out_dir: str = "./") -> Compose:
         """Composes transforms for postprocessing the prediction results."""
 
         pred_key = self._pred_dataset_key

@@ -125,7 +125,7 @@ class SegmentationDataset(Dataset):
         adc_name = str(self.output_path) + '/adc/adc.nii.gz'
         adc = sitk.ReadImage(adc_name)
         adc = sitk.Resample(adc, t2.GetSize(),
-                                        sitk.Transform(), 
+                                        sitk.Transform(),
                                         sitk.sitkNearestNeighbor,
                                         t2.GetOrigin(),
                                         t2.GetSpacing(),
@@ -142,7 +142,7 @@ class SegmentationDataset(Dataset):
         highb_name = str(self.output_path) + '/highb/highb.nii.gz'
         highb = sitk.ReadImage(highb_name)
         highb = sitk.Resample(highb, t2.GetSize(),
-                                        sitk.Transform(), 
+                                        sitk.Transform(),
                                         sitk.sitkNearestNeighbor,
                                         t2.GetOrigin(),
                                         t2.GetSpacing(),
@@ -182,7 +182,7 @@ class SegmentationDataset(Dataset):
         nda_resize_shape = [nda_resize.shape[1], nda_resize.shape[2], nda_resize.shape[3]]
         nda_wp_resize = resize(nda_wp, output_shape=shape_target, order=0)
         nda_wp_resize = (nda_wp_resize > 0.0).astype(np.uint8)
-        
+
         # Calculate ROI for whole prostate
         margin = 32
         bbox = bbox2_3D(nda_wp_resize)
@@ -240,7 +240,7 @@ class CustomProstateLesionSegOperator(Operator):
         organ_mask = op_input.get("organ_mask")
         if not organ_mask:
             raise ValueError("Input organ_mask is not found.")
-        
+
         # Set relevant metadata and save to disk as nii
         image1._metadata["affine"] = image1._metadata["nifti_affine_transform"]
         image2._metadata["affine"] = image2._metadata["nifti_affine_transform"]
@@ -295,7 +295,7 @@ class CustomProstateLesionSegOperator(Operator):
         lesion_mask = Image(data=lesion_mask.T, metadata=image1.metadata()) # Convert to Image and transpose back to DHW
 
         op_output.set(lesion_mask, "seg_image")
-    
+
     def convert_and_save(self, image1, image2, image3, organ_mask, output_path):
         """Converts and saves the input Images on disk in nii.gz format."""
 
@@ -323,11 +323,11 @@ class CustomProstateLesionSegOperator(Operator):
         current_model_path = model_name
         current_model = torch.load(current_model_path)
         net.load_state_dict(current_model["state_dict"])
-      
+
         # Initialize variables
         np_output_prob = np.zeros(shape=(output_classes,) + inputs_shape, dtype=np.float32)
         np_count = np.zeros(shape=(output_classes,) + inputs_shape, dtype=np.float32)
-        
+
         # Create input ranges that are multiple of 32
         multiple = 32
         output_len_x, output_len_y, output_len_z = inputs_shape[0], inputs_shape[1], inputs_shape[2]

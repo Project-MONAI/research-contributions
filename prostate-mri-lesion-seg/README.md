@@ -26,6 +26,10 @@ https://drive.google.com/drive/folders/1wO4h5AON0MA3dxwnzl9cJlxjPxsfXcCF?usp=sha
 
 Downloade these models and put inside a folder prostate_mri_lesion_seg_app/models. Pipeline creation and execution will fail if file path is changed or renamed.
 
+## Requirements
+
+Running this MAP requires an NVIDIA GPU with at least 12 GB of memory and MONAI Deploy App SDK 0.5.1.
+
 ## Example Output
 
 ```
