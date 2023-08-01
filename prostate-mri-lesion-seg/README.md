@@ -1,16 +1,11 @@
 # MONAI Prostate MRI Lesion Segmentation
 
- <div class="row">
-  <div class="column">
-    <img src="imgs/organ_seg.png" alt="drawing" width="100%"/>
-  </div>
-  <div class="column">
-    <img src="imgs/lesion_prob.png" alt="drawing" style="width:100%">
-  </div>
-  <div class="column">
-    <img src="imgs/lesion_mask.png" alt="drawing" style="width:100%">
-  </div>
-</div> 
+<p float="left">
+  <img src="imgs/organ_seg.png" width="300" />
+  <img src="imgs/lesion_prob.png" width="300" /> 
+  <img src="imgs/lesion_mask.png" width="300" />
+</p>
+
 
 ## Data
 
