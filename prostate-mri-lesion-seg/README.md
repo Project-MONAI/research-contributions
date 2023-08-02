@@ -33,6 +33,8 @@ This work was developed by NVIDIA and the NIH National Cancer Institute (NCI). P
 
 ## Example Output
 
+There is a simple build_and_run.ipynb Jupyter notebook included in the repository that has two cells. The first cell will build the container and the second cell executes the container with a PROSTATEx image folder as input. Modify the input folder location to point to a directory on your local system.
+
 ```
 Checking dependencies...
 --> Verifying if "docker" is installed...
