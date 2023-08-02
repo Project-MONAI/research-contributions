@@ -182,6 +182,7 @@ class AIProstateLesionSegApp(Application):
         self.add_flow(series_selector_ADC_op, series_to_vol_ADC_op, {"study_selected_series_list": "study_selected_series_list"})
         self.add_flow(series_selector_HIGHB_op, series_to_vol_HIGHB_op, {"study_selected_series_list": "study_selected_series_list"})
 
+
         # Organ inference
         self.add_flow(series_to_vol_T2_op, organ_seg_op, {"image": "image"})
 

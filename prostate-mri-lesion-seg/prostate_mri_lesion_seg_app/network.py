@@ -63,6 +63,7 @@ __all__ = [
     "RRUNet3D"
 ]
 
+
 class RecurrentBlock(nn.Module):
     def __init__(self, out_channels, t=2):
         super(RecurrentBlock,self).__init__()
@@ -79,6 +80,7 @@ class RecurrentBlock(nn.Module):
                 x1 = self.conv(x)
             x1 = self.conv(x + x1)
         return x1
+
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, num_ops: int):
@@ -101,23 +103,20 @@ class ConvBlock(nn.Module):
             x = _layer(x)
         return x
 
+      
 class AttentionBlock(nn.Module):
     def __init__(self, F_g, F_l, F_int):
-        super(AttentionBlock,self).__init__()
+        super(AttentionBlock, self).__init__()
         self.W_g = nn.Sequential(
-            nn.Conv3d(F_g, F_int, kernel_size=1, stride=1, padding=0, bias=True),
-            nn.BatchNorm3d(F_int)
+            nn.Conv3d(F_g, F_int, kernel_size=1, stride=1, padding=0, bias=True), nn.BatchNorm3d(F_int)
         )
 
         self.W_x = nn.Sequential(
-            nn.Conv3d(F_l, F_int, kernel_size=1, stride=1, padding=0, bias=True),
-            nn.BatchNorm3d(F_int)
+            nn.Conv3d(F_l, F_int, kernel_size=1, stride=1, padding=0, bias=True), nn.BatchNorm3d(F_int)
         )
 
         self.psi = nn.Sequential(
-            nn.Conv3d(F_int, 1, kernel_size=1, stride=1, padding=0, bias=True),
-            nn.BatchNorm3d(1),
-            nn.Sigmoid()
+            nn.Conv3d(F_int, 1, kernel_size=1, stride=1, padding=0, bias=True), nn.BatchNorm3d(1), nn.Sigmoid()
         )
 
         self.relu = nn.ReLU(inplace=True)
@@ -128,6 +127,7 @@ class AttentionBlock(nn.Module):
         psi = self.relu(g1 + x1)
         psi = self.psi(psi)
         return x * psi
+
 
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, recurrent: bool, residual: bool, num_ops: int):
@@ -170,6 +170,7 @@ class ResidualBlock(nn.Module):
 
         return x + out
 
+
 class SEBlock3D(nn.Module):
     def __init__(self, num_channels, reduction_ratio=2):
         super(SEBlock3D, self).__init__()
@@ -195,18 +196,21 @@ class SEBlock3D(nn.Module):
 
         return out
 
+
 class RRUNet3D(nn.Module):
-    def __init__(self,
-                 in_channels: int,
-                 out_channels: int,
-                 blocks_down: str,
-                 blocks_up: str,
-                 num_init_kernels: int,
-                 recurrent=True,
-                 residual=True,
-                 attention=True,
-                 se=False,
-                 debug=False):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        blocks_down: str,
+        blocks_up: str,
+        num_init_kernels: int,
+        recurrent=True,
+        residual=True,
+        attention=True,
+        se=False,
+        debug=False,
+    ):
         super(RRUNet3D, self).__init__()
 
         self.attention = attention
@@ -219,13 +223,17 @@ class RRUNet3D(nn.Module):
         self.output_conv = nn.Conv3d(num_init_kernels, out_channels, 1, stride=1, padding=0, bias=False)
         self.output_activation = nn.Softmax(dim=1)
 
-        self.blocks_down = list(map(int, blocks_down.split(',')))
-        self.blocks_up = list(map(int, blocks_up.split(',')))
+
+        self.blocks_down = list(map(int, blocks_down.split(",")))
+        self.blocks_up = list(map(int, blocks_up.split(",")))
         self.blocks_up = self.blocks_up[::-1]
         if self.debug:
             print("blocks_down", self.blocks_down)
             print("blocks_up", self.blocks_up)
-        assert len(self.blocks_down) - 1 == len(self.blocks_up), "blocks_down and blocks_up are not matching (one dimension difference)!"
+
+        assert len(self.blocks_down) - 1 == len(
+            self.blocks_up
+        ), "blocks_down and blocks_up are not matching (one dimension difference)!"
 
         if self.se is True:
             self.encoders_se = []
@@ -235,15 +243,20 @@ class RRUNet3D(nn.Module):
         self.levels_down = len(self.blocks_down)
         self.encoders = []
         for _i in range(self.levels_down):
-            in_c = num_init_kernels * 2 ** _i if _i == 0 else num_init_kernels * 2 ** (_i - 1)
-            out_c = num_init_kernels * 2 ** _i
+
+            in_c = num_init_kernels * 2**_i if _i == 0 else num_init_kernels * 2 ** (_i - 1)
+            out_c = num_init_kernels * 2**_i
             # if self.debug:
             #     print("in_c, out_c, blocks_down", in_c, out_c, self.blocks_down[_i])
-            self.encoders.append(ResidualBlock(in_channels=in_c,
-                                               out_channels=out_c,
-                                               recurrent=recurrent,
-                                               residual=residual,
-                                               num_ops=self.blocks_down[_i]))
+            self.encoders.append(
+                ResidualBlock(
+                    in_channels=in_c,
+                    out_channels=out_c,
+                    recurrent=recurrent,
+                    residual=residual,
+                    num_ops=self.blocks_down[_i],
+                )
+            )
             if self.se is True:
                 self.encoders_se.append(SEBlock3D(num_channels=out_c))
 
@@ -251,14 +264,19 @@ class RRUNet3D(nn.Module):
         self.decoders = []
         for _i in range(self.levels_up):
             in_c = num_init_kernels * 2 ** (_i + 1)
-            out_c = num_init_kernels * 2 ** _i
+
+            out_c = num_init_kernels * 2**_i
             # if self.debug:
             #     print("in_c, out_c, blocks_down", in_c, out_c, self.blocks_up[_i])
-            self.decoders.append(ResidualBlock(in_channels=in_c // 2 * 3,
-                                               out_channels=out_c,
-                                               recurrent=recurrent,
-                                               residual=residual,
-                                               num_ops=self.blocks_up[_i]))
+            self.decoders.append(
+                ResidualBlock(
+                    in_channels=in_c // 2 * 3,
+                    out_channels=out_c,
+                    recurrent=recurrent,
+                    residual=residual,
+                    num_ops=self.blocks_up[_i],
+                )
+            )
             if self.se is True:
                 self.decoders_se.append(SEBlock3D(num_channels=out_c))
 
@@ -275,8 +293,9 @@ class RRUNet3D(nn.Module):
             self.attention_blocks = []
             for _i in range(self.levels_up):
                 F_g = num_init_kernels * 2 ** (_i + 1)
-                F_l = num_init_kernels * 2 ** _i
-                F_int = num_init_kernels * 2 ** _i
+
+                F_l = num_init_kernels * 2**_i
+                F_int = num_init_kernels * 2**_i
                 self.attention_blocks.append(AttentionBlock(F_g=F_g, F_l=F_l, F_int=F_int))
             self.attention_blocks = nn.ModuleList(self.attention_blocks)
 
@@ -313,4 +332,5 @@ class RRUNet3D(nn.Module):
         x = self.unpool(x)
         out = self.output_conv(x)
         out = self.output_activation(out)
+
         return out

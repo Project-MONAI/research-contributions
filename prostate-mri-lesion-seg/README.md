@@ -14,6 +14,22 @@ This pipeline takes T2, ADC, and HighB MRI series as input and produces several 
 In order to properly ingest these three modalities, rules are created in the app.py Python file to filter based on SeriesDescription, ImageType, etc. Some example rules have been provided that work with the ProstateX dataset. Please refer to MONAI documentation for guidance on modifying these rules for custom filtering.
 
 If any of these three of these modalities are not detected in the input folder provided, the pipeline will not execute properly.
+=======
+# MONAI Prostate MRI Lesion Segmentation Workflow
+
+<img src="imgs/organ_seg.png" alt="drawing" width="300"/>
+
+<img src="imgs/lesion_prob.png" alt="drawing" width="300"/>
+
+<img src="imgs/lesion_mask.png" alt="drawing" width="300"/>
+
+## Data
+
+This pipeline takes T2, ADC, and HIGHB MRI series as input and produces several Nifti files as output containing organ and lesion segmentations and lesion probability maps.
+
+In order to properly ingest these three modalities, rules are created in the app.py file with regular expressions to filter based on SeriesDescription, ImageType, etc. Some example rules have been provided that work with the ProstateX dataset. Please refer to MONAI documentation for guidance on modifying these rules for custom filtering.
+
+If all three of these modalities are not detected in the input folder provided, the pipeline will fail and produce an error stating that one of the series cannot be found.
 
 PROSTATEx dataset:
 
@@ -25,7 +41,7 @@ The models needed to build and execute the pipeline (1 organ segmentation model,
 
 https://drive.google.com/drive/folders/1wO4h5AON0MA3dxwnzl9cJlxjPxsfXcCF?usp=sharing
 
-Downloade these models and put them inside a folder named prostate_mri_lesion_seg_app/models. Pipeline creation and execution not complete if the model file path is changed or renamed.
+Download these models and put them inside a folder named prostate_mri_lesion_seg_app/models. Pipeline creation and execution not complete if the model file path is changed or renamed.
 
 ## License
 
