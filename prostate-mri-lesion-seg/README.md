@@ -2,7 +2,7 @@
 
 <p float="left">
   <img src="imgs/organ_seg.png" width="300" />
-  <img src="imgs/lesion_prob.png" width="300" /> 
+  <img src="imgs/lesion_prob.png" width="300" />
   <img src="imgs/lesion_mask.png" width="300" />
 </p>
 
