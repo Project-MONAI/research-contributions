@@ -1,3 +1,20 @@
+# MONAI Prostate MRI Lesion Segmentation
+
+<p float="left">
+  <img src="imgs/organ_seg.png" width="300" />
+  <img src="imgs/lesion_prob.png" width="300" />
+  <img src="imgs/lesion_mask.png" width="300" />
+</p>
+
+
+## Data
+
+This pipeline takes T2, ADC, and HighB MRI series as input and produces several NIfTI files as output. These outputs contain organ and lesion segmentations and lesion probability maps.
+
+In order to properly ingest these three modalities, rules are created in the app.py Python file to filter based on SeriesDescription, ImageType, etc. Some example rules have been provided that work with the ProstateX dataset. Please refer to MONAI documentation for guidance on modifying these rules for custom filtering.
+
+If any of these three of these modalities are not detected in the input folder provided, the pipeline will not execute properly.
+=======
 # MONAI Prostate MRI Lesion Segmentation Workflow
 
 <img src="imgs/organ_seg.png" alt="drawing" width="300"/>
@@ -24,13 +41,15 @@ The models needed to build and execute the pipeline (1 organ segmentation model,
 
 https://drive.google.com/drive/folders/1wO4h5AON0MA3dxwnzl9cJlxjPxsfXcCF?usp=sharing
 
-Downloade these models and put inside a folder prostate_mri_lesion_seg_app/models. Pipeline creation and execution will fail if file path is changed or renamed.
+Download these models and put them inside a folder named prostate_mri_lesion_seg_app/models. Pipeline creation and execution not complete if the model file path is changed or renamed.
 
-## Requirements
+## License
 
-Running this MAP requires an NVIDIA GPU with at least 12 GB of memory and MONAI Deploy App SDK 0.5.1.
+This work was developed by NVIDIA and the NIH National Cancer Institute (NCI). Please refer to the LICENSE for terms of use.
 
 ## Example Output
+
+There is a simple build_and_run.ipynb Jupyter notebook included in the repository that has two cells. The first cell will build the container and the second cell executes the container with a PROSTATEx image folder as input. Modify the input folder location to point to a directory on your local system.
 
 ```
 Checking dependencies...

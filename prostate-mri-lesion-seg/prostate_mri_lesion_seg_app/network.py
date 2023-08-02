@@ -1,4 +1,58 @@
-#!/usr/bin/env python
+'''
+Prostate-MRI_Lesion_Detection, v2.0 (Release date: August 2, 2023)
+DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
+
+PROVIDER: the National Cancer Institute (NCI), a participating institute of the
+National Institutes of Health (NIH), and an agency of the United States Government.
+
+SOFTWARE: the machine readable, binary, object code form,
+and the related documentation for the modules of the Prostate-MRI_Lesion_Detection, v2.0
+software package, which is a collection of operators which accept (T2, ADC, and High
+b-value DICOM images) and produce prostate organ and lesion segmentation files
+
+RECIPIENT: the party that downloads the software.
+
+By downloading or otherwise receiving the SOFTWARE, RECIPIENT may
+use and/or redistribute the SOFTWARE, with or without modification,
+subject to RECIPIENT’s agreement to the following terms:
+
+1. THE SOFTWARE SHALL NOT BE USED IN THE TREATMENT OR DIAGNOSIS
+OF HUMAN SUBJECTS.  RECIPIENT is responsible for
+compliance with all laws and regulations applicable to the use
+of the SOFTWARE.
+
+2. THE SOFTWARE is distributed for NON-COMMERCIAL RESEARCH PURPOSES ONLY. RECIPIENT is
+responsible for appropriate-use compliance.
+
+3.	RECIPIENT agrees to acknowledge PROVIDER’s contribution and
+the name of the author of the SOFTWARE in all written publications
+containing any data or information regarding or resulting from use
+of the SOFTWARE.
+
+4.	THE SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+ARE DISCLAIMED. IN NO EVENT SHALL THE PROVIDER OR THE INDIVIDUAL DEVELOPERS
+BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+THE POSSIBILITY OF SUCH DAMAGE.
+
+5.	RECIPIENT agrees not to use any trademarks, service marks, trade names,
+logos or product names of NVIDIA, NCI or NIH to endorse or promote products derived
+from the SOFTWARE without specific, prior and written permission.
+
+6.	For sake of clarity, and not by way of limitation, RECIPIENT may add its
+own copyright statement to its modifications or derivative works of the SOFTWARE
+and may provide additional or different license terms and conditions in its
+sublicenses of modifications or derivative works of the SOFTWARE provided that
+RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
+with the conditions stated in this Agreement. Whenever Recipient distributes or
+redistributes the SOFTWARE, a copy of this Agreement must be included with
+each copy of the SOFTWARE.'''
 
 import numpy as np
 import torch
@@ -6,464 +60,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 __all__ = [
-    "RRUNet3D",
-    "UNet3D",
-    "UNet3D_BatchNorm",
-    "UNet3D_BN_Multiple",
-    "UNet3D_Multiple",
-    "UNet3D_Multiple_Cascade",
-    "UNet3D_Multiple_Pool4",
-    "UNet3D_Multiple_PPM",
-    "UNetRecon3D",
+    "RRUNet3D"
 ]
-
-
-class UNetRecon3D(nn.Module):
-    def __init__(self, in_channels, out_channels, num_ops):
-        super(UNetRecon3D, self).__init__()
-        self.encoder_cell1 = self.conv_cell(in_channels, 16, num_ops)
-        self.encoder_cell2 = self.conv_cell(16, 32, num_ops)
-        self.encoder_cell3 = self.conv_cell(32, 64, num_ops)
-        self.encoder_cell4 = self.conv_cell(64, 128, num_ops)
-
-        self.decoder_cell3 = self.conv_cell(192, 64, num_ops)
-        self.decoder_cell2 = self.conv_cell(96, 32, num_ops)
-        self.decoder_cell1 = self.conv_cell(48, 16, num_ops)
-
-        self.recon_decoder_cell3 = self.conv_cell(128, 64, num_ops)
-        self.recon_decoder_cell2 = self.conv_cell(64, 32, num_ops)
-        self.recon_decoder_cell1 = self.conv_cell(32, 16, num_ops)
-
-        self.output_conv = nn.Conv3d(16, out_channels, 1, bias=False)
-        self.recon_output_conv = nn.Conv3d(16, in_channels, 1, bias=False)
-
-        self.output_activation = nn.Softmax(dim=1)
-        self.pool = nn.MaxPool3d(2, 2)
-        self.unpool = nn.Upsample(scale_factor=2)
-
-    def conv_cell(self, in_channels, out_channels, num_ops):
-        cell = []
-        for j in range(num_ops):
-            if j == 0:
-                cell.append(nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1))
-            else:
-                cell.append(nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1))
-            cell.append(nn.InstanceNorm3d(out_channels))
-            cell.append(nn.ReLU(inplace=True))
-
-        return nn.Sequential(*cell)
-
-    def forward(self, x):
-        e1 = self.encoder_cell1(x)
-        x = self.pool(e1)
-        e2 = self.encoder_cell2(x)
-        x = self.pool(e2)
-        e3 = self.encoder_cell3(x)
-        x = self.pool(e3)
-        e4 = self.encoder_cell4(x)
-
-        x = self.unpool(e4)
-        d3 = self.decoder_cell3(torch.cat([x, e3], dim=1))
-        x = self.unpool(d3)
-        d2 = self.decoder_cell2(torch.cat([x, e2], dim=1))
-        x = self.unpool(d2)
-        d1 = self.decoder_cell1(torch.cat([x, e1], dim=1))
-        x = self.output_conv(d1)
-        x = self.output_activation(x)
-
-        x0 = self.unpool(e4)
-        recon_d3 = self.recon_decoder_cell3(x0)
-        x0 = self.unpool(recon_d3)
-        recon_d2 = self.recon_decoder_cell2(x0)
-        x0 = self.unpool(recon_d2)
-        recon_d1 = self.recon_decoder_cell1(x0)
-        x0 = self.recon_output_conv(recon_d1)
-
-        return [x, x0]
-
-
-class UNet3D(nn.Module):
-    def __init__(self, in_channels, out_channels, num_ops):
-        super(UNet3D, self).__init__()
-        self.encoder_cell1 = self.conv_cell(in_channels, 16, num_ops)
-        self.encoder_cell2 = self.conv_cell(16, 32, num_ops)
-        self.encoder_cell3 = self.conv_cell(32, 64, num_ops)
-        self.encoder_cell4 = self.conv_cell(64, 128, num_ops)
-
-        self.decoder_cell3 = self.conv_cell(192, 64, num_ops)
-        self.decoder_cell2 = self.conv_cell(96, 32, num_ops)
-        self.decoder_cell1 = self.conv_cell(48, 16, num_ops)
-
-        self.output_conv = nn.Conv3d(16, out_channels, 1, bias=False)
-
-        self.output_activation = nn.Softmax(dim=1)
-        self.pool = nn.MaxPool3d(2, 2)
-        self.unpool = nn.Upsample(scale_factor=2)
-
-    def conv_cell(self, in_channels, out_channels, num_ops):
-        cell = []
-        for j in range(num_ops):
-            if j == 0:
-                cell.append(nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1))
-            else:
-                cell.append(nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1))
-            cell.append(nn.InstanceNorm3d(out_channels))
-            cell.append(nn.ReLU(inplace=True))
-
-        return nn.Sequential(*cell)
-
-    def forward(self, x):
-        e1 = self.encoder_cell1(x)
-        x = self.pool(e1)
-        e2 = self.encoder_cell2(x)
-        x = self.pool(e2)
-        e3 = self.encoder_cell3(x)
-        x = self.pool(e3)
-        e4 = self.encoder_cell4(x)
-
-        x = self.unpool(e4)
-        d3 = self.decoder_cell3(torch.cat([x, e3], dim=1))
-        x = self.unpool(d3)
-        d2 = self.decoder_cell2(torch.cat([x, e2], dim=1))
-        x = self.unpool(d2)
-        d1 = self.decoder_cell1(torch.cat([x, e1], dim=1))
-        x = self.output_conv(d1)
-        x = self.output_activation(x)
-
-        return x
-
-
-class UNet3D_BatchNorm(nn.Module):
-    def __init__(self, in_channels, out_channels, num_ops):
-        super(UNet3D_BatchNorm, self).__init__()
-        self.encoder_cell1 = self.conv_cell(in_channels, 16, num_ops)
-        self.encoder_cell2 = self.conv_cell(16, 32, num_ops)
-        self.encoder_cell3 = self.conv_cell(32, 64, num_ops)
-        self.encoder_cell4 = self.conv_cell(64, 128, num_ops)
-
-        self.decoder_cell3 = self.conv_cell(192, 64, num_ops)
-        self.decoder_cell2 = self.conv_cell(96, 32, num_ops)
-        self.decoder_cell1 = self.conv_cell(48, 16, num_ops)
-
-        self.output_conv = nn.Conv3d(16, out_channels, 1, bias=False)
-
-        self.output_activation = nn.Softmax(dim=1)
-        self.pool = nn.MaxPool3d(2, 2)
-        self.unpool = nn.Upsample(scale_factor=2)
-
-    def conv_cell(self, in_channels, out_channels, num_ops):
-        cell = []
-        for j in range(num_ops):
-            if j == 0:
-                cell.append(nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1))
-            else:
-                cell.append(nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1))
-            cell.append(nn.BatchNorm3d(out_channels))
-            cell.append(nn.ReLU(inplace=True))
-
-        return nn.Sequential(*cell)
-
-    def forward(self, x):
-        e1 = self.encoder_cell1(x)
-        x = self.pool(e1)
-        e2 = self.encoder_cell2(x)
-        x = self.pool(e2)
-        e3 = self.encoder_cell3(x)
-        x = self.pool(e3)
-        e4 = self.encoder_cell4(x)
-
-        x = self.unpool(e4)
-        d3 = self.decoder_cell3(torch.cat([x, e3], dim=1))
-        x = self.unpool(d3)
-        d2 = self.decoder_cell2(torch.cat([x, e2], dim=1))
-        x = self.unpool(d2)
-        d1 = self.decoder_cell1(torch.cat([x, e1], dim=1))
-        x = self.output_conv(d1)
-        x = self.output_activation(x)
-
-        return x
-
-
-class UNet3D_Multiple(nn.Module):
-    def __init__(self, in_channels, out_channels, num_ops, multiple=16):
-        super(UNet3D_Multiple, self).__init__()
-        self.encoder_cell1 = self.conv_cell(in_channels, multiple * 1, num_ops)
-        self.encoder_cell2 = self.conv_cell(multiple * 1, multiple * 2, num_ops)
-        self.encoder_cell3 = self.conv_cell(multiple * 2, multiple * 4, num_ops)
-        self.encoder_cell4 = self.conv_cell(multiple * 4, multiple * 8, num_ops)
-
-        self.decoder_cell3 = self.conv_cell(multiple * 12, multiple * 4, num_ops)
-        self.decoder_cell2 = self.conv_cell(multiple * 6, multiple * 2, num_ops)
-        self.decoder_cell1 = self.conv_cell(multiple * 3, multiple * 1, num_ops)
-
-        self.output_conv = nn.Conv3d(multiple * 1, out_channels, 1, bias=False)
-
-        self.output_activation = nn.Softmax(dim=1)
-        self.pool = nn.MaxPool3d(2, 2)
-        self.unpool = nn.Upsample(scale_factor=2)
-
-    def conv_cell(self, in_channels, out_channels, num_ops):
-        cell = []
-        for j in range(num_ops):
-            if j == 0:
-                cell.append(nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1))
-            else:
-                cell.append(nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1))
-            cell.append(nn.InstanceNorm3d(out_channels))
-            cell.append(nn.ReLU(inplace=True))
-
-        return nn.Sequential(*cell)
-
-    def forward(self, x):
-        e1 = self.encoder_cell1(x)
-        x = self.pool(e1)
-        e2 = self.encoder_cell2(x)
-        x = self.pool(e2)
-        e3 = self.encoder_cell3(x)
-        x = self.pool(e3)
-        e4 = self.encoder_cell4(x)
-
-        x = self.unpool(e4)
-        d3 = self.decoder_cell3(torch.cat([x, e3], dim=1))
-        x = self.unpool(d3)
-        d2 = self.decoder_cell2(torch.cat([x, e2], dim=1))
-        x = self.unpool(d2)
-        d1 = self.decoder_cell1(torch.cat([x, e1], dim=1))
-        x = self.output_conv(d1)
-        x = self.output_activation(x)
-
-        return x
-
-
-class UNet3D_BN_Multiple(nn.Module):
-    def __init__(self, in_channels, out_channels, num_ops, multiple=16):
-        super(UNet3D_BN_Multiple, self).__init__()
-        self.encoder_cell1 = self.conv_cell(in_channels, multiple * 1, num_ops)
-        self.encoder_cell2 = self.conv_cell(multiple * 1, multiple * 2, num_ops)
-        self.encoder_cell3 = self.conv_cell(multiple * 2, multiple * 4, num_ops)
-        self.encoder_cell4 = self.conv_cell(multiple * 4, multiple * 8, num_ops)
-
-        self.decoder_cell3 = self.conv_cell(multiple * 12, multiple * 4, num_ops)
-        self.decoder_cell2 = self.conv_cell(multiple * 6, multiple * 2, num_ops)
-        self.decoder_cell1 = self.conv_cell(multiple * 3, multiple * 1, num_ops)
-
-        self.output_conv = nn.Conv3d(multiple * 1, out_channels, 1, bias=False)
-
-        self.output_activation = nn.Softmax(dim=1)
-        self.pool = nn.MaxPool3d(2, 2)
-        self.unpool = nn.Upsample(scale_factor=2)
-
-    def conv_cell(self, in_channels, out_channels, num_ops):
-        cell = []
-        for j in range(num_ops):
-            if j == 0:
-                cell.append(nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1))
-            else:
-                cell.append(nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1))
-            cell.append(nn.BatchNorm3d(out_channels))
-            cell.append(nn.ReLU(inplace=True))
-
-        return nn.Sequential(*cell)
-
-    def forward(self, x):
-        e1 = self.encoder_cell1(x)
-        x = self.pool(e1)
-        e2 = self.encoder_cell2(x)
-        x = self.pool(e2)
-        e3 = self.encoder_cell3(x)
-        x = self.pool(e3)
-        e4 = self.encoder_cell4(x)
-
-        x = self.unpool(e4)
-        d3 = self.decoder_cell3(torch.cat([x, e3], dim=1))
-        x = self.unpool(d3)
-        d2 = self.decoder_cell2(torch.cat([x, e2], dim=1))
-        x = self.unpool(d2)
-        d1 = self.decoder_cell1(torch.cat([x, e1], dim=1))
-        x = self.output_conv(d1)
-        x = self.output_activation(x)
-
-        return x
-
-
-class UNet3D_Multiple_Pool4(nn.Module):
-    def __init__(self, in_channels, out_channels, num_ops, multiple=16):
-        super(UNet3D_Multiple_Pool4, self).__init__()
-        self.encoder_cell1 = self.conv_cell(in_channels, multiple * 1, num_ops)
-        self.encoder_cell2 = self.conv_cell(multiple * 1, multiple * 2, num_ops)
-        self.encoder_cell3 = self.conv_cell(multiple * 2, multiple * 4, num_ops)
-        self.encoder_cell4 = self.conv_cell(multiple * 4, multiple * 8, num_ops)
-        self.encoder_cell5 = self.conv_cell(multiple * 8, multiple * 16, num_ops)
-
-        self.decoder_cell4 = self.conv_cell(multiple * 24, multiple * 8, num_ops)
-        self.decoder_cell3 = self.conv_cell(multiple * 12, multiple * 4, num_ops)
-        self.decoder_cell2 = self.conv_cell(multiple * 6, multiple * 2, num_ops)
-        self.decoder_cell1 = self.conv_cell(multiple * 3, multiple * 1, num_ops)
-
-        self.output_conv = nn.Conv3d(multiple * 1, out_channels, 1, bias=False)
-
-        self.output_activation = nn.Softmax(dim=1)
-        self.pool = nn.MaxPool3d(2, 2)
-        self.unpool = nn.Upsample(scale_factor=2)
-
-    def conv_cell(self, in_channels, out_channels, num_ops):
-        cell = []
-        for j in range(num_ops):
-            if j == 0:
-                cell.append(nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1))
-            else:
-                cell.append(nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1))
-            cell.append(nn.InstanceNorm3d(out_channels))
-            cell.append(nn.ReLU(inplace=True))
-
-        return nn.Sequential(*cell)
-
-    def forward(self, x):
-        e1 = self.encoder_cell1(x)
-        x = self.pool(e1)
-        e2 = self.encoder_cell2(x)
-        x = self.pool(e2)
-        e3 = self.encoder_cell3(x)
-        x = self.pool(e3)
-        e4 = self.encoder_cell4(x)
-        x = self.pool(e4)
-        e5 = self.encoder_cell5(x)
-
-        x = self.unpool(e5)
-        d4 = self.decoder_cell4(torch.cat([x, e4], dim=1))
-        x = self.unpool(d4)
-        d3 = self.decoder_cell3(torch.cat([x, e3], dim=1))
-        x = self.unpool(d3)
-        d2 = self.decoder_cell2(torch.cat([x, e2], dim=1))
-        x = self.unpool(d2)
-        d1 = self.decoder_cell1(torch.cat([x, e1], dim=1))
-        x = self.output_conv(d1)
-        x = self.output_activation(x)
-
-        return x
-
-
-class PPM_3D(nn.Module):
-    def __init__(self, in_dim, reduction_dim, bins, norm_layer):
-        super(PPM_3D, self).__init__()
-        self.features = []
-        for bin in bins:
-            self.features.append(
-                nn.Sequential(
-                    nn.AdaptiveAvgPool3d(bin),
-                    nn.Conv3d(in_dim, reduction_dim, kernel_size=1, bias=False),
-                    norm_layer(reduction_dim),
-                    nn.ReLU(inplace=True),
-                )
-            )
-        self.features = nn.ModuleList(self.features)
-
-    def forward(self, x):
-        x_size = x.size()
-        out = [x]
-        for f in self.features:
-            out.append(F.interpolate(f(x), x_size[2:], mode="trilinear", align_corners=True))
-        return torch.cat(out, 1)
-
-
-class UNet3D_Multiple_PPM(nn.Module):
-    def __init__(self, in_channels, out_channels, num_ops, bins, multiple=16):
-        super(UNet3D_Multiple_PPM, self).__init__()
-        self.encoder_cell1 = self.conv_cell(in_channels, multiple * 1, num_ops)
-        self.encoder_cell2 = self.conv_cell(multiple * 1, multiple * 2, num_ops)
-        self.encoder_cell3 = self.conv_cell(multiple * 2, multiple * 4, num_ops)
-        self.encoder_cell4 = self.conv_cell(multiple * 4, multiple * 8, num_ops)
-
-        self.decoder_cell3 = self.conv_cell(multiple * 12, multiple * 4, num_ops)
-        self.decoder_cell2 = self.conv_cell(multiple * 6, multiple * 2, num_ops)
-        self.decoder_cell1 = self.conv_cell(multiple * 3, multiple * 1, num_ops)
-
-        # define PPM Model
-        fea_dim = multiple * 1
-        self.ppm = PPM_3D(fea_dim, int(fea_dim / len(bins)), bins, nn.InstanceNorm3d)
-
-        self.output_conv = nn.Conv3d(fea_dim * 2, out_channels, 1, bias=False)
-
-        self.output_activation = nn.Softmax(dim=1)
-        self.pool = nn.MaxPool3d(2, 2)
-        self.unpool = nn.Upsample(scale_factor=2)
-
-    def conv_cell(self, in_channels, out_channels, num_ops):
-        cell = []
-        for j in range(num_ops):
-            if j == 0:
-                cell.append(nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1))
-            else:
-                cell.append(nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1))
-            cell.append(nn.InstanceNorm3d(out_channels))
-            cell.append(nn.ReLU(inplace=True))
-
-        return nn.Sequential(*cell)
-
-    def forward(self, x):
-        e1 = self.encoder_cell1(x)
-        x = self.pool(e1)
-        e2 = self.encoder_cell2(x)
-        x = self.pool(e2)
-        e3 = self.encoder_cell3(x)
-        x = self.pool(e3)
-        e4 = self.encoder_cell4(x)
-
-        x = self.unpool(e4)
-        d3 = self.decoder_cell3(torch.cat([x, e3], dim=1))
-        x = self.unpool(d3)
-        d2 = self.decoder_cell2(torch.cat([x, e2], dim=1))
-        x = self.unpool(d2)
-        d1 = self.decoder_cell1(torch.cat([x, e1], dim=1))
-        x = d1
-        x = self.ppm(x)
-        x = self.output_conv(x)
-        x = self.output_activation(x)
-
-        return x
-
-
-class UNet3D_Multiple_Cascade(nn.Module):
-    def __init__(self, in_channels, out_channels, num_ops, multiple=16, num_unets=1):
-        super(UNet3D_Multiple_Cascade, self).__init__()
-
-        # initialization
-        self.num_unets = num_unets
-        self.first_unet = None
-        self.rest_unets = []
-
-        # module construction
-        self.first_unet = UNet3D_Multiple(in_channels, out_channels, num_ops=num_ops, multiple=multiple)
-        if num_unets > 1:
-            for _ in range(self.num_unets - 1):
-                self.rest_unets.append(
-                    UNet3D_Multiple(in_channels + out_channels, out_channels, num_ops=num_ops, multiple=multiple)
-                )
-        self.rest_unets = nn.ModuleList(self.rest_unets)
-
-    def forward(self, x):
-        x_img = x
-        output = []
-
-        for _i in range(self.num_unets):
-            if _i == 0:
-                x = self.first_unet(x_img)
-            else:
-                x = torch.cat([x_img, x], 1)
-                x = self.rest_unets[_i - 1](x)
-            output.append(x)
-
-        return output
 
 
 class RecurrentBlock(nn.Module):
     def __init__(self, out_channels, t=2):
-        super(RecurrentBlock, self).__init__()
+        super(RecurrentBlock,self).__init__()
         self.t = t
         self.conv = nn.Sequential(
-            nn.Conv3d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=True),
-            nn.BatchNorm3d(out_channels),
-            nn.ReLU(inplace=True),
+            nn.Conv3d(out_channels, out_channels,kernel_size=3,stride=1,padding=1,bias=True),
+		    nn.BatchNorm3d(out_channels),
+			nn.ReLU(inplace=True)
         )
 
     def forward(self, x):
@@ -615,12 +223,14 @@ class RRUNet3D(nn.Module):
         self.output_conv = nn.Conv3d(num_init_kernels, out_channels, 1, stride=1, padding=0, bias=False)
         self.output_activation = nn.Softmax(dim=1)
 
+
         self.blocks_down = list(map(int, blocks_down.split(",")))
         self.blocks_up = list(map(int, blocks_up.split(",")))
         self.blocks_up = self.blocks_up[::-1]
         if self.debug:
             print("blocks_down", self.blocks_down)
             print("blocks_up", self.blocks_up)
+
         assert len(self.blocks_down) - 1 == len(
             self.blocks_up
         ), "blocks_down and blocks_up are not matching (one dimension difference)!"
@@ -633,6 +243,7 @@ class RRUNet3D(nn.Module):
         self.levels_down = len(self.blocks_down)
         self.encoders = []
         for _i in range(self.levels_down):
+
             in_c = num_init_kernels * 2**_i if _i == 0 else num_init_kernels * 2 ** (_i - 1)
             out_c = num_init_kernels * 2**_i
             # if self.debug:
@@ -653,6 +264,7 @@ class RRUNet3D(nn.Module):
         self.decoders = []
         for _i in range(self.levels_up):
             in_c = num_init_kernels * 2 ** (_i + 1)
+
             out_c = num_init_kernels * 2**_i
             # if self.debug:
             #     print("in_c, out_c, blocks_down", in_c, out_c, self.blocks_up[_i])
@@ -681,6 +293,7 @@ class RRUNet3D(nn.Module):
             self.attention_blocks = []
             for _i in range(self.levels_up):
                 F_g = num_init_kernels * 2 ** (_i + 1)
+
                 F_l = num_init_kernels * 2**_i
                 F_int = num_init_kernels * 2**_i
                 self.attention_blocks.append(AttentionBlock(F_g=F_g, F_l=F_l, F_int=F_int))
@@ -719,4 +332,5 @@ class RRUNet3D(nn.Module):
         x = self.unpool(x)
         out = self.output_conv(x)
         out = self.output_activation(out)
+
         return out

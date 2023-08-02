@@ -1,28 +1,82 @@
+'''
+Prostate-MRI_Lesion_Detection, v2.0 (Release date: August 2, 2023)
+DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
+
+PROVIDER: the National Cancer Institute (NCI), a participating institute of the
+National Institutes of Health (NIH), and an agency of the United States Government.
+
+SOFTWARE: the machine readable, binary, object code form,
+and the related documentation for the modules of the Prostate-MRI_Lesion_Detection, v2.0
+software package, which is a collection of operators which accept (T2, ADC, and High
+b-value DICOM images) and produce prostate organ and lesion segmentation files
+
+RECIPIENT: the party that downloads the software.
+
+By downloading or otherwise receiving the SOFTWARE, RECIPIENT may
+use and/or redistribute the SOFTWARE, with or without modification,
+subject to RECIPIENT’s agreement to the following terms:
+
+1. THE SOFTWARE SHALL NOT BE USED IN THE TREATMENT OR DIAGNOSIS
+OF HUMAN SUBJECTS.  RECIPIENT is responsible for
+compliance with all laws and regulations applicable to the use
+of the SOFTWARE.
+
+2. THE SOFTWARE is distributed for NON-COMMERCIAL RESEARCH PURPOSES ONLY. RECIPIENT is
+responsible for appropriate-use compliance.
+
+3.	RECIPIENT agrees to acknowledge PROVIDER’s contribution and
+the name of the author of the SOFTWARE in all written publications
+containing any data or information regarding or resulting from use
+of the SOFTWARE.
+
+4.	THE SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+ARE DISCLAIMED. IN NO EVENT SHALL THE PROVIDER OR THE INDIVIDUAL DEVELOPERS
+BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+THE POSSIBILITY OF SUCH DAMAGE.
+
+5.	RECIPIENT agrees not to use any trademarks, service marks, trade names,
+logos or product names of NVIDIA, NCI or NIH to endorse or promote products derived
+from the SOFTWARE without specific, prior and written permission.
+
+6.	For sake of clarity, and not by way of limitation, RECIPIENT may add its
+own copyright statement to its modifications or derivative works of the SOFTWARE
+and may provide additional or different license terms and conditions in its
+sublicenses of modifications or derivative works of the SOFTWARE provided that
+RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
+with the conditions stated in this Agreement. Whenever Recipient distributes or
+redistributes the SOFTWARE, a copy of this Agreement must be included with
+each copy of the SOFTWARE.'''
+
+import os
 import copy
 import logging
-import os
 from typing import Optional
-
-import nibabel as nib
 import numpy as np
-
-# AI/CV imports
-import SimpleITK as sitk
-import torch
-
-# Local imports
-from network import RRUNet3D
-from skimage.transform import resize
-from torch.utils.data import Dataset
 
 # MONAI Deploy App SDK imports
 import monai.deploy.core as md
+from monai.deploy.core import ExecutionContext, Image, InputContext, IOType, Operator, OutputContext
 
 # MONAI imports
 from monai.data import MetaTensor
-from monai.deploy.core import ExecutionContext, Image, InputContext, IOType, Operator, OutputContext
 from monai.transforms import SaveImage
 
+# AI/CV imports
+import SimpleITK as sitk
+from skimage.transform import resize
+import nibabel as nib
+import torch
+from torch.utils.data import Dataset
+
+# Local imports
+from network import RRUNet3D
 
 def bbox2_3D(img):
     r = np.any(img, axis=(1, 2))
@@ -35,7 +89,6 @@ def bbox2_3D(img):
 
     return [rmin, rmax, cmin, cmax, zmin, zmax]
 
-
 def standard_normalization_multi_channel(nda):
     for _i in range(nda.shape[0]):
         if np.amax(np.abs(nda[_i, ...])) < 1e-7:
@@ -43,7 +96,6 @@ def standard_normalization_multi_channel(nda):
         nda[_i, ...] = (nda[_i, ...] - np.mean(nda[_i, ...])) / np.std(nda[_i, ...])
 
     return nda
-
 
 class SegmentationDataset(Dataset):
     def __init__(self, output_path, data_purpose):
@@ -60,6 +112,7 @@ class SegmentationDataset(Dataset):
         affine_orig, nda = [], []
 
         # Load T2 in ITK format
+
         t2_name = str(self.output_path) + "/t2/t2.nii.gz"
         t2 = sitk.ReadImage(t2_name)
 
@@ -70,6 +123,7 @@ class SegmentationDataset(Dataset):
         nda.append(img.get_fdata())
 
         # Resample ADC
+
         adc_name = str(self.output_path) + "/adc/adc.nii.gz"
         adc = sitk.ReadImage(adc_name)
         adc = sitk.Resample(
@@ -90,6 +144,7 @@ class SegmentationDataset(Dataset):
         nda.append(img.get_fdata())
 
         # Resample HighB
+
         highb_name = str(self.output_path) + "/highb/highb.nii.gz"
         highb = sitk.ReadImage(highb_name)
         highb = sitk.Resample(
@@ -115,6 +170,7 @@ class SegmentationDataset(Dataset):
         nda_shape = [nda.shape[1], nda.shape[2], nda.shape[3]]
 
         # Read in whole prostate segmentation
+
         img_wp_filename = str(self.output_path) + "/organ/organ.nii.gz"
         img_wp = nib.as_closest_canonical(nib.load(img_wp_filename))
         nda_wp = img_wp.get_fdata()
@@ -130,6 +186,7 @@ class SegmentationDataset(Dataset):
             shape_target_s = float(nda_shape[_s]) * spacing_orig[_s] / spacing_target[_s]
             shape_target_s = np.round(shape_target_s).astype(np.int16)
             shape_target.append(shape_target_s)
+
         nda_resize = np.zeros(shape=[3] + shape_target, dtype=np.float32)
         for _s in range(3):
             nda_resize[_s, ...] = resize(nda[_s, ...], output_shape=shape_target, order=1)
@@ -146,6 +203,7 @@ class SegmentationDataset(Dataset):
             bbox_new[2 * _s + 1] = min(shape_target[_s] - 1, bbox[2 * _s + 1] + margin)
 
         # Crop ROI and preprocess (normalize: 0-mean, 1-stddev)
+
         nda_resize_roi = nda_resize[:, bbox_new[0] : bbox_new[1], bbox_new[2] : bbox_new[3], bbox_new[4] : bbox_new[5]]
         nda_resize_roi = standard_normalization_multi_channel(nda_resize_roi)
 
@@ -174,12 +232,14 @@ class CustomProstateLesionSegOperator(Operator):
     """Performs Prostate Lesion segmentation with a 3D image converted from a mp-DICOM MRI series."""
 
     def __init__(self, model_name: Optional[str] = ""):
+
         self.logger = logging.getLogger("{}.{}".format(__name__, type(self).__name__))
         super().__init__()
 
         self._model_name = model_name.strip() if isinstance(model_name, str) else ""
 
     def compute(self, op_input: InputContext, op_output: OutputContext, context: ExecutionContext):
+
         output_path = context.output.get().path
 
         # Load inputs
@@ -211,6 +271,7 @@ class CustomProstateLesionSegOperator(Operator):
         recurrent = False
         residual = True
         attention = False
+
         net = RRUNet3D(
             in_channels=input_channels,
             out_channels=output_classes,
@@ -227,6 +288,7 @@ class CustomProstateLesionSegOperator(Operator):
 
         # Set model weights to models in container
         tags = ["fold0", "fold1", "fold2", "fold3", "fold4"]
+
         weight_files = [
             "/opt/monai/app/models/" + tags[0] + "/model_best_fold0.pth.tar",
             "/opt/monai/app/models/" + tags[1] + "/model_best_fold1.pth.tar",
@@ -349,6 +411,7 @@ class CustomProstateLesionSegOperator(Operator):
             for rx in ranges_x:
                 for ry in ranges_y:
                     for rz in ranges_z:
+
                         output_patch = net(inputs[..., rx[0] : rx[1], ry[0] : ry[1], rz[0] : rz[1]])
                         output_patch = output_patch.cpu().detach().numpy()
                         output_patch = np.squeeze(output_patch)
@@ -366,6 +429,7 @@ class CustomProstateLesionSegOperator(Operator):
         nda_resize_shape = nda_resize_shape.detach().numpy()
         nda_resize_shape = np.squeeze(nda_resize_shape)
         outputs_resize = np.zeros(shape=(nda_resize_shape[0], nda_resize_shape[1], nda_resize_shape[2]), dtype=np.uint8)
+
         outputs_prob_resize = np.zeros(
             shape=(output_classes, nda_resize_shape[0], nda_resize_shape[1], nda_resize_shape[2]), dtype=np.float32
         )
@@ -406,6 +470,7 @@ class CustomProstateLesionSegOperator(Operator):
 
         # Write image to disk
         output_filename = data["image_filename"]
+
         output_filename = (
             str(output_path)
             + "/lesion/"
