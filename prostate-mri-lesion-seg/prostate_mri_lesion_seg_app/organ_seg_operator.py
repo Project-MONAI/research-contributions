@@ -1,4 +1,4 @@
-'''
+"""
 Prostate-MRI_Lesion_Detection, v2.0 (Release date: August 2, 2023)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
@@ -52,7 +52,7 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE.'''
+each copy of the SOFTWARE."""
 
 import logging
 from os import path
@@ -88,7 +88,6 @@ class ProstateSegOperator(Operator):
     """Performs Prostate segmentation with a 3D image converted from a DICOM MRI (T2) series."""
 
     def __init__(self, model_name: Optional[str] = ""):
-
         self.logger = logging.getLogger("{}.{}".format(__name__, type(self).__name__))
         super().__init__()
         self._input_dataset_key = "image"
@@ -96,7 +95,6 @@ class ProstateSegOperator(Operator):
         self._model_name = model_name.strip() if isinstance(model_name, str) else ""
 
     def compute(self, op_input: InputContext, op_output: OutputContext, context: ExecutionContext):
-
         input_image = op_input.get("image")
         if not input_image:
             raise ValueError("Input image is not found.")
