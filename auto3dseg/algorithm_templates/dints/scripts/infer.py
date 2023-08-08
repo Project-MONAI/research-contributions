@@ -152,6 +152,7 @@ class InferClass:
         ckpt_name = parser.get_parsed_content("infer")["ckpt_name"]
         data_list_key = parser.get_parsed_content("infer")["data_list_key"]
         output_path = parser.get_parsed_content("infer")["output_path"]
+        save_prob = parser.get_parsed_content("infer#save_prob")
 
         if not os.path.exists(output_path):
             os.makedirs(output_path, exist_ok=True)
@@ -199,6 +200,29 @@ class InferClass:
         ]
         self.post_transforms_prob = transforms.Compose(post_transforms)
 
+        if save_prob:
+            post_transforms += [
+                transforms.CopyItemsd(
+                    keys="pred",
+                    times=1,
+                    names="prob",
+                ),
+                transforms.Lambdad(
+                    keys="prob",
+                    func=lambda x: torch.floor(x * 255.0).type(torch.uint8)
+                ),
+                transforms.SaveImaged(
+                    keys="prob",
+                    meta_keys="pred_meta_dict",
+                    output_dir=os.path.join(output_path, "prob"),
+                    output_postfix="",
+                    resample=False,
+                    print_log=False,
+                    data_root_dir=data_file_base_dir,
+                    output_dtype=np.uint8,
+                ),
+            ]
+
         if softmax:
             post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
         else:
@@ -209,11 +233,12 @@ class InferClass:
                 keys="pred",
                 meta_keys="pred_meta_dict",
                 output_dir=output_path,
-                output_postfix="seg",
+                output_postfix="",
                 resample=False,
                 print_log=False,
                 data_root_dir=data_file_base_dir,
-            )
+                output_dtype=np.uint8,
+            ),
         ]
         self.post_transforms = transforms.Compose(post_transforms)
 

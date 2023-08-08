@@ -99,6 +99,7 @@ validate:
 # inference
 infer:
   ckpt_name: "$@bundle_root + '/model_fold' + str(@fold) + '/best_metric_model.pt'"
+  save_prob: false
   fast: true
   data_list_key: testing
   log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/inference.log'"
