@@ -1,0 +1,1428 @@
+{
+    "training": [
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0417_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0280_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0227_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0285_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0135_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0467_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0686_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0169_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0220_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0599_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0657_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0140_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0616_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0636_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0512_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0047_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0734_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0648_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0424_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0338_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0643_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0589_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0248_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0481_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0399_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0505_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0109_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0729_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0762_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0662_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0398_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0316_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0385_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0494_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0613_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0029_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0308_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0336_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0384_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0561_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0394_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0279_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0100_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0151_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0507_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0217_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0058_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0369_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0107_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0149_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0604_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0535_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0152_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0571_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0323_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0678_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0468_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0094_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0339_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0199_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0656_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0179_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0652_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0131_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0708_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0206_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0726_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0670_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0412_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0039_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0624_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0138_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0569_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0041_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0136_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0067_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0542_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0483_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0095_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0252_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0474_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0499_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0438_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0520_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0153_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0506_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0230_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0036_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0683_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0222_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0148_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0587_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0727_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0443_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0617_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0597_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0176_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0661_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0527_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0069_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0476_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0360_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0536_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0583_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0612_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0779_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0322_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0671_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0477_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0675_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0639_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0673_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0553_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0379_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0174_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0128_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0066_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0575_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0731_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0364_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0079_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0317_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0547_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0645_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0133_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0543_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0716_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0073_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0611_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0320_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0198_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0076_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0496_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0333_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0721_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0118_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0337_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0402_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0038_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0719_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0306_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0147_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0400_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0442_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0281_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0299_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0486_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0311_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0703_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0590_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0517_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0218_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0600_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0555_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0742_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0479_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0697_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0150_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0453_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0367_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0436_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0212_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0157_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0081_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0548_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0229_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0663_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0607_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0141_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0415_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0578_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0371_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0110_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0027_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0672_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0191_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0134_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0160_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0541_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0319_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0567_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0425_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0070_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0389_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0258_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0026_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0298_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0372_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0598_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0182_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0421_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0197_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0728_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0024_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0463_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0724_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0489_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0256_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0077_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0641_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0409_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0143_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0554_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0508_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0448_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0340_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0055_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0046_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0584_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0490_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0676_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0093_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0629_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0531_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0048_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0165_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0270_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0491_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0334_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0166_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0556_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0183_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0208_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0420_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0647_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0350_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0712_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0658_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0304_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0032_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0239_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0213_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0087_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0278_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0451_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0591_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0570_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0171_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0037_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0327_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0291_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0667_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0343_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0685_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0695_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0698_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0601_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0637_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0201_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0241_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0235_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0303_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0390_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0368_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0514_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0687_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0068_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0403_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0289_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0644_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0377_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0053_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0713_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0608_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0470_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0287_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0669_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0594_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0332_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0393_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0117_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0628_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0192_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0391_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0482_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0318_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0105_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0383_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0534_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0214_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0264_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0283_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0706_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0349_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0324_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0401_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0376_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0447_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0245_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0112_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0562_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0717_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0266_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0145_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0126_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0312_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0735_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0459_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0263_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0215_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0427_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0209_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0207_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0195_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0563_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0356_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0310_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0776_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0732_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0689_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0442_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0395_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0603_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0362_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0164_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0090_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0190_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0223_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0226_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0108_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0550_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0185_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0328_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0518_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0099_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0290_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0098_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0521_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0582_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0378_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0064_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0709_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0549_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0025_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0710_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0267_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0259_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0492_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0382_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0103_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0243_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0625_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0096_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0113_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0551_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0294_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0619_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0460_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0497_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0653_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0659_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0457_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0696_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0679_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0101_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0632_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0309_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0186_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0694_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0577_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0493_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0560_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0056_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0605_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0193_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0559_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0295_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0050_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0125_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0284_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0124_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0097_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0216_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0642_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0330_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0452_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0219_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0042_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0082_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0440_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0519_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0282_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0602_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0151_2.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0674_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0397_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0626_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0326_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0237_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0178_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0638_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0525_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0075_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0274_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0754_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0450_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0342_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0441_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0458_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0221_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0423_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0546_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0504_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0387_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0063_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0329_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0072_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0247_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0454_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0651_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0296_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0537_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0155_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0488_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0510_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0465_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0455_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0122_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0254_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0250_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0501_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0404_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0500_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0419_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0341_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0043_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0495_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0188_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0060_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0426_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0262_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0257_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0588_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0487_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0332_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0106_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0388_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0558_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0498_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0522_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0302_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0370_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0511_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0116_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0057_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0557_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0633_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0684_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0680_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0040_1.nii.gz"
+        }
+    ],
+    "validation": [
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0205_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0175_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0059_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0121_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0449_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0456_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0083_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0181_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0593_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0374_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0622_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0564_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0711_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0655_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0062_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0202_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0691_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0273_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0630_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0615_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0293_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0276_1.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0292_0.nii.gz"
+        },
+        {
+            "image": "Image_LIDC/LIDC-IDRI-0061_1.nii.gz"
+        }
+    ]
+}

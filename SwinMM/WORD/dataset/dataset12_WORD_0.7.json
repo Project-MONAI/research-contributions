@@ -1,0 +1,642 @@
+{
+    "name": "WORD-V0.1.0",
+    "description": "Whole abdomen ORgan segmentation Dataset (WORD), just for research use !!!",
+    "reference": "WORD: Revisiting Organs Segmentation in the Whole Abdominal Region, link:https://arxiv.org/pdf/2111.02403.pdf, https://github.com/HiLab-git/WORD",
+    "licence": "GNU General Public License v3.0",
+    "release": "v0.1.0 10/11/2021",
+    "tensorImageSize": "3D",
+    "modality": {
+        "0": "CT"
+    },
+    "labels": {
+        "0": "background",
+        "1": "liver",
+        "2": "spleen",
+        "3": "left_kidney",
+        "4": "right_kidney",
+        "5": "stomach",
+        "6": "gallbladder",
+        "7": "esophagus",
+        "8": "pancreas",
+        "9": "duodenum",
+        "10": "colon",
+        "11": "intestine",
+        "12": "adrenal",
+        "13": "rectum",
+        "14": "bladder",
+        "15": "Head_of_femur_L",
+        "16": "Head_of_femur_R"
+    },
+    "numTraining": 100,
+    "numValidation": 20,
+    "numTest": 30,
+    "training": [
+        {
+            "image": "./imagesTr/word_0096.nii.gz",
+            "label": "./labelsTr/word_0096.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0010.nii.gz",
+            "label": "./labelsTr/word_0010.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0078.nii.gz",
+            "label": "./labelsTr/word_0078.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0109.nii.gz",
+            "label": "./labelsTr/word_0109.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0051.nii.gz",
+            "label": "./labelsTr/word_0051.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0067.nii.gz",
+            "label": "./labelsTr/word_0067.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0107.nii.gz",
+            "label": "./labelsTr/word_0107.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0105.nii.gz",
+            "label": "./labelsTr/word_0105.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0065.nii.gz",
+            "label": "./labelsTr/word_0065.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0144.nii.gz",
+            "label": "./labelsTr/word_0144.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0118.nii.gz",
+            "label": "./labelsTr/word_0118.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0140.nii.gz",
+            "label": "./labelsTr/word_0140.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0002.nii.gz",
+            "label": "./labelsTr/word_0002.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0091.nii.gz",
+            "label": "./labelsTr/word_0091.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0009.nii.gz",
+            "label": "./labelsTr/word_0009.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0100.nii.gz",
+            "label": "./labelsTr/word_0100.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0032.nii.gz",
+            "label": "./labelsTr/word_0032.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0040.nii.gz",
+            "label": "./labelsTr/word_0040.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0130.nii.gz",
+            "label": "./labelsTr/word_0130.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0101.nii.gz",
+            "label": "./labelsTr/word_0101.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0018.nii.gz",
+            "label": "./labelsTr/word_0018.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0090.nii.gz",
+            "label": "./labelsTr/word_0090.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0071.nii.gz",
+            "label": "./labelsTr/word_0071.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0042.nii.gz",
+            "label": "./labelsTr/word_0042.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0126.nii.gz",
+            "label": "./labelsTr/word_0126.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0135.nii.gz",
+            "label": "./labelsTr/word_0135.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0138.nii.gz",
+            "label": "./labelsTr/word_0138.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0116.nii.gz",
+            "label": "./labelsTr/word_0116.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0070.nii.gz",
+            "label": "./labelsTr/word_0070.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0084.nii.gz",
+            "label": "./labelsTr/word_0084.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0056.nii.gz",
+            "label": "./labelsTr/word_0056.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0148.nii.gz",
+            "label": "./labelsTr/word_0148.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0132.nii.gz",
+            "label": "./labelsTr/word_0132.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0102.nii.gz",
+            "label": "./labelsTr/word_0102.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0082.nii.gz",
+            "label": "./labelsTr/word_0082.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0062.nii.gz",
+            "label": "./labelsTr/word_0062.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0073.nii.gz",
+            "label": "./labelsTr/word_0073.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0046.nii.gz",
+            "label": "./labelsTr/word_0046.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0146.nii.gz",
+            "label": "./labelsTr/word_0146.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0113.nii.gz",
+            "label": "./labelsTr/word_0113.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0006.nii.gz",
+            "label": "./labelsTr/word_0006.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0127.nii.gz",
+            "label": "./labelsTr/word_0127.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0095.nii.gz",
+            "label": "./labelsTr/word_0095.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0058.nii.gz",
+            "label": "./labelsTr/word_0058.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0128.nii.gz",
+            "label": "./labelsTr/word_0128.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0111.nii.gz",
+            "label": "./labelsTr/word_0111.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0049.nii.gz",
+            "label": "./labelsTr/word_0049.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0029.nii.gz",
+            "label": "./labelsTr/word_0029.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0086.nii.gz",
+            "label": "./labelsTr/word_0086.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0123.nii.gz",
+            "label": "./labelsTr/word_0123.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0011.nii.gz",
+            "label": "./labelsTr/word_0011.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0005.nii.gz",
+            "label": "./labelsTr/word_0005.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0036.nii.gz",
+            "label": "./labelsTr/word_0036.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0114.nii.gz",
+            "label": "./labelsTr/word_0114.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0145.nii.gz",
+            "label": "./labelsTr/word_0145.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0136.nii.gz",
+            "label": "./labelsTr/word_0136.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0055.nii.gz",
+            "label": "./labelsTr/word_0055.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0047.nii.gz",
+            "label": "./labelsTr/word_0047.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0093.nii.gz",
+            "label": "./labelsTr/word_0093.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0026.nii.gz",
+            "label": "./labelsTr/word_0026.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0044.nii.gz",
+            "label": "./labelsTr/word_0044.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0061.nii.gz",
+            "label": "./labelsTr/word_0061.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0125.nii.gz",
+            "label": "./labelsTr/word_0125.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0064.nii.gz",
+            "label": "./labelsTr/word_0064.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0087.nii.gz",
+            "label": "./labelsTr/word_0087.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0013.nii.gz",
+            "label": "./labelsTr/word_0013.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0104.nii.gz",
+            "label": "./labelsTr/word_0104.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0008.nii.gz",
+            "label": "./labelsTr/word_0008.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0079.nii.gz",
+            "label": "./labelsTr/word_0079.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0030.nii.gz",
+            "label": "./labelsTr/word_0030.nii.gz"
+        }
+    ],
+    "unsupervised": [
+        {
+            "image": "./imagesTr/word_0094.nii.gz",
+            "label": "./labelsTr/word_0094.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0022.nii.gz",
+            "label": "./labelsTr/word_0022.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0134.nii.gz",
+            "label": "./labelsTr/word_0134.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0063.nii.gz",
+            "label": "./labelsTr/word_0063.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0117.nii.gz",
+            "label": "./labelsTr/word_0117.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0142.nii.gz",
+            "label": "./labelsTr/word_0142.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0081.nii.gz",
+            "label": "./labelsTr/word_0081.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0053.nii.gz",
+            "label": "./labelsTr/word_0053.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0106.nii.gz",
+            "label": "./labelsTr/word_0106.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0003.nii.gz",
+            "label": "./labelsTr/word_0003.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0072.nii.gz",
+            "label": "./labelsTr/word_0072.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0119.nii.gz",
+            "label": "./labelsTr/word_0119.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0068.nii.gz",
+            "label": "./labelsTr/word_0068.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0027.nii.gz",
+            "label": "./labelsTr/word_0027.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0121.nii.gz",
+            "label": "./labelsTr/word_0121.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0147.nii.gz",
+            "label": "./labelsTr/word_0147.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0020.nii.gz",
+            "label": "./labelsTr/word_0020.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0133.nii.gz",
+            "label": "./labelsTr/word_0133.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0108.nii.gz",
+            "label": "./labelsTr/word_0108.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0004.nii.gz",
+            "label": "./labelsTr/word_0004.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0038.nii.gz",
+            "label": "./labelsTr/word_0038.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0089.nii.gz",
+            "label": "./labelsTr/word_0089.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0059.nii.gz",
+            "label": "./labelsTr/word_0059.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0041.nii.gz",
+            "label": "./labelsTr/word_0041.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0150.nii.gz",
+            "label": "./labelsTr/word_0150.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0122.nii.gz",
+            "label": "./labelsTr/word_0122.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0012.nii.gz",
+            "label": "./labelsTr/word_0012.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0115.nii.gz",
+            "label": "./labelsTr/word_0115.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0143.nii.gz",
+            "label": "./labelsTr/word_0143.nii.gz"
+        },
+        {
+            "image": "./imagesTr/word_0028.nii.gz",
+            "label": "./labelsTr/word_0028.nii.gz"
+        }
+    ],
+    "validation": [
+        {
+            "image": "./imagesVal/word_0001.nii.gz",
+            "label": "./labelsVal/word_0001.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0007.nii.gz",
+            "label": "./labelsVal/word_0007.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0015.nii.gz",
+            "label": "./labelsVal/word_0015.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0025.nii.gz",
+            "label": "./labelsVal/word_0025.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0031.nii.gz",
+            "label": "./labelsVal/word_0031.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0035.nii.gz",
+            "label": "./labelsVal/word_0035.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0039.nii.gz",
+            "label": "./labelsVal/word_0039.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0045.nii.gz",
+            "label": "./labelsVal/word_0045.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0048.nii.gz",
+            "label": "./labelsVal/word_0048.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0066.nii.gz",
+            "label": "./labelsVal/word_0066.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0075.nii.gz",
+            "label": "./labelsVal/word_0075.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0080.nii.gz",
+            "label": "./labelsVal/word_0080.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0083.nii.gz",
+            "label": "./labelsVal/word_0083.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0085.nii.gz",
+            "label": "./labelsVal/word_0085.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0098.nii.gz",
+            "label": "./labelsVal/word_0098.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0112.nii.gz",
+            "label": "./labelsVal/word_0112.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0137.nii.gz",
+            "label": "./labelsVal/word_0137.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0139.nii.gz",
+            "label": "./labelsVal/word_0139.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0141.nii.gz",
+            "label": "./labelsVal/word_0141.nii.gz"
+        },
+        {
+            "image": "./imagesVal/word_0149.nii.gz",
+            "label": "./labelsVal/word_0149.nii.gz"
+        }
+    ],
+    "testing": [        
+        {
+            "image": "./imagesTs/word_0014.nii.gz",
+            "label": "./labelsTs/word_0014.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0016.nii.gz",
+            "label": "./labelsTs/word_0016.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0017.nii.gz",
+            "label": "./labelsTs/word_0017.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0019.nii.gz",
+            "label": "./labelsTs/word_0019.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0021.nii.gz",
+            "label": "./labelsTs/word_0021.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0023.nii.gz",
+            "label": "./labelsTs/word_0023.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0024.nii.gz",
+            "label": "./labelsTs/word_0024.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0033.nii.gz",
+            "label": "./labelsTs/word_0033.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0034.nii.gz",
+            "label": "./labelsTs/word_0034.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0037.nii.gz",
+            "label": "./labelsTs/word_0037.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0043.nii.gz",
+            "label": "./labelsTs/word_0043.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0050.nii.gz",
+            "label": "./labelsTs/word_0050.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0052.nii.gz",
+            "label": "./labelsTs/word_0052.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0054.nii.gz",
+            "label": "./labelsTs/word_0054.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0057.nii.gz",
+            "label": "./labelsTs/word_0057.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0060.nii.gz",
+            "label": "./labelsTs/word_0060.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0069.nii.gz",
+            "label": "./labelsTs/word_0069.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0074.nii.gz",
+            "label": "./labelsTs/word_0074.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0076.nii.gz",
+            "label": "./labelsTs/word_0076.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0077.nii.gz",
+            "label": "./labelsTs/word_0077.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0088.nii.gz",
+            "label": "./labelsTs/word_0088.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0092.nii.gz",
+            "label": "./labelsTs/word_0092.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0097.nii.gz",
+            "label": "./labelsTs/word_0097.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0099.nii.gz",
+            "label": "./labelsTs/word_0099.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0103.nii.gz",
+            "label": "./labelsTs/word_0103.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0110.nii.gz",
+            "label": "./labelsTs/word_0110.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0120.nii.gz",
+            "label": "./labelsTs/word_0120.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0124.nii.gz",
+            "label": "./labelsTs/word_0124.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0129.nii.gz",
+            "label": "./labelsTs/word_0129.nii.gz"
+        },
+        {
+            "image": "./imagesTs/word_0131.nii.gz",
+            "label": "./labelsTs/word_0131.nii.gz"
+        }
+    ],
+    "addition_validation_from_LiTS":["addition_validation_from_LiTS/imagesTs", "addition_validation_from_LiTS/labelsTs"]
+}
