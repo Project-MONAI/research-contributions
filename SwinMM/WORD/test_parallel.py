@@ -100,7 +100,7 @@ def main_worker(gpu, args):
     if args.rank == 0:
         setup_default_logging()
         # logging.info(f"Batch size is: {args.batch_size}, epochs: {args.max_epochs}")
-    
+
     pretrained_dir = args.pretrained_dir
     model_name = args.pretrained_model_name
     pretrained_pth = os.path.join(pretrained_dir, model_name)
@@ -124,7 +124,7 @@ def main_worker(gpu, args):
         model.cuda(args.gpu)
         model_without_ddp = model
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], output_device=args.gpu, broadcast_buffers=False, find_unused_parameters=True)
-    
+
     dice_all = []# np.zeros((len(val_loader), len(view), args.out_channels - 1))
     hd_all = []# np.zeros((len(val_loader), len(view), args.out_channels - 1))
     asd_all = []# np.zeros((len(val_loader), len(view), args.out_channels - 1))
@@ -163,7 +163,7 @@ def main_worker(gpu, args):
             dice = np.zeros((len(view), args.out_channels - 1))
             hd = np.zeros((len(view), args.out_channels - 1))
             asd = np.zeros((len(view), args.out_channels - 1))
-            for i, output in enumerate(output_list): 
+            for i, output in enumerate(output_list):
                 output = np.argmax(output, axis = 0, keepdims = False)
                 output = resample_3d(output, target_shape)
                 target_ornt = nib.orientations.axcodes2ornt(tuple(nib.aff2axcodes(original_affine)))
@@ -186,7 +186,7 @@ def main_worker(gpu, args):
             dice_all.append(dice)
             hd_all.append(hd)
             asd_all.append(asd)
-    
+
     dice_all = torch.tensor(np.stack(dice_all, axis = 0)).cuda(args.gpu)
     hd_all = torch.tensor(np.stack(hd_all, axis = 0)).cuda(args.gpu)
     asd_all = torch.tensor(np.stack(asd_all, axis = 0)).cuda(args.gpu)

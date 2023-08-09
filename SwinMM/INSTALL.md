@@ -50,7 +50,7 @@ The dataset is organized as below:
 
 ```text
 SwinMM
-├── WORD    
+├── WORD
 │   └── dataset
 │       └── dataset12_WORD
 │           ├── imagesTr

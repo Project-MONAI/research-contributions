@@ -1,4 +1,4 @@
- {
+{
     "training": [
         {
             "image": "imagesTr/img0001.nii.gz",
@@ -40,7 +40,6 @@
             "image": "imagesTr/img0010.nii.gz",
             "label": "labelsTr/label0010.nii.gz"
         },
-
         {
             "image": "imagesTr/img0021.nii.gz",
             "label": "labelsTr/label0021.nii.gz"

@@ -4307,7 +4307,8 @@
         {
             "image": "./imagesTr/Case_00807.nii.gz",
             "label": "./labelsTr/Case_00807.nii.gz"
-        }],
+        }
+    ],
     "validation": [
         {
             "image": "./imagesTr/Case_00808.nii.gz",

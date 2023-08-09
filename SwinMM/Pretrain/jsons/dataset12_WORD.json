@@ -514,7 +514,7 @@
             "label": "./labelsVal/word_0149.nii.gz"
         }
     ],
-    "testing": [        
+    "testing": [
         {
             "image": "./imagesTs/word_0014.nii.gz",
             "label": "./labelsTs/word_0014.nii.gz"
@@ -636,5 +636,8 @@
             "label": "./labelsTs/word_0131.nii.gz"
         }
     ],
-    "addition_validation_from_LiTS":["addition_validation_from_LiTS/imagesTs", "addition_validation_from_LiTS/labelsTs"]
+    "addition_validation_from_LiTS": [
+        "addition_validation_from_LiTS/imagesTs",
+        "addition_validation_from_LiTS/labelsTs"
+    ]
 }
