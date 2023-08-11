@@ -230,7 +230,7 @@ def run_training(
             writer.add_scalar("train_loss", train_loss, epoch)
             writer.add_scalar("self_loss", self_loss, epoch)
             writer.add_scalar("mutual_loss", mutual_loss, epoch)
-
+        
         if args.unsupervised and (epoch + 1) % args.unsuper_every == 0:
             if args.distributed:
                 unsupervised_loader.sampler.set_epoch(epoch)

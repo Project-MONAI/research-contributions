@@ -125,7 +125,7 @@ def main():
                 output_list.append(val_outputs_2)
             output_list.append(val_fuse)
 
-            for i, output in enumerate(output_list):
+            for i, output in enumerate(output_list): 
                 output = np.argmax(output, axis = 0, keepdims = False)
                 output = resample_3d(output, target_shape)
                 target_ornt = nib.orientations.axcodes2ornt(tuple(nib.aff2axcodes(original_affine)))

@@ -46,11 +46,13 @@ We choose two popular datasets to test the downstream segmentation performance:
 - [WORD](https://github.com/HiLab-git/WORD) (The Whole abdominal Organ Dataset)
 - [ACDC](https://www.creatis.insa-lyon.fr/Challenge/acdc/#challenge/584e75606a3c77492fe91bba) (Automated Cardiac Diagnosis Challenge)
 
+The json files can be downloaded from [pretrain_jsons](https://drive.google.com/file/d/1gJThxBvnJnc2_N1nFX7xywjFWFw7DSEY/view?usp=sharing) and [word_jsons](https://drive.google.com/file/d/1Td4T_k2QlEcTETz9TERGsVdOyebD5ULv/view?usp=sharing);
+
 The dataset is organized as below:
 
 ```text
 SwinMM
-├── WORD
+├── WORD    
 │   └── dataset
 │       └── dataset12_WORD
 │           ├── imagesTr
