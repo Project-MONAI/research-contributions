@@ -74,4 +74,11 @@ If you find this repository helpful, please consider citing:
   booktitle = {MICCAI},
   year      = {2023}
 }
+
+@article{cardoso2022monai,
+  title={Monai: An open-source framework for deep learning in healthcare},
+  author={Cardoso, M Jorge and Li, Wenqi and Brown, Richard and Ma, Nic and Kerfoot, Eric and Wang, Yiheng and Murrey, Benjamin and Myronenko, Andriy and Zhao, Can and Yang, Dong and others},
+  journal={arXiv preprint arXiv:2211.02701},
+  year={2022}
+}
 ```
