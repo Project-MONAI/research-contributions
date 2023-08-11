@@ -29,7 +29,7 @@ In the fine-tuning stage, a cross-view decoder is developed to aggregate the mul
 We present two checkpoints here:
 
 - [pretrained_ckpt.pt](https://drive.google.com/file/d/1VFT1Oz5UGjAaXLdWAAdeD0mVeLyCQ0ry/view?usp=sharing)
-- [WORD_finetuned_ckpt.pt](https://drive.google.com/file/d/1GXNE_c2PSyklQ8hdL739TowEZ5_HGOK_/view?usp=sharing)
+- [WORD_finetuned_ckpt.pt](https://drive.google.com/file/d/1VFT1Oz5UGjAaXLdWAAdeD0mVeLyCQ0ry/view?usp=sharing)
 
 Here is the sample testing result on WORD
 
