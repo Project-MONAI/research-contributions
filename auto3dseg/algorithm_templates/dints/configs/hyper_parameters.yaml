@@ -12,6 +12,7 @@ training:
   amp: true
   auto_scale_allowed: true
   data_list_key: null
+  epoch_divided_factor: 36
   input_channels: null
   learning_rate: 0.2
   log_output_file: "$@bundle_root + '/model_fold' + str(@fold) + '/training.log'"
@@ -60,11 +61,13 @@ training:
     batch: true
     smooth_nr: 1.0e-05
     smooth_dr: 1.0e-05
+
   optimizer:
     _target_: torch.optim.SGD
     lr: "@training#learning_rate"
     momentum: 0.9
     weight_decay: 4.0e-05
+
   lr_scheduler:
     _target_: torch.optim.lr_scheduler.PolynomialLR
     optimizer: "$@training#optimizer"
