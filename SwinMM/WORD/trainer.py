@@ -15,29 +15,25 @@ import time
 import numpy as np
 import torch
 import torch.distributed
+import torch.nn.functional as F
 import torch.nn.parallel
 import torch.utils.data.distributed
-import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
 from torch.cuda.amp import GradScaler, autocast
+from torch.utils.tensorboard import SummaryWriter
+from utils import view_ops
 from utils.misc import AverageMeter, distributed_all_gather
 
 from monai.data import decollate_batch
 
-from utils import view_ops
-
 
 def train_epoch(model, loader, optimizer, scaler, epoch, self_crit, mutual_crit, args):
-
     model.train()
     start_time = time.time()
     run_loss = AverageMeter()
     run_self_loss = AverageMeter()
     run_mutual_loss = AverageMeter()
 
-
     for idx, batch_data in enumerate(loader):
-
         for param in model.parameters():
             param.grad = None
         if isinstance(batch_data, list):
@@ -50,19 +46,21 @@ def train_epoch(model, loader, optimizer, scaler, epoch, self_crit, mutual_crit,
         data_list, view_list = view_ops.permute_rand(data)
 
         loss = 0
-        self_loss_list, mutual_loss_list= [], []
+        self_loss_list, mutual_loss_list = [], []
         with autocast(enabled=args.amp):
             output1, output2 = model(data_list[0], data_list[1], view_list)
             out_list = [output1, output2]
             out_list = view_ops.permute_inverse(out_list, view_list)
             if args.unsupervised:
-                target = torch.argmax((torch.softmax(out_list[0], dim = 1) + torch.softmax(out_list[1], dim = 1)) / 2, dim = 1, keepdim = True).cuda(args.rank)
+                target = torch.argmax(
+                    (torch.softmax(out_list[0], dim=1) + torch.softmax(out_list[1], dim=1)) / 2, dim=1, keepdim=True
+                ).cuda(args.rank)
             for i in range(len(out_list)):
                 self_loss = self_crit(out_list[i], target)
                 mutual_loss = 0
                 for j in range(len(out_list)):  # KL divergence
                     if i != j:
-                        mutual_end = mutual_crit(F.log_softmax(out_list[i], dim = 1), F.softmax(out_list[j], dim = 1))
+                        mutual_end = mutual_crit(F.log_softmax(out_list[i], dim=1), F.softmax(out_list[j], dim=1))
                         mutual_loss += mutual_end
                 loss = loss + (self_loss + mutual_loss / (len(out_list) - 1)) / len(out_list)
                 self_loss_list.append(self_loss.item())
@@ -79,29 +77,19 @@ def train_epoch(model, loader, optimizer, scaler, epoch, self_crit, mutual_crit,
             optimizer.step()
         if args.distributed:
             is_valid = True
-            loss_list = distributed_all_gather([loss],
-                                               out_numpy=True,
-                                               is_valid=is_valid)
-            run_loss.update(np.mean(np.mean(np.stack(loss_list, axis=0),
-                                            axis=0),
-                                    axis=0),
-                            n=args.batch_size * args.world_size)
-            self_loss_list = distributed_all_gather([self_loss],
-                                                    out_numpy=True,
-                                                    is_valid=is_valid)
-            run_self_loss.update(np.mean(np.mean(np.stack(self_loss_list,
-                                                          axis=0),
-                                                 axis=0),
-                                         axis=0),
-                                 n=args.batch_size * args.world_size)
-            mutual_loss_list = distributed_all_gather([mutual_loss],
-                                                      out_numpy=True,
-                                                      is_valid=is_valid)
-            run_mutual_loss.update(np.mean(np.mean(np.stack(mutual_loss_list,
-                                                            axis=0),
-                                                   axis=0),
-                                           axis=0),
-                                   n=args.batch_size * args.world_size)
+            loss_list = distributed_all_gather([loss], out_numpy=True, is_valid=is_valid)
+            run_loss.update(
+                np.mean(np.mean(np.stack(loss_list, axis=0), axis=0), axis=0), n=args.batch_size * args.world_size
+            )
+            self_loss_list = distributed_all_gather([self_loss], out_numpy=True, is_valid=is_valid)
+            run_self_loss.update(
+                np.mean(np.mean(np.stack(self_loss_list, axis=0), axis=0), axis=0), n=args.batch_size * args.world_size
+            )
+            mutual_loss_list = distributed_all_gather([mutual_loss], out_numpy=True, is_valid=is_valid)
+            run_mutual_loss.update(
+                np.mean(np.mean(np.stack(mutual_loss_list, axis=0), axis=0), axis=0),
+                n=args.batch_size * args.world_size,
+            )
         else:
             run_loss.update(loss.item(), n=args.batch_size)
             run_self_loss.update(self_loss.item(), n=args.batch_size)
@@ -151,9 +139,7 @@ def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_lab
 
             if args.distributed:
                 is_valid = True
-                acc_list, not_nans_list = distributed_all_gather(
-                    [acc, not_nans], out_numpy=True, is_valid=is_valid
-                )
+                acc_list, not_nans_list = distributed_all_gather([acc, not_nans], out_numpy=True, is_valid=is_valid)
                 for al, nl in zip(acc_list, not_nans_list):
                     run_acc.update(al, n=nl)
 
@@ -216,7 +202,14 @@ def run_training(
         print(args.rank, time.ctime(), "Epoch:", epoch)
         epoch_time = time.time()
         train_loss, self_loss, mutual_loss = train_epoch(
-            model, train_loader, optimizer, scaler=scaler, epoch=epoch, self_crit=self_crit, mutual_crit=mutual_crit, args=args
+            model,
+            train_loader,
+            optimizer,
+            scaler=scaler,
+            epoch=epoch,
+            self_crit=self_crit,
+            mutual_crit=mutual_crit,
+            args=args,
         )
         if args.rank == 0:
             print(
@@ -238,7 +231,14 @@ def run_training(
             print(args.rank, time.ctime(), "Epoch:", epoch)
             epoch_time = time.time()
             train_loss, mutual_loss = train_epoch(
-                model, unsupervised_loader, optimizer, scaler=scaler, epoch=epoch, self_crit=self_crit, mutual_crit=mutual_crit, args=args
+                model,
+                unsupervised_loader,
+                optimizer,
+                scaler=scaler,
+                epoch=epoch,
+                self_crit=self_crit,
+                mutual_crit=mutual_crit,
+                args=args,
             )
             if args.rank == 0:
                 print(

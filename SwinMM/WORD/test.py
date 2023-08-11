@@ -15,15 +15,14 @@ import os
 import nibabel as nib
 import numpy as np
 import torch
-from utils.data_utils import get_loader
-from utils.misc import resample_3d
-from monai.transforms import Spacing
-from monai.networks.utils import one_hot
-from monai.metrics import compute_meandice, compute_hausdorff_distance, compute_average_surface_distance
-
 from inferers import double_sliding_window_inference
 from models import SwinUNETR
+from utils.data_utils import get_loader
+from utils.misc import resample_3d
 
+from monai.metrics import compute_average_surface_distance, compute_hausdorff_distance, compute_meandice
+from monai.networks.utils import one_hot
+from monai.transforms import Spacing
 
 parser = argparse.ArgumentParser(description="Swin UNETR segmentation pipeline")
 parser.add_argument(
@@ -32,12 +31,7 @@ parser.add_argument(
 parser.add_argument("--data_dir", default="./dataset/dataset12_WORD/", type=str, help="dataset directory")
 parser.add_argument("--exp_name", default="multiview_101616/", type=str, help="experiment name")
 parser.add_argument("--json_list", default="dataset12_WORD.json", type=str, help="dataset json file")
-parser.add_argument(
-    "--pretrained_model_name",
-    default="model.pt",
-    type=str,
-    help="pretrained model name",
-)
+parser.add_argument("--pretrained_model_name", default="model.pt", type=str, help="pretrained model name")
 parser.add_argument("--feature_size", default=48, type=int, help="feature size")
 parser.add_argument("--infer_overlap", default=0.7, type=float, help="sliding window inference overlap")
 parser.add_argument("--in_channels", default=1, type=int, help="number of input channels")
@@ -64,7 +58,8 @@ parser.add_argument("--use_checkpoint", action="store_true", help="use gradient 
 
 spacing = Spacing(pixdim=(1, 1, 1), mode="nearest")
 hd_per = 95
-view = ['Cor1', 'Sag2', 'Sag1', 'Axi2', 'Axi1', 'Cor2', 'Fuse']
+view = ["Cor1", "Sag2", "Sag1", "Axi2", "Axi1", "Cor2", "Fuse"]
+
 
 def main():
     args = parser.parse_args()
@@ -110,12 +105,18 @@ def main():
             val_fuse = 0
 
             val_labels = spacing(val_labels, original_affine)[0]
-            val_labels = np.expand_dims(val_labels, axis = 0)
-            val_labels = one_hot(torch.from_numpy(val_labels), num_classes=args.out_channels, dim = 1)
+            val_labels = np.expand_dims(val_labels, axis=0)
+            val_labels = one_hot(torch.from_numpy(val_labels), num_classes=args.out_channels, dim=1)
 
             for i in range(3):
                 val_outputs_1, val_outputs_2 = double_sliding_window_inference(
-                    val_inputs, i, (args.roi_x, args.roi_y, args.roi_z), 16, model, overlap=args.infer_overlap, mode="gaussian"
+                    val_inputs,
+                    i,
+                    (args.roi_x, args.roi_y, args.roi_z),
+                    16,
+                    model,
+                    overlap=args.infer_overlap,
+                    mode="gaussian",
                 )
 
                 val_outputs_1 = torch.softmax(val_outputs_1, 1).cpu().numpy()[0]
@@ -126,15 +127,18 @@ def main():
             output_list.append(val_fuse)
 
             for i, output in enumerate(output_list):
-                output = np.argmax(output, axis = 0, keepdims = False)
+                output = np.argmax(output, axis=0, keepdims=False)
                 output = resample_3d(output, target_shape)
                 target_ornt = nib.orientations.axcodes2ornt(tuple(nib.aff2axcodes(original_affine)))
-                out_ornt = [[0,1],[1,1],[2,1]]
+                out_ornt = [[0, 1], [1, 1], [2, 1]]
                 ornt_transf = nib.orientations.ornt_transform(out_ornt, target_ornt)
                 output = nib.orientations.apply_orientation(output, ornt_transf)
-                nib.save(nib.Nifti1Image(output[::-1, ::-1, :].astype(np.uint8), affine=original_affine), os.path.join(output_directory, view[i] + '_' + img_name))
-                output = np.expand_dims(spacing(np.expand_dims(output, axis = (0)), original_affine)[0], axis = 0)
-                output = one_hot(torch.from_numpy(output), num_classes=args.out_channels, dim = 1)
+                nib.save(
+                    nib.Nifti1Image(output[::-1, ::-1, :].astype(np.uint8), affine=original_affine),
+                    os.path.join(output_directory, view[i] + "_" + img_name),
+                )
+                output = np.expand_dims(spacing(np.expand_dims(output, axis=(0)), original_affine)[0], axis=0)
+                output = one_hot(torch.from_numpy(output), num_classes=args.out_channels, dim=1)
                 print(output.shape, val_labels.shape)
                 dice_ = compute_meandice(output, val_labels, include_background=False).numpy()[0]
                 hd_ = compute_hausdorff_distance(output, val_labels, percentile=hd_per).numpy()[0]
@@ -147,9 +151,9 @@ def main():
                 asd_out[id, i, :] = asd_
 
         for i in range(len(view)):
-            print("Overall {} View Mean Dice: {}".format(view[i], np.mean(dice_out[:, i, :], axis = 0)))
-            print("Overall {} View Mean HD: {}".format(view[i], np.mean(hd_out[:, i, :], axis = 0)))
-            print("Overall {} View Mean ASD: {}".format(view[i], np.mean(asd_out[:, i, :], axis = 0)))
+            print("Overall {} View Mean Dice: {}".format(view[i], np.mean(dice_out[:, i, :], axis=0)))
+            print("Overall {} View Mean HD: {}".format(view[i], np.mean(hd_out[:, i, :], axis=0)))
+            print("Overall {} View Mean ASD: {}".format(view[i], np.mean(asd_out[:, i, :], axis=0)))
 
 
 if __name__ == "__main__":

@@ -10,12 +10,10 @@
 # limitations under the License.
 
 import timm.data
-from monai.data import (
-    DataLoader,
-    Dataset,
-    DistributedSampler,
-    load_decathlon_datalist,
-)
+from utils import dataset_in_memory
+
+from monai.data import DataLoader, Dataset, DistributedSampler, load_decathlon_datalist
+from monai.data.utils import list_data_collate
 from monai.transforms import (
     AddChanneld,
     Compose,
@@ -26,9 +24,6 @@ from monai.transforms import (
     SpatialPadd,
     ToTensord,
 )
-from monai.data.utils import list_data_collate
-
-from utils import dataset_in_memory
 
 
 def get_loader(args):
@@ -124,9 +119,7 @@ def get_loader(args):
             # datadir16,
         ],
     ):
-        datalist_i = load_decathlon_datalist(
-            json_path, False, "training", base_dir=base_dir
-        )
+        datalist_i = load_decathlon_datalist(json_path, False, "training", base_dir=base_dir)
         datalist.extend([{"image": item["image"]} for item in datalist_i])
 
     print("Dataset all training: number of data: {}".format(len(datalist)))
@@ -137,16 +130,9 @@ def get_loader(args):
             AddChanneld(keys=["image"]),
             Orientationd(keys=["image"], axcodes="RAS"),
             ScaleIntensityRanged(
-                keys=["image"],
-                a_min=args.a_min,
-                a_max=args.a_max,
-                b_min=args.b_min,
-                b_max=args.b_max,
-                clip=True,
+                keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
             ),
-            SpatialPadd(
-                keys="image", spatial_size=[args.roi_x, args.roi_y, args.roi_z]
-            ),
+            SpatialPadd(keys="image", spatial_size=[args.roi_x, args.roi_y, args.roi_z]),
             RandSpatialCropSamplesd(
                 keys=["image"],
                 roi_size=[args.roi_x, args.roi_y, args.roi_z],
@@ -165,19 +151,14 @@ def get_loader(args):
             data=datalist,
             transform=train_transforms,
             dataset_name="pretrain_train",
-            hosts=[
-                {"host": "localhost", "port": str(port)}
-                for port in args.redis_ports
-            ],
+            hosts=[{"host": "localhost", "port": str(port)} for port in args.redis_ports],
             cluster_mode=True,
             capacity_per_node=200 * 1024 * 1024 * 1024,
             writer_buffer_size=0,  # Disable write buffer
         )
 
     if args.distributed:
-        train_sampler = DistributedSampler(
-            dataset=train_ds, even_divisible=True, shuffle=True
-        )
+        train_sampler = DistributedSampler(dataset=train_ds, even_divisible=True, shuffle=True)
     else:
         train_sampler = None
     loader_class = DataLoader

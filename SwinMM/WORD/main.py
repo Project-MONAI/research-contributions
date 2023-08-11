@@ -10,31 +10,30 @@
 # limitations under the License.
 
 import argparse
+import logging
 import os
 from functools import partial
-import logging
 
 import numpy as np
 import timm.optim.optim_factory as optim_factory
-from timm.utils import setup_default_logging
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn.parallel
 import torch.utils.data.distributed
+from inferers import double_sliding_window_inference
+from models import SwinUNETR
+from optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
+from timm.utils import setup_default_logging
 from torch.nn import KLDivLoss
+from trainer import run_training
+from utils.data_utils import get_loader
+from utils.dataset_in_memory import hijack_bagua_serialization
 
 from monai.losses import DiceCELoss
 from monai.metrics import DiceMetric
 from monai.transforms import AsDiscrete
 from monai.utils.enums import MetricReduction
-
-from inferers import double_sliding_window_inference
-from models import SwinUNETR
-from optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
-from trainer import run_training
-from utils.dataset_in_memory import hijack_bagua_serialization
-from utils.data_utils import get_loader
 
 parser = argparse.ArgumentParser(description="Swin UNETR segmentation pipeline")
 parser.add_argument("--checkpoint", default=None, help="start training from saved checkpoint")
@@ -44,12 +43,7 @@ parser.add_argument(
 )
 parser.add_argument("--data_dir", default="./dataset/dataset12_WORD/", type=str, help="dataset directory")
 parser.add_argument("--json_list", default="dataset12_WORD.json", type=str, help="dataset json file")
-parser.add_argument(
-    "--pretrained_model_name",
-    default="model_bestValRMSE.pt",
-    type=str,
-    help="pretrained model name",
-)
+parser.add_argument("--pretrained_model_name", default="model_bestValRMSE.pt", type=str, help="pretrained model name")
 parser.add_argument("--save_checkpoint", action="store_true", help="save checkpoint during training")
 parser.add_argument("--max_epochs", default=1500, type=int, help="max number of training epochs")
 parser.add_argument("--batch_size", default=1, type=int, help="number of batch size")
@@ -76,7 +70,11 @@ parser.add_argument("--in_channels", default=1, type=int, help="number of input 
 parser.add_argument("--out_channels", default=17, type=int, help="number of output channels")
 parser.add_argument("--use_normal_dataset", action="store_true", help="use monai Dataset class")
 parser.add_argument("--use_normal_dataset_val", action="store_true", help="use monai Dataset class for val")
-parser.add_argument("--nouse_multi_epochs_loader", action="store_true", help="not use the multi-epochs-loader to save time at the beginning of every epoch")
+parser.add_argument(
+    "--nouse_multi_epochs_loader",
+    action="store_true",
+    help="not use the multi-epochs-loader to save time at the beginning of every epoch",
+)
 parser.add_argument("--a_min", default=-175.0, type=float, help="a_min in ScaleIntensityRanged")
 parser.add_argument("--a_max", default=250.0, type=float, help="a_max in ScaleIntensityRanged")
 parser.add_argument("--b_min", default=0.0, type=float, help="b_min in ScaleIntensityRanged")
@@ -104,7 +102,9 @@ parser.add_argument("--use_ssl_pretrained", action="store_true", help="use self-
 parser.add_argument("--spatial_dims", default=3, type=int, help="spatial dimension of input data")
 parser.add_argument("--squared_dice", action="store_true", help="use squared Dice")
 parser.add_argument("--norm_name", default="batch", help="multi gpu use")
-parser.add_argument("--cross_attention_in_origin_view", action="store_true", help="Whether compute cross attention in original view")
+parser.add_argument(
+    "--cross_attention_in_origin_view", action="store_true", help="Whether compute cross attention in original view"
+)
 parser.add_argument("--redis_ports", nargs="+", type=int, help="redis ports")
 parser.add_argument("--redis_compression", type=str, default=None, help="compression method for redis.")
 
@@ -160,15 +160,15 @@ def main_worker(gpu, args):
     )
 
     if args.resume_ckpt:
-        model_dict = torch.load(os.path.join(pretrained_dir, args.pretrained_model_name),
-                                map_location="cpu")["state_dict"]
+        model_dict = torch.load(os.path.join(pretrained_dir, args.pretrained_model_name), map_location="cpu")[
+            "state_dict"
+        ]
         model.load_state_dict(model_dict)
         logging.info("Use pretrained weights")
 
     if args.use_ssl_pretrained:
         try:
-            model_dict = torch.load(os.path.join(pretrained_dir, args.pretrained_model_name),
-                                    map_location="cpu")
+            model_dict = torch.load(os.path.join(pretrained_dir, args.pretrained_model_name), map_location="cpu")
             state_dict = model_dict["state_dict"]
             # fix potential differences in state dict keys from pre-training to
             # fine-tuning
@@ -194,7 +194,7 @@ def main_worker(gpu, args):
         )
     else:
         dice_loss = DiceCELoss(to_onehot_y=True, softmax=True)
-    mutual_loss = KLDivLoss(reduction='mean') # CosineSimilarity(dim = 1)
+    mutual_loss = KLDivLoss(reduction="mean")  # CosineSimilarity(dim = 1)
     post_label = AsDiscrete(to_onehot=True, n_classes=args.out_channels)
     post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=args.out_channels)
     dice_acc = DiceMetric(include_background=True, reduction=MetricReduction.MEAN, get_not_nans=True)
@@ -234,7 +234,9 @@ def main_worker(gpu, args):
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model.cuda(args.gpu)
         model_without_ddp = model
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], output_device=args.gpu, broadcast_buffers=False, find_unused_parameters=True)
+        model = torch.nn.parallel.DistributedDataParallel(
+            model, device_ids=[args.gpu], output_device=args.gpu, broadcast_buffers=False, find_unused_parameters=True
+        )
 
     # build optimizer with layer-wise lr decay (lrd)
     param_groups = optim_factory.param_groups_layer_decay(
@@ -242,19 +244,16 @@ def main_worker(gpu, args):
         weight_decay=args.reg_weight,
         no_weight_decay_list=model_without_ddp.no_weight_decay(),
         layer_decay=args.layer_decay,
-        verbose=False)
+        verbose=False,
+    )
     if args.optim_name == "adam":
         optimizer = torch.optim.Adam(param_groups, lr=args.optim_lr)
     elif args.optim_name == "adamw":
         optimizer = torch.optim.AdamW(param_groups, lr=args.optim_lr)
     elif args.optim_name == "sgd":
-        optimizer = torch.optim.SGD(param_groups,
-                                    lr=args.optim_lr,
-                                    momentum=args.momentum,
-                                    nesterov=True)
+        optimizer = torch.optim.SGD(param_groups, lr=args.optim_lr, momentum=args.momentum, nesterov=True)
     else:
-        raise ValueError("Unsupported Optimization Procedure: " +
-                         str(args.optim_name))
+        raise ValueError("Unsupported Optimization Procedure: " + str(args.optim_name))
 
     if args.lrschedule == "warmup_cosine":
         scheduler = LinearWarmupCosineAnnealingLR(

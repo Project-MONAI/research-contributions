@@ -18,21 +18,18 @@ import timm.optim.optim_factory as optim_factory
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from torch.cuda.amp import GradScaler, autocast
-from torch.nn.parallel import DistributedDataParallel
-
 from losses.loss import Loss, MutualLoss
 from models.ssl_head import SSLHead
 from optimizers.lr_scheduler import WarmupCosineSchedule
-
-from utils.dataset_in_memory import hijack_bagua_serialization
+from torch.cuda.amp import GradScaler, autocast
+from torch.nn.parallel import DistributedDataParallel
+from utils import view_ops, view_transforms
 from utils.data_utils import get_loader
+from utils.dataset_in_memory import hijack_bagua_serialization
 from utils.ops import mask_rand_patch
-from utils import view_ops
-from utils import view_transforms
 
 # torch
-torch.multiprocessing.set_sharing_strategy('file_system')
+torch.multiprocessing.set_sharing_strategy("file_system")
 
 
 def main():
@@ -40,7 +37,6 @@ def main():
         torch.save(state, checkpoint_dir)
 
     def train(args, global_step, train_loader, val_best, scaler):
-
         model.train()
 
         for _, batch in enumerate(train_loader):
@@ -52,21 +48,15 @@ def main():
 
             window_sizes = tuple(args.window_size for _ in range(3))
             input_sizes = (args.roi_x, args.roi_y, args.roi_z)
-            x1_masked, mask1 = mask_rand_patch(window_sizes, input_sizes,
-                                               args.mask_ratio, x1)
-            x2_masked, mask2 = mask_rand_patch(window_sizes, input_sizes,
-                                               args.mask_ratio, x2)
+            x1_masked, mask1 = mask_rand_patch(window_sizes, input_sizes, args.mask_ratio, x1)
+            x2_masked, mask2 = mask_rand_patch(window_sizes, input_sizes, args.mask_ratio, x2)
 
             # NOTE(meijieru): x1, x2 may have different rot transform, so we
             # allow same permute transform here.
-            permutations_candidates = set(
-                view_transforms.permutation_transforms.keys()) - {0}
-            permutations = [
-                random.choice(list(permutations_candidates)) for _ in range(2)
-            ]
+            permutations_candidates = set(view_transforms.permutation_transforms.keys()) - {0}
+            permutations = [random.choice(list(permutations_candidates)) for _ in range(2)]
             x1_masked_permuted, x2_masked_permuted = [
-                view_transforms.permutation_transforms[vn](val)
-                for vn, val in zip(permutations, [x1_masked, x2_masked])
+                view_transforms.permutation_transforms[vn](val) for vn, val in zip(permutations, [x1_masked, x2_masked])
             ]
 
             with autocast(enabled=args.amp):
@@ -87,22 +77,16 @@ def main():
                 # [B, 2, H, W, D]
                 imgs_recon = torch.cat([rec_x1, rec_x2], dim=1)
                 imgs = torch.cat([x1, x2], dim=1)
-                loss1, losses_tasks1 = loss_function(rot_p, rots,
-                                                     contrastive1_p,
-                                                     contrastive2_p, imgs_recon,
-                                                     imgs, mask)
+                loss1, losses_tasks1 = loss_function(
+                    rot_p, rots, contrastive1_p, contrastive2_p, imgs_recon, imgs, mask
+                )
 
                 mutual_loss1 = mutual_loss_function(rec_x3, rec_x1, mask1)
 
                 imgs_recon = torch.cat([rec_x3, rec_x4], dim=1)
-                loss2 = loss_function(rot_p,
-                                      rots,
-                                      contrastive3_p,
-                                      contrastive4_p,
-                                      imgs_recon,
-                                      imgs,
-                                      mask,
-                                      only_mae=True)
+                loss2 = loss_function(
+                    rot_p, rots, contrastive3_p, contrastive4_p, imgs_recon, imgs, mask, only_mae=True
+                )
 
                 loss = loss1 + loss2 + mutual_loss1
 
@@ -111,26 +95,27 @@ def main():
 
                     def _align_rot(x, src_rot, dst_rot):
                         return view_transforms.rotation_transforms[dst_rot](
-                            view_transforms.rotation_inverse_transforms[src_rot]
-                            (x)).contiguous()
+                            view_transforms.rotation_inverse_transforms[src_rot](x)
+                        ).contiguous()
 
                     # [B, C, H, W, D]
-                    rec_x4_aligned = torch.stack([
-                        _align_rot(val, src_rot.item(), dst_rot.item())
-                        for val, src_rot, dst_rot in zip(rec_x4, rot2, rot1)
-                    ])
+                    rec_x4_aligned = torch.stack(
+                        [
+                            _align_rot(val, src_rot.item(), dst_rot.item())
+                            for val, src_rot, dst_rot in zip(rec_x4, rot2, rot1)
+                        ]
+                    )
                     # [B, 1, H, W, D]
-                    mask2_aligned = torch.concat([
-                        _align_rot(mask2[None, None], src_rot.item(),
-                                   dst_rot.item())
-                        for src_rot, dst_rot in zip(rot2, rot1)
-                    ])
+                    mask2_aligned = torch.concat(
+                        [
+                            _align_rot(mask2[None, None], src_rot.item(), dst_rot.item())
+                            for src_rot, dst_rot in zip(rot2, rot1)
+                        ]
+                    )
                     mask_intersection = torch.logical_and(mask2_aligned, mask1)
                     # Rescale to the same scale of mutual_loss1
-                    rescaler = (mask1.sum() * mask2_aligned.size(0) /
-                                (mask2_aligned.sum() + 1e-6))
-                    mutual_loss2 = mutual_loss_function(
-                        rec_x4_aligned, rec_x1, mask_intersection) * rescaler
+                    rescaler = mask1.sum() * mask2_aligned.size(0) / (mask2_aligned.sum() + 1e-6)
+                    mutual_loss2 = mutual_loss_function(rec_x4_aligned, rec_x1, mask_intersection) * rescaler
 
                     loss = loss + mutual_loss2
 
@@ -152,7 +137,11 @@ def main():
                     rot_loss = losses_tasks1[0].item()
                     con_loss = losses_tasks1[1].item()
                     rec_loss = losses_tasks1[2].item() + loss2.item()
-                    print("Step:{}/{}, Loss:{:.4f}, Rot:{:.4f}, Con:{:.4f}, Rec:{:.4f}, Time:{:.4f}".format(global_step, args.num_steps, loss,rot_loss, con_loss,rec_loss, time() - t1))
+                    print(
+                        "Step:{}/{}, Loss:{:.4f}, Rot:{:.4f}, Con:{:.4f}, Rec:{:.4f}, Time:{:.4f}".format(
+                            global_step, args.num_steps, loss, rot_loss, con_loss, rec_loss, time() - t1
+                        )
+                    )
             else:
                 print("Step:{}/{}, Loss:{:.4f}, Time:{:.4f}".format(global_step, args.num_steps, loss, time() - t1))
 
@@ -170,7 +159,6 @@ def main():
                 }
                 save_ckpt(checkpoint, logdir + "/model_{}.pt".format(global_step))
         return global_step, loss, val_best
-
 
     parser = argparse.ArgumentParser(description="PyTorch Training")
     parser.add_argument("--logdir", default="test", type=str, help="directory to save the tensorboard logs")
@@ -214,8 +202,14 @@ def main():
     parser.add_argument("--redis_ports", nargs="+", type=int, help="redis ports")
     parser.add_argument("--redis_compression", type=str, default="lz4", help="compression method for redis.")
     parser.add_argument("--use_normal_dataset", action="store_true", help="use monai Dataset class")
-    parser.add_argument("--nouse_multi_epochs_loader", action="store_true", help="not use the multi-epochs-loader to save time at the beginning of every epoch")
-    parser.add_argument("--mutual_learning_on_more_view", action="store_true", help="also use rotate for mutual learning")
+    parser.add_argument(
+        "--nouse_multi_epochs_loader",
+        action="store_true",
+        help="not use the multi-epochs-loader to save time at the beginning of every epoch",
+    )
+    parser.add_argument(
+        "--mutual_learning_on_more_view", action="store_true", help="also use rotate for mutual learning"
+    )
     parser.add_argument("--workers", default=16, type=int, help="number of workers")
 
     args = parser.parse_args()
@@ -255,9 +249,8 @@ def main():
     model_without_ddp = model
 
     param_groups = optim_factory.param_groups_weight_decay(
-        model_without_ddp,
-        weight_decay=args.decay,
-        no_weight_decay_list=model_without_ddp.no_weight_decay())
+        model_without_ddp, weight_decay=args.decay, no_weight_decay_list=model_without_ddp.no_weight_decay()
+    )
     if args.opt == "adam":
         optimizer = optim.Adam(param_groups, lr=args.lr)
 
@@ -265,9 +258,7 @@ def main():
         optimizer = optim.AdamW(param_groups, lr=args.lr)
 
     elif args.opt == "sgd":
-        optimizer = optim.SGD(param_groups,
-                              lr=args.lr,
-                              momentum=args.momentum)
+        optimizer = optim.SGD(param_groups, lr=args.lr, momentum=args.momentum)
     else:
         raise ValueError(f"Unknown optimizer: {args.opt})")
 
@@ -277,7 +268,7 @@ def main():
         model_dict = torch.load(model_pth)
         new_state = {}
 
-        for k,v in model_dict["state_dict"].items():
+        for k, v in model_dict["state_dict"].items():
             new_name = k[7:]
             new_state[new_name] = v
 
@@ -300,9 +291,7 @@ def main():
     loss_function = Loss(args.batch_size * args.sw_batch_size, args)
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        model = DistributedDataParallel(model,
-                                        device_ids=[args.local_rank],
-                                        broadcast_buffers=False)
+        model = DistributedDataParallel(model, device_ids=[args.local_rank], broadcast_buffers=False)
         model_without_ddp = model.module
     train_loader, _ = get_loader(args)
 

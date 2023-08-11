@@ -5,8 +5,10 @@ from typing import Any, Callable, Dict, List, Mapping, Sequence, Tuple, Union
 
 import torch
 import torch.nn.functional as F
+from utils import view_ops, view_transforms
 
 from monai.data.utils import compute_importance_map, dense_patch_slices, get_valid_patch_size
+from monai.inferers.utils import _get_scan_interval
 from monai.transforms import Resize
 from monai.utils import (
     BlendMode,
@@ -17,10 +19,6 @@ from monai.utils import (
     look_up_option,
     optional_import,
 )
-from monai.inferers.utils import _get_scan_interval
-
-from utils import view_ops
-from utils import view_transforms
 
 tqdm, _ = optional_import("tqdm", name="tqdm")
 
@@ -171,7 +169,9 @@ def double_sliding_window_inference(
         view_list = [view, (view + 1) % len(view_transforms.permutation_transforms)]
         window_data_list = [view_ops.get_permute_transform(0, dst)(window_data) for dst in view_list]
         # window_data_2 = torch.cat([inputs2[win_slice] for win_slice in unravel_slice]).to(sw_device)
-        seg_prob_out_1, seg_prob_out_2 = predictor(window_data_list[0], window_data_list[1], view_list, *args, **kwargs)  # batched patch segmentation
+        seg_prob_out_1, seg_prob_out_2 = predictor(
+            window_data_list[0], window_data_list[1], view_list, *args, **kwargs
+        )  # batched patch segmentation
         seg_prob_out_1, seg_prob_out_2 = view_ops.permute_inverse([seg_prob_out_1, seg_prob_out_2], view_list)
 
         # convert seg_prob_out to tuple seg_prob_tuple, this does not allocate new memory.
@@ -264,7 +264,8 @@ def double_sliding_window_inference(
             warnings.warn("Sliding window inference results contain NaN or Inf.")
 
         zoom_scale = [
-            seg_prob_map_shape_d / roi_size_d for seg_prob_map_shape_d, roi_size_d in zip(output_i_1.shape[2:], roi_size)
+            seg_prob_map_shape_d / roi_size_d
+            for seg_prob_map_shape_d, roi_size_d in zip(output_i_1.shape[2:], roi_size)
         ]
 
         final_slicing: List[slice] = []

@@ -92,8 +92,8 @@ class SSLHead(nn.Module):
 
     def no_weight_decay(self):
         """Disable weight_decay on specific weights."""
-        nwd = {'swinViT.absolute_pos_embed'}
+        nwd = {"swinViT.absolute_pos_embed"}
         for n, _ in self.named_parameters():
-            if 'relative_position_bias_table' in n:
+            if "relative_position_bias_table" in n:
                 nwd.add(n)
         return nwd
