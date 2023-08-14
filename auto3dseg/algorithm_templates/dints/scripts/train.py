@@ -853,6 +853,15 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         writer.add_scalar("val/acc", avg_metric, epoch)
 
+                        if torch.cuda.device_count() > 1:
+                            torch.save(
+                                model.module.state_dict(), os.path.join(
+                                    ckpt_path, "current_model.pt"))
+                        else:
+                            torch.save(
+                                model.state_dict(), os.path.join(
+                                    ckpt_path, "current_model.pt"))
+
                         if avg_metric > best_metric:
                             best_metric = avg_metric
                             best_metric_epoch = epoch
