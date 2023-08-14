@@ -528,19 +528,19 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             model, device_ids=[device], find_unused_parameters=True)
 
     if parser["finetune"]["activate_finetune"] and os.path.isfile(
-            parser["finetune"]["pretrained_ckpt_name"]):
+            parser.get_parsed_content("finetune#pretrained_ckpt_name")):
         logger.debug(
             "fine-tuning pre-trained checkpoint {:s}".format(
-                parser["finetune"]["pretrained_ckpt_name"]))
+                parser.get_parsed_content("finetune#pretrained_ckpt_name")))
         if torch.cuda.device_count() > 1:
             model.module.load_state_dict(
                 torch.load(
-                    parser["finetune"]["pretrained_ckpt_name"],
+                    parser.get_parsed_content("finetune#pretrained_ckpt_name"),
                     map_location=device))
         else:
             model.load_state_dict(
                 torch.load(
-                    parser["finetune"]["pretrained_ckpt_name"],
+                    parser.get_parsed_content("finetune#pretrained_ckpt_name"),
                     map_location=device))
     else:
         logger.debug("training from scratch")
