@@ -84,20 +84,27 @@ def pre_operation(config_file, **override):
                     mem = min(mem) if isinstance(mem, list) else mem
                     mem = float(mem) / (1024.0**3)
                     mem = max(1.0, mem - 1.0)
-                    mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
-                    mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
-                    batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+                    mem_bs2 = 6.0 + (20.0 - 6.0) * \
+                        (output_classes - 2) / (105 - 2)
+                    mem_bs9 = 24.0 + (74.0 - 24.0) * \
+                        (output_classes - 2) / (105 - 2)
+                    batch_size = 2 + (9 - 2) * \
+                        (mem - mem_bs2) / (mem_bs9 - mem_bs2)
                     batch_size = int(batch_size)
                     batch_size = max(batch_size, 1)
 
-                    parser["training"].update({"num_patches_per_iter": batch_size})
-                    parser["training"].update({"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update(
+                        {"num_patches_per_iter": batch_size})
+                    parser["training"].update(
+                        {"num_patches_per_image": 2 * batch_size})
 
-                    # estimate data size based on number of images and image size
+                    # estimate data size based on number of images and image
+                    # size
                     _factor = 1.0
 
                     try:
-                        _factor *= 1251.0 / float(parser["stats_summary"]["n_cases"])
+                        _factor *= 1251.0 / \
+                            float(parser["stats_summary"]["n_cases"])
                         _mean_shape = parser["stats_summary"]["image_stats"]["shape"]["mean"]
                         _factor *= float(_mean_shape[0]) / 240.0
                         _factor *= float(_mean_shape[1]) / 240.0
@@ -110,16 +117,23 @@ def pre_operation(config_file, **override):
                     _factor *= 96.0 / float(_patch_size[1])
                     _factor *= 96.0 / float(_patch_size[2])
 
-                    _factor /= 6.0
-                    _factor /= 6.0  # further reduce training time
+                    if "training#epoch_divided_factor" in override:
+                        epoch_divided_factor = override["training#epoch_divided_factor"]
+                    else:
+                        epoch_divided_factor = parser["training"]["epoch_divided_factor"]
+                    epoch_divided_factor = float(epoch_divided_factor)
+                    _factor /= epoch_divided_factor
+
                     _factor = max(1.0, _factor)
 
                     _estimated_epochs = 400.0
                     _estimated_epochs *= _factor
 
-                    parser["training"].update({"num_epochs": int(_estimated_epochs / float(batch_size))})
+                    parser["training"].update(
+                        {"num_epochs": int(_estimated_epochs / float(batch_size))})
 
-                    ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
+                    ConfigParser.export_config_file(
+                        parser.get(), _file, fmt="yaml", default_flow_style=None)
 
     return
 
