@@ -143,7 +143,7 @@ def pre_operation(config_file, **override):
 
                 if auto_scale_allowed:
                     output_classes = parser["training"]["output_classes"]
-                    
+
                     try:
                         mem = get_mem_from_visible_gpus()
                         mem = min(mem) if isinstance(mem, list) else mem
