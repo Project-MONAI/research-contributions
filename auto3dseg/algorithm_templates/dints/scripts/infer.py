@@ -80,9 +80,14 @@ def pre_operation(config_file, **override):
 
                 if auto_scale_allowed:
                     output_classes = parser["training"]["output_classes"]
-                    mem = get_mem_from_visible_gpus()
-                    mem = min(mem) if isinstance(mem, list) else mem
-                    mem = float(mem) / (1024.0**3)
+                    
+                    try:
+                        mem = get_mem_from_visible_gpus()
+                        mem = min(mem) if isinstance(mem, list) else mem
+                        mem = float(mem) / (1024.0**3)
+                    except BaseException:
+                        mem = 16.0
+
                     mem = max(1.0, mem - 1.0)
                     mem_bs2 = 6.0 + (20.0 - 6.0) * \
                         (output_classes - 2) / (105 - 2)
@@ -262,7 +267,7 @@ class InferClass:
     def infer(self, image_file, save_mask=False):
         self.model.eval()
 
-        batch_data = self.infer_transforms(image_file)
+        batch_data = self.infer_transforms({"image": image_file})
         batch_data = list_data_collate([batch_data])
 
         finished = None

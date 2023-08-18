@@ -82,9 +82,14 @@ def pre_operation(config_file, **override):
 
                 if auto_scale_allowed:
                     output_classes = parser["training"]["output_classes"]
-                    mem = get_mem_from_visible_gpus()
-                    mem = min(mem) if isinstance(mem, list) else mem
-                    mem = float(mem) / (1024.0**3)
+                    
+                    try:
+                        mem = get_mem_from_visible_gpus()
+                        mem = min(mem) if isinstance(mem, list) else mem
+                        mem = float(mem) / (1024.0**3)
+                    except BaseException:
+                        mem = 16.0
+
                     mem = max(1.0, mem - 1.0)
                     mem_bs2 = 6.0 + (20.0 - 6.0) * \
                         (output_classes - 2) / (105 - 2)
