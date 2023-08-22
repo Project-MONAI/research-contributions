@@ -1030,7 +1030,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             include_background=not softmax)
 
                     logger.debug(
-                        f"validation Dice score at original spacing/resolution: {value}; file name: {filename}")
+                        f"validation Dice score at original spacing/resolution: {value}; filename: {filename}")
 
                     for _c in range(metric_dim):
                         val0 = torch.nan_to_num(value[0, _c], nan=0.0)
