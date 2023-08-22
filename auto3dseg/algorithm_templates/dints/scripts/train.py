@@ -947,6 +947,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                 _index = 0
                 for val_data in orig_val_loader:
+                    filename = val_data["image"].meta["filename_or_obj"]
+                    if isinstance(filename, list):
+                        filename = filename[0]
+
                     finished = None
                     device_list_input = None
                     device_list_output = None
@@ -1026,7 +1030,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             include_background=not softmax)
 
                     logger.debug(
-                        f"validation Dice score at original spacing/resolution: {value}")
+                        f"validation Dice score at original spacing/resolution: {value}; file name: {filename}")
 
                     for _c in range(metric_dim):
                         val0 = torch.nan_to_num(value[0, _c], nan=0.0)
