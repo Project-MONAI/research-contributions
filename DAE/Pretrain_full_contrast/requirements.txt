@@ -1,0 +1,8 @@
+pyyaml
+scipy
+termcolor
+timm==0.4.12
+yacs
+einops
+tensorboardX
+monai==0.8.0
