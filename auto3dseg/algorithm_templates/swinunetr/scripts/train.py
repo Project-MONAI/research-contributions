@@ -44,7 +44,7 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
-from monai.utils import set_determinism
+from monai.utils import set_determinism, RankFilter
 
 if __package__ in (None, ""):
     from algo import auto_scale
