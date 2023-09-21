@@ -73,7 +73,7 @@ CONFIG = {
     "loggers": {
         "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
-    "filters": {"rank_filter": {"()": "__main__.RankFilter"}},
+    "filters": {"rank_filter": {"()": RankFilter}},
     "handlers": {
         "file": {
             "class": "logging.FileHandler",

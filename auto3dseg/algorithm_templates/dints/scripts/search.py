@@ -36,7 +36,7 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
-from monai.utils import set_determinism
+from monai.utils import set_determinism, RankFilter
 
 try:
     from apex.contrib.clip_grad import clip_grad_norm_
@@ -51,7 +51,7 @@ CONFIG = {
     "loggers": {
         "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
-    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+    "filters": {"rank_filter": {"()": RankFilter}},
     "handlers": {
         "file": {
             "class": "logging.FileHandler",
