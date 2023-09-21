@@ -311,6 +311,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         set_determinism(seed=random_seed)
 
     CONFIG["handlers"]["file"]["filename"] = log_output_file
+    CONFIG["filters"]["rank_filter"]["()"] = RankFilter
     logging.config.dictConfig(CONFIG)
 
     train_data_list_key = parser.get_parsed_content("training#data_list_key")

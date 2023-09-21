@@ -230,6 +230,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         set_determinism(seed=random_seed)
 
     CONFIG["handlers"]["file"]["filename"] = parser.get_parsed_content("log_output_file")
+    CONFIG["filters"]["rank_filter"]["()"] = RankFilter
     logging.config.dictConfig(CONFIG)
     logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
     logger.debug(f"Number of GPUs: {torch.cuda.device_count()}")
