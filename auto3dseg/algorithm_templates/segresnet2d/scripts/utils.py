@@ -19,7 +19,7 @@ def logger_configure(log_output_file: str = None, debug=False, global_rank=0) ->
         "loggers": {
             "monai.apps.auto3dseg.auto_runner": {"handlers": ["console", "file"], "level": "DEBUG", "propagate": False}
         },
-        # "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+        # "filters": {"rank_filter": {"()": RankFilter}},
         "handlers": {
             "console": {
                 "class": "logging.StreamHandler",

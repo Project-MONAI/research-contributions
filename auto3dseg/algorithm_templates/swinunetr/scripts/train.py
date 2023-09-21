@@ -58,7 +58,7 @@ CONFIG = {
     "loggers": {
         "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
-    "filters": {"rank_filter": {"()": "__main__.RankFilter"}},
+    "filters": {"rank_filter": {"()": RankFilter}},
     "handlers": {
         "file": {
             "class": "logging.FileHandler",
@@ -230,7 +230,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         set_determinism(seed=random_seed)
 
     CONFIG["handlers"]["file"]["filename"] = parser.get_parsed_content("log_output_file")
-    CONFIG["filters"]["rank_filter"]["()"] = RankFilter
     logging.config.dictConfig(CONFIG)
     logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
     logger.debug(f"Number of GPUs: {torch.cuda.device_count()}")
