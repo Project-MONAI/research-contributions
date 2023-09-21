@@ -61,7 +61,7 @@ else:
     p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
     _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
     _libcudart.cudaDeviceGetLimit(p_value, ctypes.c_int(0x05))
-    # assert p_value.contents.value == 128
+    assert p_value.contents.value == 128
 
 torch.backends.cudnn.benchmark = True
 
@@ -109,8 +109,7 @@ class EarlyStopping:
         elif val_acc + self.delta < self.best_score:
             self.counter += 1
             if self.verbose:
-                logger.debug(
-                    f"EarlyStopping counter: {self.counter} out of {self.patience}")
+                logger.debug(f"EarlyStopping counter: {self.counter} out of {self.patience}")
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
@@ -143,36 +142,24 @@ def pre_operation(config_file, **override):
 
                 if auto_scale_allowed:
                     output_classes = parser["training"]["output_classes"]
-
-                    try:
-                        mem = get_mem_from_visible_gpus()
-                        mem = min(mem) if isinstance(mem, list) else mem
-                        mem = float(mem) / (1024.0**3)
-                    except BaseException:
-                        mem = 16.0
-
+                    mem = get_mem_from_visible_gpus()
+                    mem = min(mem) if isinstance(mem, list) else mem
+                    mem = float(mem) / (1024.0**3)
                     mem = max(1.0, mem - 1.0)
-                    mem_bs2 = 6.0 + (20.0 - 6.0) * \
-                        (output_classes - 2) / (105 - 2)
-                    mem_bs9 = 24.0 + (74.0 - 24.0) * \
-                        (output_classes - 2) / (105 - 2)
-                    batch_size = 2 + (9 - 2) * \
-                        (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+                    mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
+                    mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
+                    batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
                     batch_size = int(batch_size)
                     batch_size = max(batch_size, 1)
 
-                    parser["training"].update(
-                        {"num_patches_per_iter": batch_size})
-                    parser["training"].update(
-                        {"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update({"num_patches_per_iter": batch_size})
+                    parser["training"].update({"num_patches_per_image": 2 * batch_size})
 
-                    # estimate data size based on number of images and image
-                    # size
+                    # estimate data size based on number of images and image size
                     _factor = 1.0
 
                     try:
-                        _factor *= 1251.0 / \
-                            float(parser["stats_summary"]["n_cases"])
+                        _factor *= 1251.0 / float(parser["stats_summary"]["n_cases"])
                         _mean_shape = parser["stats_summary"]["image_stats"]["shape"]["mean"]
                         _factor *= float(_mean_shape[0]) / 240.0
                         _factor *= float(_mean_shape[1]) / 240.0
@@ -185,23 +172,15 @@ def pre_operation(config_file, **override):
                     _factor *= 96.0 / float(_patch_size[1])
                     _factor *= 96.0 / float(_patch_size[2])
 
-                    if "training#epoch_divided_factor" in override:
-                        epoch_divided_factor = override["training#epoch_divided_factor"]
-                    else:
-                        epoch_divided_factor = parser["training"]["epoch_divided_factor"]
-                    epoch_divided_factor = float(epoch_divided_factor)
-                    _factor /= epoch_divided_factor
-
+                    _factor /= 6.0
                     _factor = max(1.0, _factor)
 
                     _estimated_epochs = 400.0
                     _estimated_epochs *= _factor
 
-                    parser["training"].update(
-                        {"num_epochs": int(_estimated_epochs / float(batch_size))})
+                    parser["training"].update({"num_epochs": int(_estimated_epochs / float(batch_size))})
 
-                    ConfigParser.export_config_file(
-                        parser.get(), _file, fmt="yaml", default_flow_style=None)
+                    ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
 
     return
 
@@ -212,13 +191,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     # pre-operations
     logger.debug(f"number of GPUs: {torch.cuda.device_count()}")
     if torch.cuda.device_count() > 1:
-        logging.getLogger("torch.distributed.distributed_c10d").setLevel(
-            logging.WARNING)
-        dist.init_process_group(
-            backend="nccl",
-            init_method="env://",
-            timeout=timedelta(
-                seconds=7200))
+        logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
+        dist.init_process_group(backend="nccl", init_method="env://", timeout=timedelta(seconds=7200))
         world_size = dist.get_world_size()
     else:
         world_size = 1
@@ -241,37 +215,28 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     parser.read_config(config_file_)
     parser.update(pairs=_args)
 
-    if parser["finetune"]["activate_finetune"] and "overwrite" in parser["finetune"]:
-        parser["training"].update(parser["finetune"]["overwrite"])
-        parser["finetune"].pop("overwrite")
-
     amp = parser.get_parsed_content("training#amp")
     bundle_root = parser.get_parsed_content("bundle_root")
     ckpt_path = parser.get_parsed_content("ckpt_path")
     data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
+    finetune = parser.get_parsed_content("finetune")
     fold = parser.get_parsed_content("fold")
     log_output_file = parser.get_parsed_content("training#log_output_file")
-    num_images_per_batch = parser.get_parsed_content(
-        "training#num_images_per_batch")
+    num_images_per_batch = parser.get_parsed_content("training#num_images_per_batch")
     num_epochs = parser.get_parsed_content("training#num_epochs")
-    num_epochs_per_validation = parser.get_parsed_content(
-        "training#num_epochs_per_validation")
-    num_patches_per_iter = parser.get_parsed_content(
-        "training#num_patches_per_iter")
+    num_epochs_per_validation = parser.get_parsed_content("training#num_epochs_per_validation")
+    num_patches_per_iter = parser.get_parsed_content("training#num_patches_per_iter")
     num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
-    overlap_ratio_train = parser.get_parsed_content(
-        "training#overlap_ratio_train")
+    overlap_ratio_train = parser.get_parsed_content("training#overlap_ratio_train")
     patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
     random_seed = parser.get_parsed_content("training#random_seed")
     softmax = parser.get_parsed_content("training#softmax")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
-    valid_at_orig_resolution_at_last = parser.get_parsed_content(
-        "training#valid_at_orig_resolution_at_last")
-    valid_at_orig_resolution_only = parser.get_parsed_content(
-        "training#valid_at_orig_resolution_only")
+    valid_at_orig_resolution_at_last = parser.get_parsed_content("training#valid_at_orig_resolution_at_last")
+    valid_at_orig_resolution_only = parser.get_parsed_content("training#valid_at_orig_resolution_only")
 
     if not valid_at_orig_resolution_only:
         train_transforms = parser.get_parsed_content("transforms_train")
@@ -288,9 +253,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             ]
         )
 
-        if "class_names" in parser and isinstance(
-                parser["class_names"],
-                list) and "index" in parser["class_names"][0]:
+        if "class_names" in parser and isinstance(parser["class_names"], list) and "index" in parser["class_names"][0]:
             class_index = [x["index"] for x in parser["class_names"]]
 
             infer_transforms = transforms.Compose(
@@ -309,23 +272,18 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     try:
         class_names = parser.get_parsed_content("class_names")
         if isinstance(class_names[0], dict):
-            class_names = [class_names[_i]["name"]
-                           for _i in range(len(class_names))]
+            class_names = [class_names[_i]["name"] for _i in range(len(class_names))]
     except BaseException:
         pass
 
     ad = parser.get_parsed_content("training#adapt_valid_mode")
     if ad:
-        ad_progress_percentages = parser.get_parsed_content(
-            "training#adapt_valid_progress_percentages")
-        ad_num_epochs_per_validation = parser.get_parsed_content(
-            "training#adapt_valid_num_epochs_per_validation")
+        ad_progress_percentages = parser.get_parsed_content("training#adapt_valid_progress_percentages")
+        ad_num_epochs_per_validation = parser.get_parsed_content("training#adapt_valid_num_epochs_per_validation")
 
         sorted_indices = np.argsort(ad_progress_percentages)
-        ad_progress_percentages = [
-            ad_progress_percentages[_i] for _i in sorted_indices]
-        ad_num_epochs_per_validation = [
-            ad_num_epochs_per_validation[_i] for _i in sorted_indices]
+        ad_progress_percentages = [ad_progress_percentages[_i] for _i in sorted_indices]
+        ad_num_epochs_per_validation = [ad_num_epochs_per_validation[_i] for _i in sorted_indices]
 
     es = parser.get_parsed_content("training#early_stop_mode")
     if es:
@@ -334,16 +292,12 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     ad = parser.get_parsed_content("training#adapt_valid_mode")
     if ad:
-        ad_progress_percentages = parser.get_parsed_content(
-            "training#adapt_valid_progress_percentages")
-        ad_num_epochs_per_validation = parser.get_parsed_content(
-            "training#adapt_valid_num_epochs_per_validation")
+        ad_progress_percentages = parser.get_parsed_content("training#adapt_valid_progress_percentages")
+        ad_num_epochs_per_validation = parser.get_parsed_content("training#adapt_valid_num_epochs_per_validation")
 
         sorted_indices = np.argsort(ad_progress_percentages)
-        ad_progress_percentages = [
-            ad_progress_percentages[_i] for _i in sorted_indices]
-        ad_num_epochs_per_validation = [
-            ad_num_epochs_per_validation[_i] for _i in sorted_indices]
+        ad_progress_percentages = [ad_progress_percentages[_i] for _i in sorted_indices]
+        ad_num_epochs_per_validation = [ad_num_epochs_per_validation[_i] for _i in sorted_indices]
 
     es = parser.get_parsed_content("training#early_stop_mode")
     if es:
@@ -353,12 +307,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if not os.path.exists(ckpt_path):
         os.makedirs(ckpt_path, exist_ok=True)
 
-    if random_seed is not None and (
-        isinstance(
-            random_seed,
-            int) or isinstance(
-            random_seed,
-            float)):
+    if random_seed is not None and (isinstance(random_seed, int) or isinstance(random_seed, float)):
         set_determinism(seed=random_seed)
 
     CONFIG["handlers"]["file"]["filename"] = log_output_file
@@ -368,41 +317,33 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     valid_data_list_key = parser.get_parsed_content("validate#data_list_key")
     if valid_data_list_key is not None:
         train_files, _ = datafold_read(
-            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key=train_data_list_key)
+            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key=train_data_list_key
+        )
         val_files, _ = datafold_read(
-            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key=valid_data_list_key)
+            datalist=data_list_file_path, basedir=data_file_base_dir, fold=-1, key=valid_data_list_key
+        )
     else:
-        train_files, val_files = datafold_read(
-            datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
+        train_files, val_files = datafold_read(datalist=data_list_file_path, basedir=data_file_base_dir, fold=fold)
 
     random.shuffle(train_files)
 
     if torch.cuda.device_count() > 1:
-        train_files = partition_dataset(
-            data=train_files,
-            shuffle=True,
-            num_partitions=world_size,
-            even_divisible=True)[
-            dist.get_rank()]
+        train_files = partition_dataset(data=train_files, shuffle=True, num_partitions=world_size, even_divisible=True)[
+            dist.get_rank()
+        ]
     logger.debug(f"train_files: {len(train_files)}")
 
     if torch.cuda.device_count() > 1:
         if len(val_files) < world_size:
-            val_files = val_files * \
-                math.ceil(float(world_size) / float(len(val_files)))
+            val_files = val_files * math.ceil(float(world_size) / float(len(val_files)))
 
-        val_files = partition_dataset(
-            data=val_files,
-            shuffle=False,
-            num_partitions=world_size,
-            even_divisible=False)[
-            dist.get_rank()]
+        val_files = partition_dataset(data=val_files, shuffle=False, num_partitions=world_size, even_divisible=False)[
+            dist.get_rank()
+        ]
     logger.debug(f"val_files: {len(val_files)}")
 
-    train_cache_rate = float(
-        parser.get_parsed_content("training#train_cache_rate"))
-    validate_cache_rate = float(
-        parser.get_parsed_content("training#validate_cache_rate"))
+    train_cache_rate = float(parser.get_parsed_content("training#train_cache_rate"))
+    validate_cache_rate = float(parser.get_parsed_content("training#validate_cache_rate"))
 
     with warnings.catch_warnings():
         warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -410,8 +351,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         if not valid_at_orig_resolution_only:
             train_ds = monai.data.CacheDataset(
-                data=train_files *
-                num_epochs_per_validation,
+                data=train_files * num_epochs_per_validation,
                 transform=train_transforms,
                 cache_rate=train_cache_rate,
                 hash_as_key=True,
@@ -428,8 +368,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             )
 
         if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
-            orig_val_ds = monai.data.Dataset(
-                data=val_files, transform=infer_transforms)
+            orig_val_ds = monai.data.Dataset(data=val_files, transform=infer_transforms)
 
     if not valid_at_orig_resolution_only:
         train_loader = DataLoader(
@@ -440,18 +379,17 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             persistent_workers=True,
             pin_memory=True,
         )
-        val_loader = DataLoader(val_ds, num_workers=parser.get_parsed_content(
-            "training#num_workers_validation"), batch_size=1, shuffle=False, )
+        val_loader = DataLoader(
+            val_ds,
+            num_workers=parser.get_parsed_content("training#num_workers_validation"),
+            batch_size=1,
+            shuffle=False,
+        )
 
     if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
-        orig_val_loader = DataLoader(
-            orig_val_ds,
-            num_workers=2,
-            batch_size=1,
-            shuffle=False)
+        orig_val_loader = DataLoader(orig_val_ds, num_workers=2, batch_size=1, shuffle=False)
 
-    device = torch.device(
-        f"cuda:{os.environ['LOCAL_RANK']}") if world_size > 1 else torch.device("cuda:0")
+    device = torch.device(f"cuda:{os.environ['LOCAL_RANK']}") if world_size > 1 else torch.device("cuda:0")
 
     if world_size > 1:
         parser["training_network"]["dints_space"]["device"] = device
@@ -464,8 +402,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     if softmax:
-        post_pred = transforms.Compose(
-            [transforms.EnsureType(), transforms.AsDiscrete(argmax=True, to_onehot=None)])
+        post_pred = transforms.Compose([transforms.EnsureType(), transforms.AsDiscrete(argmax=True, to_onehot=None)])
     else:
         post_pred = transforms.Compose(
             [
@@ -490,27 +427,18 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         ]
 
         if softmax:
-            post_transforms += [
-                transforms.AsDiscreted(
-                    keys="pred", argmax=True)]
+            post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
         else:
             post_transforms += [
-                transforms.Activationsd(
-                    keys="pred",
-                    sigmoid=True),
-                transforms.AsDiscreted(
-                    keys="pred",
-                    threshold=0.5 +
-                    np.finfo(
-                        np.float32).eps),
+                transforms.Activationsd(keys="pred", sigmoid=True),
+                transforms.AsDiscreted(keys="pred", threshold=0.5 + np.finfo(np.float32).eps),
             ]
 
         post_transforms = transforms.Compose(post_transforms)
 
     loss_function = parser.get_parsed_content("training#loss")
 
-    optimizer_part = parser.get_parsed_content(
-        "training#optimizer", instantiate=False)
+    optimizer_part = parser.get_parsed_content("training#optimizer", instantiate=False)
     optimizer = optimizer_part.instantiate(params=model.parameters())
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
@@ -518,35 +446,23 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         logger.debug(f"num_epochs_per_validation: {num_epochs_per_validation}")
 
     # patch fix to support PolynomialLR use in PyTorch <= 1.12
-    if "PolynomialLR" in parser.get(
-            "training#lr_scheduler#_target_") and not pytorch_after(1, 13):
+    if "PolynomialLR" in parser.get("training#lr_scheduler#_target_") and not pytorch_after(1, 13):
         dints_dir = os.path.dirname(os.path.dirname(__file__))
         sys.path.insert(0, dints_dir)
         parser["training#lr_scheduler#_target_"] = "scripts.utils.PolynomialLR"
 
-    lr_scheduler_part = parser.get_parsed_content(
-        "training#lr_scheduler", instantiate=False)
+    lr_scheduler_part = parser.get_parsed_content("training#lr_scheduler", instantiate=False)
     lr_scheduler = lr_scheduler_part.instantiate(optimizer=optimizer)
 
     if torch.cuda.device_count() > 1:
-        model = DistributedDataParallel(
-            model, device_ids=[device], find_unused_parameters=True)
+        model = DistributedDataParallel(model, device_ids=[device], find_unused_parameters=True)
 
-    if parser["finetune"]["activate_finetune"] and os.path.isfile(
-            parser.get_parsed_content("finetune#pretrained_ckpt_name")):
-        logger.debug(
-            "fine-tuning pre-trained checkpoint {:s}".format(
-                parser.get_parsed_content("finetune#pretrained_ckpt_name")))
+    if finetune["activate"] and os.path.isfile(finetune["pretrained_ckpt_name"]):
+        logger.debug("fine-tuning pre-trained checkpoint {:s}".format(finetune["pretrained_ckpt_name"]))
         if torch.cuda.device_count() > 1:
-            model.module.load_state_dict(
-                torch.load(
-                    parser.get_parsed_content("finetune#pretrained_ckpt_name"),
-                    map_location=device))
+            model.module.load_state_dict(torch.load(finetune["pretrained_ckpt_name"], map_location=device))
         else:
-            model.load_state_dict(
-                torch.load(
-                    parser.get_parsed_content("finetune#pretrained_ckpt_name"),
-                    map_location=device))
+            model.load_state_dict(torch.load(finetune["pretrained_ckpt_name"], map_location=device))
     else:
         logger.debug("training from scratch")
 
@@ -559,25 +475,6 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     best_metric = -1
     best_metric_epoch = -1
-
-    if parser["finetune"]["activate_finetune"] and os.path.isfile(
-            os.path.join(ckpt_path, "progress.yaml")):
-        with open(os.path.join(ckpt_path, "progress.yaml"), "r") as in_file:
-            _progress = yaml.safe_load(in_file)
-
-        if isinstance(_progress, list):
-            for _i in range(len(_progress)):
-                _result = _progress[-1 - _i]
-                if not _result["inverted_best_validation"]:
-                    best_metric = _result["best_avg_dice_score"]
-                    best_metric = float(best_metric)
-                    best_metric_epoch = _result["best_avg_dice_score_epoch"]
-                    best_metric_epoch = int(best_metric_epoch)
-                    logger.debug(
-                        f"The optimal checkpoints to date have been successfully loaded, boasting a peak metric of {best_metric:.3f}."
-                    )
-                    break
-
     idx_iter = 0
     metric_dim = output_classes - 1 if softmax else output_classes
     val_devices_input = {}
@@ -594,15 +491,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         if es:
             # instantiate the early stopping object
-            early_stopping = EarlyStopping(
-                patience=es_patience, delta=es_delta, verbose=True)
+            early_stopping = EarlyStopping(patience=es_patience, delta=es_delta, verbose=True)
 
     start_time = time.time()
 
-    num_rounds = int(
-        np.ceil(
-            float(num_epochs) //
-            float(num_epochs_per_validation)))
+    num_rounds = int(np.ceil(float(num_epochs) // float(num_epochs_per_validation)))
 
     with warnings.catch_warnings():
         warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -611,18 +504,15 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if not valid_at_orig_resolution_only:
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                 progress_bar = tqdm(
-                    range(num_rounds),
-                    desc=f"{os.path.basename(bundle_root)} - training ...",
-                    unit="round")
+                    range(num_rounds), desc=f"{os.path.basename(bundle_root)} - training ...", unit="round"
+                )
 
-            for _round in range(num_rounds) if torch.cuda.device_count(
-            ) > 1 and dist.get_rank() != 0 else progress_bar:
+            for _round in range(num_rounds) if torch.cuda.device_count() > 1 and dist.get_rank() != 0 else progress_bar:
                 epoch = (_round + 1) * num_epochs_per_validation
                 lr = lr_scheduler.get_last_lr()[0]
                 if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     logger.debug("----------")
-                    logger.debug(
-                        f"epoch {_round * num_epochs_per_validation + 1}/{num_epochs}")
+                    logger.debug(f"epoch {_round * num_epochs_per_validation + 1}/{num_epochs}")
                     logger.debug(f"learning rate is set to {lr}")
 
                 model.train()
@@ -634,27 +524,23 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     step += 1
 
                     inputs_l = (
-                        batch_data["image"].as_tensor() if isinstance(
-                            batch_data["image"],
-                            monai.data.MetaTensor) else batch_data["image"])
+                        batch_data["image"].as_tensor()
+                        if isinstance(batch_data["image"], monai.data.MetaTensor)
+                        else batch_data["image"]
+                    )
                     labels_l = (
-                        batch_data["label"].as_tensor() if isinstance(
-                            batch_data["label"],
-                            monai.data.MetaTensor) else batch_data["label"])
+                        batch_data["label"].as_tensor()
+                        if isinstance(batch_data["label"], monai.data.MetaTensor)
+                        else batch_data["label"]
+                    )
 
                     _idx = torch.randperm(inputs_l.shape[0])
                     inputs_l = inputs_l[_idx]
                     labels_l = labels_l[_idx]
 
                     for _k in range(inputs_l.shape[0] // num_patches_per_iter):
-                        inputs = inputs_l[_k *
-                                          num_patches_per_iter: (_k +
-                                                                 1) *
-                                          num_patches_per_iter, ...]
-                        labels = labels_l[_k *
-                                          num_patches_per_iter: (_k +
-                                                                 1) *
-                                          num_patches_per_iter, ...]
+                        inputs = inputs_l[_k * num_patches_per_iter : (_k + 1) * num_patches_per_iter, ...]
+                        labels = labels_l[_k * num_patches_per_iter : (_k + 1) * num_patches_per_iter, ...]
 
                         inputs = inputs.to(device)
                         labels = labels.to(device)
@@ -677,8 +563,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             loss = loss_function(outputs.float(), labels)
 
                             loss.backward()
-                            torch.nn.utils.clip_grad_norm_(
-                                model.parameters(), 0.5)
+                            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
                             optimizer.step()
 
                         epoch_loss += loss.item()
@@ -689,23 +574,22 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                             logger.debug(
-                                f"[{str(datetime.now())[:19]}] " +
-                                f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
-                            writer.add_scalar(
-                                "train/loss", loss.item(), epoch_len * _round + step)
+                                f"[{str(datetime.now())[:19]}] " + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}"
+                            )
+                            writer.add_scalar("train/loss", loss.item(), epoch_len * _round + step)
 
                 lr_scheduler.step()
 
                 if torch.cuda.device_count() > 1:
-                    dist.all_reduce(
-                        loss_torch, op=torch.distributed.ReduceOp.SUM)
+                    dist.all_reduce(loss_torch, op=torch.distributed.ReduceOp.SUM)
 
                 loss_torch = loss_torch.tolist()
                 if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     loss_torch_epoch = loss_torch[0] / loss_torch[1]
                     logger.debug(
                         f"epoch {epoch} average loss: {loss_torch_epoch:.4f}, "
-                        f"best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}")
+                        f"best mean dice: {best_metric:.4f} at epoch {best_metric_epoch}"
+                    )
 
                 del inputs, labels, outputs
                 torch.cuda.empty_cache()
@@ -724,16 +608,13 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 target_num_epochs_per_validation = ad_num_epochs_per_validation[-1 - _j]
                                 break
 
-                    if target_num_epochs_per_validation > 0 and (
-                            _round + 1) < num_rounds:
-                        if (_round + 1) % (target_num_epochs_per_validation //
-                                           num_epochs_per_validation) != 0:
+                    if target_num_epochs_per_validation > 0 and (_round + 1) < num_rounds:
+                        if (_round + 1) % (target_num_epochs_per_validation // num_epochs_per_validation) != 0:
                             continue
 
                 model.eval()
                 with torch.no_grad():
-                    metric = torch.zeros(
-                        metric_dim * 2, dtype=torch.float, device=device)
+                    metric = torch.zeros(metric_dim * 2, dtype=torch.float, device=device)
 
                     _index = 0
                     for val_data in val_loader:
@@ -749,13 +630,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             device_list_input = [device, device, "cpu"]
                             device_list_output = [device, "cpu", "cpu"]
                         elif val_filename in val_devices_input and val_filename in val_devices_output:
-                            device_list_input = [
-                                val_devices_input[val_filename]]
-                            device_list_output = [
-                                val_devices_output[val_filename]]
+                            device_list_input = [val_devices_input[val_filename]]
+                            device_list_output = [val_devices_output[val_filename]]
 
-                        for _device_in, _device_out in zip(
-                                device_list_input, device_list_output):
+                        for _device_in, _device_out in zip(device_list_input, device_list_output):
                             try:
                                 val_devices_input[val_filename] = _device_in
                                 val_devices_output[val_filename] = _device_out
@@ -783,8 +661,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 finished = True
 
                             except RuntimeError as e:
-                                if not any(x in str(e).lower()
-                                           for x in ("memory", "cuda", "cudnn")):
+                                if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                     raise e
 
                                 finished = False
@@ -814,12 +691,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                     include_background=not softmax,
                                 )
                         else:
-                            value = compute_dice(
-                                y_pred=val_outputs, y=val_labels, include_background=not softmax)
+                            value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
                             value = value.to(device)
 
-                        logger.debug(
-                            f"{_index + 1} / {len(val_loader)}: {value}")
+                        logger.debug(f"{_index + 1} / {len(val_loader)}: {value}")
 
                         del val_labels, val_outputs
                         torch.cuda.empty_cache()
@@ -834,21 +709,18 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         _index += 1
 
                     if torch.cuda.device_count() > 1:
-                        dist.all_reduce(
-                            metric, op=torch.distributed.ReduceOp.SUM)
+                        dist.all_reduce(metric, op=torch.distributed.ReduceOp.SUM)
 
                     metric = metric.tolist()
                     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                         for _c in range(metric_dim):
-                            logger.debug(
-                                f"evaluation metric - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
+                            logger.debug(f"evaluation metric - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
                             try:
                                 writer.add_scalar(
                                     f"val_class/acc_{class_names[_c]}", metric[2 * _c] / metric[2 * _c + 1], epoch
                                 )
                             except BaseException:
-                                writer.add_scalar(
-                                    f"val_class/acc_{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
+                                writer.add_scalar(f"val_class/acc_{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
 
                         avg_metric = 0
                         for _c in range(metric_dim):
@@ -858,53 +730,41 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         writer.add_scalar("val/acc", avg_metric, epoch)
 
-                        if torch.cuda.device_count() > 1:
-                            torch.save(
-                                model.module.state_dict(), os.path.join(
-                                    ckpt_path, "current_model.pt"))
-                        else:
-                            torch.save(
-                                model.state_dict(), os.path.join(
-                                    ckpt_path, "current_model.pt"))
-
                         if avg_metric > best_metric:
                             best_metric = avg_metric
                             best_metric_epoch = epoch
                             if torch.cuda.device_count() > 1:
-                                torch.save(
-                                    model.module.state_dict(), os.path.join(
-                                        ckpt_path, "best_metric_model.pt"))
+                                torch.save(model.module.state_dict(), os.path.join(ckpt_path, "best_metric_model.pt"))
                             else:
-                                torch.save(
-                                    model.state_dict(), os.path.join(
-                                        ckpt_path, "best_metric_model.pt"))
+                                torch.save(model.state_dict(), os.path.join(ckpt_path, "best_metric_model.pt"))
                             logger.debug("saved new best metric model")
 
                             dict_file = {}
-                            dict_file["best_avg_dice_score"] = float(
-                                best_metric)
-                            dict_file["best_avg_dice_score_epoch"] = int(
-                                best_metric_epoch)
-                            dict_file["best_avg_dice_score_iteration"] = int(
-                                idx_iter)
+                            dict_file["best_avg_dice_score"] = float(best_metric)
+                            dict_file["best_avg_dice_score_epoch"] = int(best_metric_epoch)
+                            dict_file["best_avg_dice_score_iteration"] = int(idx_iter)
                             dict_file["inverted_best_validation"] = False
                             with open(os.path.join(ckpt_path, "progress.yaml"), "a") as out_file:
                                 yaml.dump([dict_file], stream=out_file)
 
                         logger.debug(
                             "current epoch: {} current mean dice: {:.4f} best mean dice: {:.4f} at epoch {}".format(
-                                epoch, avg_metric, best_metric, best_metric_epoch))
+                                epoch, avg_metric, best_metric, best_metric_epoch
+                            )
+                        )
 
                         current_time = time.time()
                         elapsed_time = (current_time - start_time) / 60.0
                         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
-                            f.write("{:d}\t{:.5f}\t{:.5f}\t{:.5f}\t{:.1f}\t{:d}\n".format(
-                                epoch, avg_metric, loss_torch_epoch, lr, elapsed_time, idx_iter))
+                            f.write(
+                                "{:d}\t{:.5f}\t{:.5f}\t{:.5f}\t{:.1f}\t{:d}\n".format(
+                                    epoch, avg_metric, loss_torch_epoch, lr, elapsed_time, idx_iter
+                                )
+                            )
 
                         if es:
                             early_stopping(val_acc=avg_metric)
-                            stop_train = torch.tensor(
-                                early_stopping.early_stop).to(device)
+                            stop_train = torch.tensor(early_stopping.early_stop).to(device)
 
                     if torch.cuda.device_count() > 1:
                         dist.barrier()
@@ -920,37 +780,23 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         if valid_at_orig_resolution_at_last or valid_at_orig_resolution_only:
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-                print(
-                    f"{os.path.basename(bundle_root)} - validation at original spacing/resolution")
+                print(f"{os.path.basename(bundle_root)} - validation at original spacing/resolution")
                 logger.debug("validation at original spacing/resolution")
 
             if torch.cuda.device_count() > 1:
                 model.module.load_state_dict(
-                    torch.load(
-                        os.path.join(
-                            ckpt_path,
-                            "best_metric_model.pt"),
-                        map_location=device))
+                    torch.load(os.path.join(ckpt_path, "best_metric_model.pt"), map_location=device)
+                )
             else:
-                model.load_state_dict(
-                    torch.load(
-                        os.path.join(
-                            ckpt_path,
-                            "best_metric_model.pt"),
-                        map_location=device))
+                model.load_state_dict(torch.load(os.path.join(ckpt_path, "best_metric_model.pt"), map_location=device))
             logger.debug("checkpoints loaded")
 
             model.eval()
             with torch.no_grad():
-                metric = torch.zeros(
-                    metric_dim * 2, dtype=torch.float, device=device)
+                metric = torch.zeros(metric_dim * 2, dtype=torch.float, device=device)
 
                 _index = 0
                 for val_data in orig_val_loader:
-                    filename = val_data["image"].meta["filename_or_obj"]
-                    if isinstance(filename, list):
-                        filename = filename[0]
-
                     finished = None
                     device_list_input = None
                     device_list_output = None
@@ -962,8 +808,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         device_list_input = [device, device, "cpu"]
                         device_list_output = [device, "cpu", "cpu"]
 
-                    for _device_in, _device_out in zip(
-                            device_list_input, device_list_output):
+                    for _device_in, _device_out in zip(device_list_input, device_list_output):
                         try:
                             val_images = val_data["image"].to(_device_in)
                             val_labels = val_data["label"].to(_device_out)
@@ -988,8 +833,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             finished = True
 
                         except RuntimeError as e:
-                            if not any(x in str(e).lower()
-                                       for x in ("memory", "cuda", "cudnn")):
+                            if not any(x in str(e).lower() for x in ("memory", "cuda", "cudnn")):
                                 raise e
 
                             finished = False
@@ -1004,8 +848,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     torch.cuda.empty_cache()
                     gc.collect()
 
-                    val_data = [
-                        post_transforms(i) for i in monai.data.decollate_batch(val_data)]
+                    val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
                     val_outputs = val_data[0]["pred"][None, ...]
 
                     val_labels = val_labels.to(_device_in)
@@ -1024,13 +867,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 include_background=not softmax,
                             )
                     else:
-                        value = compute_dice(
-                            y_pred=val_outputs,
-                            y=val_labels,
-                            include_background=not softmax)
+                        value = compute_dice(y_pred=val_outputs, y=val_labels, include_background=not softmax)
 
-                    logger.debug(
-                        f"validation Dice score at original spacing/resolution: {value}; filename: {filename}")
+                    logger.debug(f"validation Dice score at original spacing/resolution: {value}")
 
                     for _c in range(metric_dim):
                         val0 = torch.nan_to_num(value[0, _c], nan=0.0)
@@ -1054,18 +893,15 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     for _c in range(metric_dim):
                         avg_metric += metric[2 * _c] / metric[2 * _c + 1]
                     avg_metric = avg_metric / float(metric_dim)
-                    logger.debug(
-                        f"avg_metric at original spacing/resolution: {avg_metric}")
+                    logger.debug(f"avg_metric at original spacing/resolution: {avg_metric}")
 
                     with open(os.path.join(ckpt_path, "progress.yaml"), "r") as out_file:
                         progress = yaml.safe_load(out_file)
 
                     dict_file = {}
                     dict_file["best_avg_dice_score"] = float(avg_metric)
-                    dict_file["best_avg_dice_score_epoch"] = int(
-                        progress[-1]["best_avg_dice_score_epoch"])
-                    dict_file["best_avg_dice_score_iteration"] = int(
-                        progress[-1]["best_avg_dice_score_iteration"])
+                    dict_file["best_avg_dice_score_epoch"] = int(progress[-1]["best_avg_dice_score_epoch"])
+                    dict_file["best_avg_dice_score_iteration"] = int(progress[-1]["best_avg_dice_score_iteration"])
                     dict_file["inverted_best_validation"] = True
                     with open(os.path.join(ckpt_path, "progress.yaml"), "a") as out_file:
                         yaml.dump([dict_file], stream=out_file)
@@ -1074,20 +910,16 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     dist.barrier()
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        logger.debug(
-            f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
+        logger.debug(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
 
         writer.flush()
         writer.close()
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
-        if (not valid_at_orig_resolution_only) and es and (
-                _round + 1) < num_rounds:
-            logger.warning(
-                f"{os.path.basename(bundle_root)} - training: finished with early stop")
+        if (not valid_at_orig_resolution_only) and es and (_round + 1) < num_rounds:
+            logger.warning(f"{os.path.basename(bundle_root)} - training: finished with early stop")
         else:
-            logger.warning(
-                f"{os.path.basename(bundle_root)} - training: finished")
+            logger.warning(f"{os.path.basename(bundle_root)} - training: finished")
 
     if torch.cuda.device_count() > 1:
         dist.destroy_process_group()
