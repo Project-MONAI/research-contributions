@@ -267,7 +267,7 @@ class InferClass:
     def infer(self, image_file, save_mask=False):
         self.model.eval()
 
-        batch_data = self.infer_transforms({"image": image_file})
+        batch_data = self.infer_transforms(image_file)
         batch_data = list_data_collate([batch_data])
 
         finished = None
