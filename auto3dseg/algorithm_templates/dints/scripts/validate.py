@@ -91,27 +91,21 @@ def pre_operation(config_file, **override):
                         mem = 16.0
 
                     mem = max(1.0, mem - 1.0)
-                    mem_bs2 = 6.0 + (20.0 - 6.0) * \
-                        (output_classes - 2) / (105 - 2)
-                    mem_bs9 = 24.0 + (74.0 - 24.0) * \
-                        (output_classes - 2) / (105 - 2)
-                    batch_size = 2 + (9 - 2) * \
-                        (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+                    mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
+                    mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
+                    batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
                     batch_size = int(batch_size)
                     batch_size = max(batch_size, 1)
 
-                    parser["training"].update(
-                        {"num_patches_per_iter": batch_size})
-                    parser["training"].update(
-                        {"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update({"num_patches_per_iter": batch_size})
+                    parser["training"].update({"num_patches_per_image": 2 * batch_size})
 
                     # estimate data size based on number of images and image
                     # size
                     _factor = 1.0
 
                     try:
-                        _factor *= 1251.0 / \
-                            float(parser["stats_summary"]["n_cases"])
+                        _factor *= 1251.0 / float(parser["stats_summary"]["n_cases"])
                         _mean_shape = parser["stats_summary"]["image_stats"]["shape"]["mean"]
                         _factor *= float(_mean_shape[0]) / 240.0
                         _factor *= float(_mean_shape[1]) / 240.0
@@ -136,11 +130,9 @@ def pre_operation(config_file, **override):
                     _estimated_epochs = 400.0
                     _estimated_epochs *= _factor
 
-                    parser["training"].update(
-                        {"num_epochs": int(_estimated_epochs / float(batch_size))})
+                    parser["training"].update({"num_epochs": int(_estimated_epochs / float(batch_size))})
 
-                    ConfigParser.export_config_file(
-                        parser.get(), _file, fmt="yaml", default_flow_style=None)
+                    ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
 
     return
 
