@@ -3,7 +3,7 @@ batchgenerators==0.25
 caffe2==0.8.1
 colorama==0.4.6
 Flask==2.3.2
-gevent==23.7.0
+gevent==23.9.0
 gorilla==0.4.0
 hypothesis==6.81.2
 lz4==4.3.2
