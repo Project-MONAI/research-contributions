@@ -1,4 +1,23 @@
-### Using the code:
+
+## Model Overview
+
+This repository contains the code for Disruptive Auto Encoders (DAE), the DAE model is focused towards learning better representations as it focuses on low-level features of the data via self-supervised learning.
+
+The below figure provides an overview that the 3D medical image is disrupted with a combination of low-level perturbations - noise and downsampling, followed by tokenization and local masking. These disrupted tokens are then passed through a transformer encoder and convolutional decoder to learn to reconstruct the original image. Our method also includes cross modal contrastive learning to bring in modality-awareness to the pre-training framework. This can act as an effective pre-training strategy to extract meaningful low-level representations for 3D medical image analysis.
+![image_1](figs/dae_overview.png)
+
+The reconstruction quality is an indicator that low-level pretraining can provide better representations
+
+![img.png](figs/dae_recon.png)
+## Installing Dependencies
+
+Dependencies can be installed using:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Using the code:
 
 The pretraining Code is tested with Swin UNETR as backbone. It trains on CT+MRI data with the new Cross Modal Contrastive loss. The current code base has 3 pretraining options:
 
@@ -7,12 +26,6 @@ The pretraining Code is tested with Swin UNETR as backbone. It trains on CT+MRI 
 3) Local Disturbance
 
 Change the argument --choice to switch between different pretraining setups
-
-- Install Dependencies:
-
-```bash
-pip install -r requirements.txt
-```
 
 Use --onlycovid tag to train only on the COVID Data.
 Use --encoder_off tag to switch off encoder during training (not generally used)
@@ -74,3 +87,29 @@ python -m torch.distributed.launch --nproc_per_node=8 main_runner.py --batch_siz
 --mm_con is used to change ratio of CFM loss. Default=0.03 
 
 --temperature is used to change temperature in CFM loss. Default=0.5
+
+## Datasets
+
+Below is a list of datasets that have been used. We have included a list of json files (jsons directory) that contain a list of the training data from the below mentioned datasets:
+
+- Head & Neck Squamous Cell Carcinoma (HNSCC) ([Link](https://wiki.cancerimagingarchive.net/display/Public/HNSCC))
+- Lung Nodule Analysis 2016 (LUNA 16) ([Link](https://luna16.grand-challenge.org/Data/)) 
+- TCIA CT Colonography Trial ([Link](https://wiki.cancerimagingarchive.net/display/Public/CT+COLONOGRAPHY/))
+- TCIA Covid 19 ([Link](https://wiki.cancerimagingarchive.net/display/Public/CT+Images+in+COVID-19/))
+- TCIA LIDC ([Link](https://wiki.cancerimagingarchive.net/display/Public/LIDC-IDRI/))
+- Brats 2021 ([Link](http://braintumorsegmentation.org/))
+
+## References
+
+1.) Valanarasu, J.M.J., Tang, Y., Yang, D., Xu, Z., Zhao, C., Li, W., Patel, V.M., Landman, B., Xu, D., He, Y. and Nath, V., 2023. Disruptive Autoencoders: Leveraging Low-level features for 3D Medical Image Pre-training. arXiv preprint arXiv:2307.16896.
+
+Bibtex:
+```commandline
+@article{valanarasu2023disruptive,
+  title={Disruptive Autoencoders: Leveraging Low-level features for 3D Medical Image Pre-training},
+  author={Valanarasu, Jeya Maria Jose and Tang, Yucheng and Yang, Dong and Xu, Ziyue and Zhao, Can and Li, Wenqi and Patel, Vishal M and Landman, Bennett and Xu, Daguang and He, Yufan and others},
+  journal={arXiv preprint arXiv:2307.16896},
+  year={2023}
+}
+
+```
