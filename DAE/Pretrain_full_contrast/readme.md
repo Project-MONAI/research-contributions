@@ -103,6 +103,8 @@ Below is a list of datasets that have been used. We have included a list of json
 
 1.) Valanarasu, J.M.J., Tang, Y., Yang, D., Xu, Z., Zhao, C., Li, W., Patel, V.M., Landman, B., Xu, D., He, Y. and Nath, V., 2023. Disruptive Autoencoders: Leveraging Low-level features for 3D Medical Image Pre-training. arXiv preprint arXiv:2307.16896.
 
+## Model Weights
+
 All json files and model weights can be downloaded from this ([Link](https://drive.google.com/drive/folders/1_EFLbOWn8E6fVUnFVfT4BNNFMlz7RCpM?usp=sharing))
 
 Bibtex:
