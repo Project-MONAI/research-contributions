@@ -205,8 +205,8 @@ def collate_fn(batch):
 def build_loader_simmim(args):
 
     if args.local:
-        splits2 = '/media/ali/Elements/NGC_Datasets/60659/dataset_0.json'
-        datadir2 = '/media/ali/Elements/NGC_Datasets/60659/'
+        splits2 = '/60659/dataset_0.json'
+        datadir2 = '/NGC_Datasets/60659/'
         datalist = load_decathlon_datalist(splits2, False, "training", base_dir=datadir2)
         val_files = load_decathlon_datalist(splits2, False, "validation", base_dir=datadir2)
     elif args.onlycovid:
@@ -275,10 +275,6 @@ def build_loader_simmim(args):
         splits2 = '/dataset_TCIAcovid19_0.json'
         splits3 = '/dataset_HNSCC_0.json'
         splits4 = '/dataset_TCIAcolon_v2_0.json'
-        splits5 = '/dataset_FLARE21_0.json'
-        splits6 = '/dataset_lits_0.json'
-        splits7 = '/dataset_hecktor_0.json'
-        
         splits8 = '/dataset_LIDC_0.json'
         splits9 = '/brats21_pre.json'
 
@@ -287,9 +283,6 @@ def build_loader_simmim(args):
         jsonlist2 = list_dir + splits2
         jsonlist3 = list_dir + splits3
         jsonlist4 = list_dir + splits4
-        jsonlist5 = list_dir + splits5
-        jsonlist6 = list_dir + splits6
-        jsonlist7 = list_dir + splits7
         jsonlist8 = list_dir + splits8
         jsonlist9 = list_dir + splits9
         # jsonlist10 = list_dir + splits10
@@ -298,9 +291,6 @@ def build_loader_simmim(args):
         datadir2 = '/dataset/dataset2'
         datadir3 = '/dataset/dataset3'
         datadir4 = '/dataset/dataset4'
-        datadir5 = '/dataset/dataset5'
-        datadir6 = '/dataset/dataset6'
-        datadir7 = '/dataset/dataset7'
         datadir8 = '/dataset/dataset8'
         datadir9 = '/dataset/dataset9'
         datadir10 = '/dataset/dataset10'
@@ -320,15 +310,6 @@ def build_loader_simmim(args):
         # dataset 4
         datalist4 = load_decathlon_datalist(jsonlist4, False, "training", base_dir=datadir4)
         print('Dataset 4 TCIA Colon: number of data: {}'.format(len(datalist4)))
-        # dataset 5
-        datalist5 = load_decathlon_datalist(jsonlist5, False, "training", base_dir=datadir5)
-        print('Dataset 5: number of data: {}'.format(len(datalist5)))
-
-        datalist6 = load_decathlon_datalist(jsonlist6, False, "training", base_dir=datadir6)
-        print('Dataset 6: number of data: {}'.format(len(datalist6)))
-
-        datalist7 = load_decathlon_datalist(jsonlist7, False, "training", base_dir=datadir7)
-        print('Dataset 7: number of data: {}'.format(len(datalist7)))
 
         datalist8 = load_decathlon_datalist(jsonlist8, False, "training", base_dir=datadir8)
         print('Dataset 8: number of data: {}'.format(len(datalist8)))
@@ -343,18 +324,15 @@ def build_loader_simmim(args):
         vallist2 = load_decathlon_datalist(jsonlist2, False, "validation", base_dir=datadir2)
         vallist3 = load_decathlon_datalist(jsonlist3, False, "validation", base_dir=datadir3)
         vallist4 = load_decathlon_datalist(jsonlist4, False, "validation", base_dir=datadir4)
-        vallist5 = load_decathlon_datalist(jsonlist5, False, "validation", base_dir=datadir5)
-        vallist6 = load_decathlon_datalist(jsonlist6, False, "validation", base_dir=datadir6)
-        vallist7 = load_decathlon_datalist(jsonlist7, False, "validation", base_dir=datadir7)
         vallist8 = load_decathlon_datalist(jsonlist8, False, "validation", base_dir=datadir8)
         # vallist9 = load_decathlon_datalist(jsonlist9, False, "validation", base_dir=datadir9)
         # vallist10 = load_decathlon_datalist(jsonlist10, False, "validation", base_dir=datadir10)
 
-        datalist_ct = new_datalist1 + datalist2 + datalist3 + datalist4 + datalist5 + datalist6 + datalist7 + datalist8
+        datalist_ct = new_datalist1 + datalist2 + datalist3 + datalist4 + datalist8
         datalist_mri = datalist9 #+ datalist10
 
         datalist = datalist_mri+datalist_ct
-        val_files = vallist1 + vallist2 + vallist3 + vallist4 + vallist5 + vallist6 + vallist7 + vallist8 + vallist9 #+ vallist10
+        val_files = vallist1 + vallist2 + vallist3 + vallist4 + vallist8 + vallist9 #+ vallist10
         # val_files = vallist9
         # pdb.set_trace()
         # datalist = new_datalist1 + datalist2 + datalist3 + datalist4
