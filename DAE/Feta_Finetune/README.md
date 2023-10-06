@@ -10,6 +10,8 @@ pip install -r requirements.txt
 
 The main fineuning exps are based on Swin UNETR architecture. 
 
+All json files and pre-trained model weights can be downloaded from this ([Link](https://drive.google.com/drive/folders/1_EFLbOWn8E6fVUnFVfT4BNNFMlz7RCpM?usp=sharing))
+
 Sample Code:
 
 To train models from scratch without any pre-trained weights
