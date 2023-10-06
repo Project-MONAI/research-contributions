@@ -122,7 +122,7 @@ def load_pretrained(config, model, logger):
     logger.info(f">>>>>>>>>> Fine-tuned from {config.PRETRAINED} ..........")
     checkpoint = torch.load(config.PRETRAINED, map_location='cpu')
     checkpoint_model = checkpoint['model']
-    
+
     if any([True if 'encoder.' in k else False for k in checkpoint_model.keys()]):
         checkpoint_model = {k.replace('encoder.', ''): v for k, v in checkpoint_model.items() if k.startswith('encoder.')}
         logger.info('Detect pre-trained model, remove [encoder.] prefix.')
@@ -140,15 +140,15 @@ def load_pretrained(config, model, logger):
 
     msg = model.load_state_dict(checkpoint_model, strict=False)
     logger.info(msg)
-    
+
     del checkpoint
     torch.cuda.empty_cache()
     logger.info(f">>>>>>>>>> loaded successfully '{config.PRETRAINED}'")
-    
+
 
 def remap_pretrained_keys_swin(model, checkpoint_model, logger):
     state_dict = model.state_dict()
-    
+
     # Geometric interpolation when pre-trained patch size mismatch with fine-tuned patch size
     all_keys = list(checkpoint_model.keys())
     for key in all_keys:
@@ -236,7 +236,7 @@ def remap_pretrained_keys_vit(model, checkpoint_model, logger):
     for i in range(num_layers):
         checkpoint_model["blocks.%d.attn.relative_position_bias_table" % i] = rel_pos_bias.clone()
     checkpoint_model.pop("rel_pos_bias.relative_position_bias_table")
-    
+
     # Geometric interpolation when pre-trained patch size mismatch with fine-tuned patch size
     all_keys = list(checkpoint_model.keys())
     for key in all_keys:
@@ -303,5 +303,5 @@ def remap_pretrained_keys_vit(model, checkpoint_model, logger):
 
                 new_rel_pos_bias = torch.cat((rel_pos_bias, extra_tokens), dim=0)
                 checkpoint_model[key] = new_rel_pos_bias
-    
+
     return checkpoint_model

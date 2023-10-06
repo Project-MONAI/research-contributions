@@ -56,7 +56,7 @@ def build_loader_finetune(config, logger):
 def build_dataset(is_train, config, logger):
     transform = build_transform(is_train, config)
     logger.info(f'Fine-tune data transform, is_train={is_train}:\n{transform}')
-    
+
     if config.DATA.DATASET == 'imagenet':
         prefix = 'train' if is_train else 'val'
         root = os.path.join(config.DATA.DATA_PATH, prefix)

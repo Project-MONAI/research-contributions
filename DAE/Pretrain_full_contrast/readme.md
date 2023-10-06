@@ -43,13 +43,13 @@ Sample Code:
 python -m torch.distributed.launch --nproc_per_node=8 main_runner.py --batch_size=2 --sw_batch_size=1 --mask_ratio=0.6 --epoch=300 --mask_patch_size=16 --img_size=96 --min_lr=1e-5 --warmpup_epoch=4 --loss_type=all_img --base_lr=1e-4 --warmup_lr=1e-6 --weight_decay=0.05 --cache_dataset --cache_rate=1 --model_type=swin_skip --save_freq=5 --print_freq=1 --log_dir="./logdir/swin_denoise_mm" --output="./output/swin_denoise_mm" --thread_loader --out_channels=1 --choice "denoise" --variance 0.1 --mm_con 0.03 --temperature 0.5 --amp_opt_level="O0"
 ```
 
---variance can be use to change the variance of gaussian noise. Default=0.1 
+--variance can be use to change the variance of gaussian noise. Default=0.1
 
---mm_con is used to change ratio of CFM loss. Default=0.03 
+--mm_con is used to change ratio of CFM loss. Default=0.03
 
 --temperature is used to change temperature in CFM loss. Default=0.5
 
-We don't use AMP in these experiments as it causes CFM loss to go NaN 
+We don't use AMP in these experiments as it causes CFM loss to go NaN
 
 2) Super-Resolution
 
@@ -61,11 +61,11 @@ python -m torch.distributed.launch --nproc_per_node=8 main_runner.py --batch_siz
 
 --interpolate can be use to change the downsampling. Default=4
 
---mm_con is used to change ratio of CFM loss. Default=0.03 
+--mm_con is used to change ratio of CFM loss. Default=0.03
 
 --temperature is used to change temperature in CFM loss. Default=0.5
 
-We don't use AMP in these experiments as it causes CFM loss to go NaN 
+We don't use AMP in these experiments as it causes CFM loss to go NaN
 
 3) Local Disturbance
 
@@ -76,11 +76,11 @@ Sample Code:
 python -m torch.distributed.launch --nproc_per_node=8 main_runner.py --batch_size=2 --sw_batch_size=1 --mask_ratio=0.6 --epoch=300 --mask_patch_size=16 --img_size=96 --min_lr=1e-5 --warmpup_epoch=4 --loss_type=all_img --base_lr=1e-4 --warmup_lr=1e-6 --weight_decay=0.05 --cache_dataset --cache_rate=1 --model_type=swin_skip --save_freq=5 --print_freq=1 --log_dir="./logdir/swin_LD_mm" --output="./output/swin_LD_mm" --thread_loader --out_channels=1 --choice "LD" --mm_con 0.03 --temperature 0.5 --amp_opt_level="O0"
 ```
 
---mm_con is used to change ratio of CFM loss. Default=0.03 
+--mm_con is used to change ratio of CFM loss. Default=0.03
 
 --temperature is used to change temperature in CFM loss. Default=0.5
 
-We don't use AMP in these experiments as it causes CFM loss to go NaN 
+We don't use AMP in these experiments as it causes CFM loss to go NaN
 
 4) ALL DISTURBANCE: COMBINE DENOISE+SUPERRES+LocalDIsturbance
 
@@ -88,7 +88,7 @@ We don't use AMP in these experiments as it causes CFM loss to go NaN
 python -m torch.distributed.launch --nproc_per_node=8 main_runner.py --batch_size=2 --sw_batch_size=1 --mask_ratio=0.6 --epoch=1000 --mask_patch_size=16 --img_size=96 --min_lr=1e-5 --warmpup_epoch=4 --loss_type=all_img --base_lr=1e-4 --warmup_lr=1e-6 --weight_decay=0.05 --cache_dataset --cache_rate=1 --model_type=swin_skip --save_freq=5 --print_freq=1 --log_dir="./logdir/swin_COMB_mm" --output="./output/swin_COMB_mm" --thread_loader --out_channels=1 --choice "all" --variance 0.1 --mm_con 0.03 --temperature 0.5 --amp_opt_level="O0"
 ```
 
---mm_con is used to change ratio of CFM loss. Default=0.03 
+--mm_con is used to change ratio of CFM loss. Default=0.03
 
 --temperature is used to change temperature in CFM loss. Default=0.5
 
@@ -97,7 +97,7 @@ python -m torch.distributed.launch --nproc_per_node=8 main_runner.py --batch_siz
 Below is a list of datasets that have been used. We have included a list of json files (jsons directory) that contain a list of the training data from the below mentioned datasets:
 
 - Head & Neck Squamous Cell Carcinoma (HNSCC) ([Link](https://wiki.cancerimagingarchive.net/display/Public/HNSCC))
-- Lung Nodule Analysis 2016 (LUNA 16) ([Link](https://luna16.grand-challenge.org/Data/)) 
+- Lung Nodule Analysis 2016 (LUNA 16) ([Link](https://luna16.grand-challenge.org/Data/))
 - TCIA CT Colonography Trial ([Link](https://wiki.cancerimagingarchive.net/display/Public/CT+COLONOGRAPHY/))
 - TCIA Covid 19 ([Link](https://wiki.cancerimagingarchive.net/display/Public/CT+Images+in+COVID-19/))
 - TCIA LIDC ([Link](https://wiki.cancerimagingarchive.net/display/Public/LIDC-IDRI/))

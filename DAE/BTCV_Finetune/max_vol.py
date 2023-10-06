@@ -208,7 +208,7 @@ def main_worker(gpu, args):
             conv_block=True,
             res_block=True,
             dropout_rate=args.dropout_rate,
-            
+
         )
     elif args.model_name=="unetr_patch":
         model = UNETR_patch(
@@ -305,12 +305,12 @@ def main_worker(gpu, args):
     #     # pdb.set_trace()
     #     # input = torch.randn(1,1,32*i,32*i,32*i)
     #     # ans = model(input)
-    #     # import os, psutil 
+    #     # import os, psutil
     #     # mem = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
 
     #     input = torch.randn(4,1,32*i,32*i,32*i)
     #     ans = model(input)
-    #     import os, psutil 
+    #     import os, psutil
     #     mem2 = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
 
     #     if mem<32000:

@@ -8,7 +8,7 @@ pip install -r requirements.txt
 
 ### Main Finetuning Exps
 
-The main fineuning exps are based on Swin UNETR architecture. 
+The main fineuning exps are based on Swin UNETR architecture.
 
 All json files and pre-trained model weights can be downloaded from this ([Link](https://drive.google.com/drive/folders/1_EFLbOWn8E6fVUnFVfT4BNNFMlz7RCpM?usp=sharing))
 
@@ -33,4 +33,3 @@ python main_for_ngc.py --json_list=/json_files/can_be/found_in/data_folds/xxxx.j
 --load_dir to specify which folder to load pretrained models from
 
 --finetune_choice to specify which part of network the pretrained model needs to be loaded for. Default is both. If specified "encoder", only encoder weights will be copied from the pretrained model. If specified "decoder", only decoder weights will be copied from the pretrained model.
-

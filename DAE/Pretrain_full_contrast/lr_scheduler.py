@@ -112,7 +112,7 @@ class LinearLRScheduler(Scheduler):
 class MultiStepLRScheduler(Scheduler):
     def __init__(self, optimizer: torch.optim.Optimizer, milestones, gamma=0.1, warmup_t=0, warmup_lr_init=0, t_in_epochs=True) -> None:
         super().__init__(optimizer, param_group_field="lr")
-        
+
         self.milestones = milestones
         self.gamma = gamma
         self.warmup_t = warmup_t
@@ -123,9 +123,9 @@ class MultiStepLRScheduler(Scheduler):
             super().update_groups(self.warmup_lr_init)
         else:
             self.warmup_steps = [1 for _ in self.base_values]
-        
+
         assert self.warmup_t <= min(self.milestones)
-    
+
     def _get_lr(self, t):
         if t < self.warmup_t:
             lrs = [self.warmup_lr_init + t * s for s in self.warmup_steps]

@@ -628,7 +628,7 @@ class SwinUNETR2(nn.Module):
         x_size = x_in.shape[2]
         y_size = x_in.shape[3]
         z_size = x_in.shape[4]
-        
+
         hidden_states_out = self.swinViT(x_in, self.normalize)
         enc0 = self.encoder1(x_in)
         enc1 = self.encoder2(hidden_states_out[0])
@@ -918,7 +918,7 @@ class SwinUNETR2_bn(nn.Module):
         x_size = x_in.shape[2]
         y_size = x_in.shape[3]
         z_size = x_in.shape[4]
-        
+
         hidden_states_out = self.swinViT(x_in, self.normalize)
         enc0 = self.encoder1(x_in)
         enc1 = self.encoder2(hidden_states_out[0])

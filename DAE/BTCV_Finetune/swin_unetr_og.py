@@ -296,7 +296,7 @@ class SwinUNETR(nn.Module):
             norm_name=norm_name,
             res_block=True,
         )
-        
+
 
         self.out = UnetOutBlock(
             spatial_dims=spatial_dims, in_channels=feature_size, out_channels=out_channels
@@ -410,7 +410,7 @@ class SwinUNETR(nn.Module):
                 # self.encoder10.layer.conv1.conv.bias.copy_(weights["model"]["encoder10.layer.conv1.conv.bias"])
                 # self.encoder10.layer.conv2.conv.bias.copy_(weights["model"]["encoder10.layer.conv2.conv.bias"])
                 # self.encoder10.layer.conv3.conv.bias.copy_(weights["model"]["encoder10.layer.conv3.conv.bias"])
-                
+
                 self.decoder1.transp_conv.conv.weight.copy_(weights["model"]["decoder1.transp_conv.conv.weight"])
                 self.decoder1.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder1.conv_block.conv1.conv.weight"])
                 self.decoder1.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder1.conv_block.conv2.conv.weight"])
@@ -668,7 +668,7 @@ class SwinUNETR_OG(nn.Module):
             norm_name=norm_name,
             res_block=True,
         )
-        
+
 
         self.out = UnetOutBlock(
             spatial_dims=spatial_dims, in_channels=feature_size, out_channels=out_channels
@@ -782,7 +782,7 @@ class SwinUNETR_OG(nn.Module):
                 # self.encoder10.layer.conv1.conv.bias.copy_(weights["model"]["encoder10.layer.conv1.conv.bias"])
                 # self.encoder10.layer.conv2.conv.bias.copy_(weights["model"]["encoder10.layer.conv2.conv.bias"])
                 # self.encoder10.layer.conv3.conv.bias.copy_(weights["model"]["encoder10.layer.conv3.conv.bias"])
-                
+
                 self.decoder1.transp_conv.conv.weight.copy_(weights["model"]["decoder1.transp_conv.conv.weight"])
                 self.decoder1.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder1.conv_block.conv1.conv.weight"])
                 self.decoder1.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder1.conv_block.conv2.conv.weight"])

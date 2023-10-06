@@ -40,14 +40,14 @@ def build_pretrain_optimizer(args, model, logger):
                                 weight_decay=args.weight_decay)
     logger.info(optimizer)
     return optimizer
-    
+
 
 def get_pretrain_param_groups(model, logger, skip_list=(), skip_keywords=()):
     has_decay = []
     no_decay = []
     has_decay_name = []
     no_decay_name = []
-    
+
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
@@ -75,9 +75,9 @@ def build_finetune_optimizer(args, model, logger):
         get_layer_func = partial(get_vit_layer, num_layers=num_layers + 2)
     else:
         raise NotImplementedError
-    
+
     scales = list(args.layer_decay ** i for i in reversed(range(num_layers + 2)))
-    
+
     skip = {}
     skip_keywords = {}
     if hasattr(model, 'no_weight_decay'):
@@ -90,7 +90,7 @@ def build_finetune_optimizer(args, model, logger):
     parameters = get_finetune_param_groups(
         model, logger, args.base_lr, args.weight_decay,
         get_layer_func, scales, skip, skip_keywords)
-    
+
     opt_lower = args.optimizer_name
     optimizer = None
     if opt_lower == 'sgd':

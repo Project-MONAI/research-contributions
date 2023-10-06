@@ -170,7 +170,7 @@ def main_worker(gpu, args):
             conv_block=True,
             res_block=True,
             dropout_rate=args.dropout_rate,
-            
+
         )
     elif args.model_name=="unetr_patch":
         model = UNETR_patch(

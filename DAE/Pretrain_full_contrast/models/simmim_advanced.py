@@ -172,7 +172,7 @@ class SwinTransformerSkipForSimMIM(SwinTransformer3D):
 
     def forward(self, x, mask, choice):
         x_out = []
-        
+
         _, _, D, H, W = x.size()
         x = self.patch_embed(x)
         x = x.flatten(2).transpose(1, 2)
@@ -192,7 +192,7 @@ class SwinTransformerSkipForSimMIM(SwinTransformer3D):
             rand_choice = random.sample(range(0, x.shape[1]), int(0.6*x.shape[1]))
             mask = torch.ones(x.shape).cuda()
             mask[:,rand_choice,:,:,:] = 0
-            x = x* mask 
+            x = x* mask
 
         if choice=="sld_noise":
             # pdb.set_trace()
@@ -203,54 +203,54 @@ class SwinTransformerSkipForSimMIM(SwinTransformer3D):
             noise = (0.1**0.5)*torch.randn(B,int(0.6*C),H,W,Z).cuda()
             # pdb.set_trace()
             mask[:,rand_choice,:,:,:] = noise
-            x = x* mask 
+            x = x* mask
 
         x_out.append(x)
         for layer in self.layers1:
             x = layer[0](x)
-        
+
         # if choice=="sld":
         #     # pdb.set_trace()
         #     rand_choice = random.sample(range(0, x.shape[1]), int(0.2*x.shape[1]))
         #     mask = torch.ones(x.shape).cuda()
         #     mask[:,rand_choice,:,:,:] = 0
-        #     x = x* mask 
+        #     x = x* mask
 
         x_out.append(x)
 
         for layer in self.layers2:
             x = layer[0](x)
-        
+
         # if choice=="sld":
         #     # pdb.set_trace()
         #     rand_choice = random.sample(range(0, x.shape[1]), int(0.2*x.shape[1]))
         #     mask = torch.ones(x.shape).cuda()
         #     mask[:,rand_choice,:,:,:] = 0
-        #     x = x* mask 
+        #     x = x* mask
 
         x_out.append(x)
 
         for layer in self.layers3:
             x = layer[0](x)
-        
+
         # if choice=="sld":
         #     # pdb.set_trace()
         #     rand_choice = random.sample(range(0, x.shape[1]), int(0.2*x.shape[1]))
         #     mask = torch.ones(x.shape).cuda()
         #     mask[:,rand_choice,:,:,:] = 0
-        #     x = x* mask 
+        #     x = x* mask
 
         x_out.append(x)
 
         for layer in self.layers4:
             x = layer[0](x)
-        
+
         # if choice=="sld":
         #     # pdb.set_trace()
         #     rand_choice = random.sample(range(0, x.shape[1]), int(0.2*x.shape[1]))
         #     mask = torch.ones(x.shape).cuda()
         #     mask[:,rand_choice,:,:,:] = 0
-        #     x = x* mask 
+        #     x = x* mask
 
         x_out.append(x)
         reduction = self.patch_size[0]*16
@@ -571,7 +571,7 @@ class SimMIMSkip(nn.Module):
             norm_name=norm_name,
             res_block=True,
         )
-        
+
         self.choice = choice
         self.inf = inf
         self.temp = temperature
@@ -640,14 +640,14 @@ class SimMIMSkip(nn.Module):
                 mask_tmp.append(4)
 
         _,b = np.unique(np.array(mask_tmp), return_inverse=True)
-        
+
         label_tmp = torch.tensor(b).cuda()
 
         bsz = hidden_states_out[4].shape[0]
         # pdb.set_trace()
         logits_con = torch.einsum('i d, j d -> i j', hidden_states_out[4].reshape(bsz,-1), hidden_states_out[4].reshape(bsz,-1)) * torch.exp(torch.tensor(self.temp))
-        loss_t = F.cross_entropy(logits_con, label_tmp) 
-        loss_i = F.cross_entropy(logits_con.T, label_tmp) 
+        loss_t = F.cross_entropy(logits_con, label_tmp)
+        loss_i = F.cross_entropy(logits_con.T, label_tmp)
 
         loss_cont = (loss_t+loss_i) /2
 
@@ -858,7 +858,7 @@ class SimMIMSkip_light(nn.Module):
             self.out = nn.Sequential(
                 nn.Conv3d(24, 1, kernel_size=1, stride=1),
             )
-        
+
         self.choice = choice
         self.inf = inf
         self.out = UnetOutBlock(
@@ -885,7 +885,7 @@ class SimMIMSkip_light(nn.Module):
         inf = self.inf
 
         z, hidden_states_out = self.encoder(x, mask, choice)
-        
+
         if inf=="sim":
             return hidden_states_out
 
@@ -902,7 +902,7 @@ class SimMIMSkip_light(nn.Module):
             x_rec = self.upsample(z)
 
         mask = mask.repeat_interleave(self.patch_size[0], 1).repeat_interleave(self.patch_size[1], 2).repeat_interleave(self.patch_size[2], 3).unsqueeze(1).contiguous()
-        
+
         mask_tmp = []
         for i in range(len(cl_type)):
             tmp_val = cl_type[i]
@@ -918,14 +918,14 @@ class SimMIMSkip_light(nn.Module):
                 mask_tmp.append(4)
 
         _,b = np.unique(np.array(mask_tmp), return_inverse=True)
-        
+
         label_tmp = torch.tensor(b).cuda()
 
         bsz = hidden_states_out[4].shape[0]
         # pdb.set_trace()
         logits_con = torch.einsum('i d, j d -> i j', hidden_states_out[4].reshape(bsz,-1), hidden_states_out[4].reshape(bsz,-1)) *self.temp
-        loss_t = F.cross_entropy(logits_con, label_tmp) 
-        loss_i = F.cross_entropy(logits_con.T, label_tmp) 
+        loss_t = F.cross_entropy(logits_con, label_tmp)
+        loss_i = F.cross_entropy(logits_con.T, label_tmp)
 
         loss_cont = (loss_t+loss_i) /2
 
@@ -1156,7 +1156,7 @@ class SimMIMSkip2(nn.Module):
             stride=1
             # res_block=True,
         )
-        
+
         self.choice = choice
 
         self.out = UnetOutBlock(
@@ -1198,7 +1198,7 @@ class SimMIMSkip2(nn.Module):
         x_rec = self.out(out)
 
         # mask = mask.repeat_interleave(self.patch_size[0], 1).repeat_interleave(self.patch_size[1], 2).repeat_interleave(self.patch_size[2], 3).unsqueeze(1).contiguous()
-        
+
         if self.loss =='mask_only':
             loss_recon = F.l1_loss(x_org, x_rec, reduction='none')
             loss = (loss_recon * mask).sum() / (mask.sum() + 1e-5) / self.in_chans
@@ -1250,7 +1250,7 @@ def build_simmim(args):
             drop_rate=args.drop_rate,
             drop_path_rate=args.drop_path_rate,
             use_checkpoint=args.use_grad_checkpoint,
-            patch_norm=True, 
+            patch_norm=True,
             )
         encoder_stride = 32
         model = SimMIM(encoder=encoder, encoder_stride=encoder_stride, decoder=args.decoder, loss=args.loss_type)
@@ -1318,4 +1318,3 @@ def build_simmim(args):
         raise NotImplementedError(f"Unknown pre-train model: {model_type}")
 
     return model
-

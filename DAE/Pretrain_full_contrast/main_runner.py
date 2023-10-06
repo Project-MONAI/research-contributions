@@ -194,7 +194,7 @@ def main(args):
             x_orig = x_orig[:, :, 48, :, :]
             x_recon = x_recon[:, :, 48, :, :]
             x_masked_in = x_masked[:, :, 48, :, :]
-            
+
             grid_imgs = torchvision.utils.make_grid(x_orig)
             grid_recons = torchvision.utils.make_grid(x_recon)
             if args.choice=="mae":

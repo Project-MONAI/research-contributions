@@ -226,15 +226,15 @@ def build_loader_simmim(args):
         datadir3 = '/dataset/dataset3'
         datadir4 = '/dataset/dataset4'
         datadir5 = '/dataset/dataset8'
-       
+
         datalist2 = load_decathlon_datalist(jsonlist2, False, "training", base_dir=datadir2)
         print('Dataset 2 Covid 19: number of data: {}'.format(len(datalist2)))
-       
+
 
 
         vallist2 = load_decathlon_datalist(jsonlist2, False, "validation", base_dir=datadir2)
 
-        datalist = datalist2 
+        datalist = datalist2
         val_files = vallist2
 
         for i in range(len(datalist)):

@@ -112,15 +112,15 @@ def main():
     args = parser.parse_args()
     args.amp = not args.noamp
     args.logdir = './runs/' + args.logdir
-    determ = args.set_determ    
-    
+    determ = args.set_determ
+
     # deterministic training
     if determ:
         print('####################')
         print('Deterministic Training Set to True with Seed: {}'.format(args.seed))
         print('####################')
         set_determinism(seed=args.seed)
-            
+
     if args.distributed:
         args.ngpus_per_node = torch.cuda.device_count()
         print('Found total gpus', args.ngpus_per_node)
@@ -277,13 +277,13 @@ def main_worker(gpu, args):
                             start_epoch=start_epoch,
                             post_label=post_label,
                             post_pred=post_pred)
-                            
+
     if args.rank == 0 and args.logdir is not None:
         acc_f_name = os.path.join(args.logdir, 'max_acc.txt')
         with open(acc_f_name, "w") as txt_file:
             txt_file.write(str(accuracy))
         txt_file.close()
-                                    
+
     return accuracy
 
 if __name__ == '__main__':

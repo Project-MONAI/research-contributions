@@ -240,5 +240,4 @@ class PatchEmbed(nn.Module):
             elif len(x_shape) == 4:
                 wh, ww = x_shape[2], x_shape[3]
                 x = x.transpose(1, 2).view(-1, self.embed_dim, wh, ww)
-        return x      
-
+        return x

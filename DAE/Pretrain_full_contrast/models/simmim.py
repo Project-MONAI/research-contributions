@@ -403,12 +403,12 @@ class SimMIMSkip(nn.Module):
 
     def forward(self, x, mask):
         z, z_out = self.encoder(x, mask)
-        
+
         x_rec = self.decoder(z,z_out)
 
 
         mask = mask.repeat_interleave(self.patch_size[0], 1).repeat_interleave(self.patch_size[1], 2).repeat_interleave(self.patch_size[2], 3).unsqueeze(1).contiguous()
-        
+
         if self.loss =='mask_only':
             loss_recon = F.l1_loss(x, x_rec, reduction='none')
             loss = (loss_recon * mask).sum() / (mask.sum() + 1e-5) / self.in_chans
@@ -489,4 +489,3 @@ def build_simmim(args):
         raise NotImplementedError(f"Unknown pre-train model: {model_type}")
 
     return model
-
