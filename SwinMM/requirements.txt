@@ -3,7 +3,7 @@ batchgenerators==0.25
 caffe2==0.8.1
 colorama==0.4.6
 Flask==2.3.2
-gevent==23.7.0
+gevent==23.9.0
 gorilla==0.4.0
 hypothesis==6.81.2
 lz4==4.3.2
@@ -28,6 +28,6 @@ torchvision==0.15.2
 tqdm==4.65.0
 transformers==4.30.2
 typing_extensions==4.7.1
-urllib3==1.26.15
+urllib3==1.26.17
 xmlrunner==1.7.7
 xxhash==3.2.0
