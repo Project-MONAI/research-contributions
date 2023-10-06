@@ -4,11 +4,16 @@
 This repository contains the code for Disruptive Auto Encoders (DAE), the DAE model is focused towards learning better representations as it focuses on low-level features of the data via self-supervised learning.
 
 The below figure provides an overview that the 3D medical image is disrupted with a combination of low-level perturbations - noise and downsampling, followed by tokenization and local masking. These disrupted tokens are then passed through a transformer encoder and convolutional decoder to learn to reconstruct the original image. Our method also includes cross modal contrastive learning to bring in modality-awareness to the pre-training framework. This can act as an effective pre-training strategy to extract meaningful low-level representations for 3D medical image analysis.
-![image_1](figs/dae_overview.png)
+
+
+![](figs/dae_overview.png)
+
 
 The reconstruction quality is an indicator that low-level pretraining can provide better representations
 
-![img.png](figs/dae_recon.png)
+
+![](figs/dae_recon.png)
+
 ## Installing Dependencies
 
 Dependencies can be installed using:
