@@ -9,6 +9,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+import pdb
 from typing import Sequence, Tuple, Type, Union
 
 import numpy as np
@@ -16,16 +18,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
+from mlp_new import MLPBlock as Mlp
+from patchembedding import PatchEmbed
 from torch.nn import LayerNorm
 
-from mlp_new import MLPBlock as Mlp
-from monai.networks.blocks import UnetOutBlock, UnetrBasicBlock, UnetrUpBlock
+from monai.networks.blocks import UnetBasicBlock, UnetOutBlock, UnetrBasicBlock, UnetrUpBlock
 from monai.utils import ensure_tuple_rep, optional_import
-from patchembedding import PatchEmbed
-import math
+
 rearrange, _ = optional_import("einops", name="rearrange")
-import pdb
-from monai.networks.blocks import UnetBasicBlock
+
 
 def _no_grad_trunc_normal_(tensor, mean, std, a, b):
     """Tensor initialization with truncated normal distribution.
@@ -74,6 +75,7 @@ def trunc_normal_(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
 
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)
 
+
 class DropPath(nn.Module):
     """Stochastic drop paths per sample for residual blocks.
     Based on:
@@ -105,6 +107,7 @@ class DropPath(nn.Module):
 
     def forward(self, x):
         return self.drop_path(x, self.drop_prob, self.training, self.scale_by_keep)
+
 
 class SwinUNETR(nn.Module):
     """
@@ -297,38 +300,45 @@ class SwinUNETR(nn.Module):
             res_block=True,
         )
 
-
         self.out = UnetOutBlock(
             spatial_dims=spatial_dims, in_channels=feature_size, out_channels=out_channels
         )  # type: ignore
 
     def load_from(self, weights, finetune_choice):
-
-        if finetune_choice=="both":
+        if finetune_choice == "both":
             enc = 1
             dec = 1
-        elif finetune_choice=="encoder":
+        elif finetune_choice == "encoder":
             enc = 1
             dec = 0
-        elif finetune_choice=="decoder":
+        elif finetune_choice == "decoder":
             enc = 0
             dec = 1
-
 
         with torch.no_grad():
             # pdb.set_trace()
 
-            if enc==1:
-                self.swinViT.patch_embed.proj.conv1.conv.weight.copy_(weights["model"]["encoder.patch_embed.proj.conv1.conv.weight"])
-                self.swinViT.patch_embed.proj.conv2.conv.weight.copy_(weights["model"]["encoder.patch_embed.proj.conv2.conv.weight"])
-                self.swinViT.patch_embed.proj.norm1.weight.copy_(weights["model"]["encoder.patch_embed.proj.norm1.weight"])
+            if enc == 1:
+                self.swinViT.patch_embed.proj.conv1.conv.weight.copy_(
+                    weights["model"]["encoder.patch_embed.proj.conv1.conv.weight"]
+                )
+                self.swinViT.patch_embed.proj.conv2.conv.weight.copy_(
+                    weights["model"]["encoder.patch_embed.proj.conv2.conv.weight"]
+                )
+                self.swinViT.patch_embed.proj.norm1.weight.copy_(
+                    weights["model"]["encoder.patch_embed.proj.norm1.weight"]
+                )
                 self.swinViT.patch_embed.proj.norm1.bias.copy_(weights["model"]["encoder.patch_embed.proj.norm1.bias"])
-                self.swinViT.patch_embed.proj.norm2.weight.copy_(weights["model"]["encoder.patch_embed.proj.norm2.weight"])
+                self.swinViT.patch_embed.proj.norm2.weight.copy_(
+                    weights["model"]["encoder.patch_embed.proj.norm2.weight"]
+                )
                 self.swinViT.patch_embed.proj.norm2.bias.copy_(weights["model"]["encoder.patch_embed.proj.norm2.bias"])
 
                 for bname, block in self.swinViT.layers1[0].blocks.named_children():
                     block.load_from(weights, n_block=bname, layer="layers1")
-                self.swinViT.layers1[0].downsample.reduction.weight.copy_(weights["model"]["encoder.layers1.0.0.downsample.reduction.weight"])
+                self.swinViT.layers1[0].downsample.reduction.weight.copy_(
+                    weights["model"]["encoder.layers1.0.0.downsample.reduction.weight"]
+                )
                 self.swinViT.layers1[0].downsample.norm.weight.copy_(
                     weights["model"]["encoder.layers1.0.0.downsample.norm.weight"]
                 )
@@ -370,7 +380,7 @@ class SwinUNETR(nn.Module):
                 )
             #  'encoder1.layer.conv1.conv.weight', 'encoder1.layer.conv2.conv.weight', 'encoder1.layer.conv3.conv.weight'
             # pdb.set_trace()
-            if dec==1:
+            if dec == 1:
                 self.encoder1.layer.conv1.conv.weight.copy_(weights["model"]["encoder1.layer.conv1.conv.weight"])
                 self.encoder1.layer.conv2.conv.weight.copy_(weights["model"]["encoder1.layer.conv2.conv.weight"])
                 self.encoder1.layer.conv3.conv.weight.copy_(weights["model"]["encoder1.layer.conv3.conv.weight"])
@@ -412,29 +422,59 @@ class SwinUNETR(nn.Module):
                 # self.encoder10.layer.conv3.conv.bias.copy_(weights["model"]["encoder10.layer.conv3.conv.bias"])
 
                 self.decoder1.transp_conv.conv.weight.copy_(weights["model"]["decoder1.transp_conv.conv.weight"])
-                self.decoder1.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder1.conv_block.conv1.conv.weight"])
-                self.decoder1.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder1.conv_block.conv2.conv.weight"])
-                self.decoder1.conv_block.conv3.conv.weight.copy_(weights["model"]["decoder1.conv_block.conv3.conv.weight"])
+                self.decoder1.conv_block.conv1.conv.weight.copy_(
+                    weights["model"]["decoder1.conv_block.conv1.conv.weight"]
+                )
+                self.decoder1.conv_block.conv2.conv.weight.copy_(
+                    weights["model"]["decoder1.conv_block.conv2.conv.weight"]
+                )
+                self.decoder1.conv_block.conv3.conv.weight.copy_(
+                    weights["model"]["decoder1.conv_block.conv3.conv.weight"]
+                )
 
                 self.decoder2.transp_conv.conv.weight.copy_(weights["model"]["decoder2.transp_conv.conv.weight"])
-                self.decoder2.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder2.conv_block.conv1.conv.weight"])
-                self.decoder2.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder2.conv_block.conv2.conv.weight"])
-                self.decoder2.conv_block.conv3.conv.weight.copy_(weights["model"]["decoder2.conv_block.conv3.conv.weight"])
+                self.decoder2.conv_block.conv1.conv.weight.copy_(
+                    weights["model"]["decoder2.conv_block.conv1.conv.weight"]
+                )
+                self.decoder2.conv_block.conv2.conv.weight.copy_(
+                    weights["model"]["decoder2.conv_block.conv2.conv.weight"]
+                )
+                self.decoder2.conv_block.conv3.conv.weight.copy_(
+                    weights["model"]["decoder2.conv_block.conv3.conv.weight"]
+                )
 
                 self.decoder3.transp_conv.conv.weight.copy_(weights["model"]["decoder3.transp_conv.conv.weight"])
-                self.decoder3.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder3.conv_block.conv1.conv.weight"])
-                self.decoder3.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder3.conv_block.conv2.conv.weight"])
-                self.decoder3.conv_block.conv3.conv.weight.copy_(weights["model"]["decoder3.conv_block.conv3.conv.weight"])
+                self.decoder3.conv_block.conv1.conv.weight.copy_(
+                    weights["model"]["decoder3.conv_block.conv1.conv.weight"]
+                )
+                self.decoder3.conv_block.conv2.conv.weight.copy_(
+                    weights["model"]["decoder3.conv_block.conv2.conv.weight"]
+                )
+                self.decoder3.conv_block.conv3.conv.weight.copy_(
+                    weights["model"]["decoder3.conv_block.conv3.conv.weight"]
+                )
 
                 self.decoder4.transp_conv.conv.weight.copy_(weights["model"]["decoder4.transp_conv.conv.weight"])
-                self.decoder4.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder4.conv_block.conv1.conv.weight"])
-                self.decoder4.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder4.conv_block.conv2.conv.weight"])
-                self.decoder4.conv_block.conv3.conv.weight.copy_(weights["model"]["decoder4.conv_block.conv3.conv.weight"])
+                self.decoder4.conv_block.conv1.conv.weight.copy_(
+                    weights["model"]["decoder4.conv_block.conv1.conv.weight"]
+                )
+                self.decoder4.conv_block.conv2.conv.weight.copy_(
+                    weights["model"]["decoder4.conv_block.conv2.conv.weight"]
+                )
+                self.decoder4.conv_block.conv3.conv.weight.copy_(
+                    weights["model"]["decoder4.conv_block.conv3.conv.weight"]
+                )
 
                 self.decoder5.transp_conv.conv.weight.copy_(weights["model"]["decoder5.transp_conv.conv.weight"])
-                self.decoder5.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder5.conv_block.conv1.conv.weight"])
-                self.decoder5.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder5.conv_block.conv2.conv.weight"])
-                self.decoder5.conv_block.conv3.conv.weight.copy_(weights["model"]["decoder5.conv_block.conv3.conv.weight"])
+                self.decoder5.conv_block.conv1.conv.weight.copy_(
+                    weights["model"]["decoder5.conv_block.conv1.conv.weight"]
+                )
+                self.decoder5.conv_block.conv2.conv.weight.copy_(
+                    weights["model"]["decoder5.conv_block.conv2.conv.weight"]
+                )
+                self.decoder5.conv_block.conv3.conv.weight.copy_(
+                    weights["model"]["decoder5.conv_block.conv3.conv.weight"]
+                )
 
                 # self.decoder1.layer.conv1.conv.bias.copy_(weights["model"]["decoder1.layer.conv1.conv.bias"])
                 # self.decoder1.layer.conv2.conv.bias.copy_(weights["model"]["decoder1.layer.conv2.conv.bias"])
@@ -456,12 +496,6 @@ class SwinUNETR(nn.Module):
                 # self.decoder5.layer.conv2.conv.bias.copy_(weights["model"]["decoder5.layer.conv2.conv.bias"])
                 # self.decoder5.layer.conv3.conv.bias.copy_(weights["model"]["decoder5.layer.conv3.conv.bias"])
 
-
-
-
-
-
-
     def forward(self, x_in):
         hidden_states_out = self.swinViT(x_in, self.normalize)
         enc0 = self.encoder1(x_in)
@@ -477,6 +511,7 @@ class SwinUNETR(nn.Module):
         out = self.decoder1(dec0, enc0)
         logits = self.out(out)
         return logits
+
 
 class SwinUNETR_OG(nn.Module):
     """
@@ -669,38 +704,45 @@ class SwinUNETR_OG(nn.Module):
             res_block=True,
         )
 
-
         self.out = UnetOutBlock(
             spatial_dims=spatial_dims, in_channels=feature_size, out_channels=out_channels
         )  # type: ignore
 
     def load_from(self, weights, finetune_choice):
-
-        if finetune_choice=="both":
+        if finetune_choice == "both":
             enc = 1
             dec = 1
-        elif finetune_choice=="encoder":
+        elif finetune_choice == "encoder":
             enc = 1
             dec = 0
-        elif finetune_choice=="decoder":
+        elif finetune_choice == "decoder":
             enc = 0
             dec = 1
-
 
         with torch.no_grad():
             # pdb.set_trace()
 
-            if enc==1:
-                self.swinViT.patch_embed.proj.conv1.conv.weight.copy_(weights["model"]["encoder.patch_embed.proj.conv1.conv.weight"])
-                self.swinViT.patch_embed.proj.conv2.conv.weight.copy_(weights["model"]["encoder.patch_embed.proj.conv2.conv.weight"])
-                self.swinViT.patch_embed.proj.norm1.weight.copy_(weights["model"]["encoder.patch_embed.proj.norm1.weight"])
+            if enc == 1:
+                self.swinViT.patch_embed.proj.conv1.conv.weight.copy_(
+                    weights["model"]["encoder.patch_embed.proj.conv1.conv.weight"]
+                )
+                self.swinViT.patch_embed.proj.conv2.conv.weight.copy_(
+                    weights["model"]["encoder.patch_embed.proj.conv2.conv.weight"]
+                )
+                self.swinViT.patch_embed.proj.norm1.weight.copy_(
+                    weights["model"]["encoder.patch_embed.proj.norm1.weight"]
+                )
                 self.swinViT.patch_embed.proj.norm1.bias.copy_(weights["model"]["encoder.patch_embed.proj.norm1.bias"])
-                self.swinViT.patch_embed.proj.norm2.weight.copy_(weights["model"]["encoder.patch_embed.proj.norm2.weight"])
+                self.swinViT.patch_embed.proj.norm2.weight.copy_(
+                    weights["model"]["encoder.patch_embed.proj.norm2.weight"]
+                )
                 self.swinViT.patch_embed.proj.norm2.bias.copy_(weights["model"]["encoder.patch_embed.proj.norm2.bias"])
 
                 for bname, block in self.swinViT.layers1[0].blocks.named_children():
                     block.load_from(weights, n_block=bname, layer="layers1")
-                self.swinViT.layers1[0].downsample.reduction.weight.copy_(weights["model"]["encoder.layers1.0.0.downsample.reduction.weight"])
+                self.swinViT.layers1[0].downsample.reduction.weight.copy_(
+                    weights["model"]["encoder.layers1.0.0.downsample.reduction.weight"]
+                )
                 self.swinViT.layers1[0].downsample.norm.weight.copy_(
                     weights["model"]["encoder.layers1.0.0.downsample.norm.weight"]
                 )
@@ -742,7 +784,7 @@ class SwinUNETR_OG(nn.Module):
                 )
             #  'encoder1.layer.conv1.conv.weight', 'encoder1.layer.conv2.conv.weight', 'encoder1.layer.conv3.conv.weight'
             # pdb.set_trace()
-            if dec==1:
+            if dec == 1:
                 self.encoder1.layer.conv1.conv.weight.copy_(weights["model"]["encoder1.layer.conv1.conv.weight"])
                 self.encoder1.layer.conv2.conv.weight.copy_(weights["model"]["encoder1.layer.conv2.conv.weight"])
                 self.encoder1.layer.conv3.conv.weight.copy_(weights["model"]["encoder1.layer.conv3.conv.weight"])
@@ -784,29 +826,59 @@ class SwinUNETR_OG(nn.Module):
                 # self.encoder10.layer.conv3.conv.bias.copy_(weights["model"]["encoder10.layer.conv3.conv.bias"])
 
                 self.decoder1.transp_conv.conv.weight.copy_(weights["model"]["decoder1.transp_conv.conv.weight"])
-                self.decoder1.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder1.conv_block.conv1.conv.weight"])
-                self.decoder1.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder1.conv_block.conv2.conv.weight"])
-                self.decoder1.conv_block.conv3.conv.weight.copy_(weights["model"]["decoder1.conv_block.conv3.conv.weight"])
+                self.decoder1.conv_block.conv1.conv.weight.copy_(
+                    weights["model"]["decoder1.conv_block.conv1.conv.weight"]
+                )
+                self.decoder1.conv_block.conv2.conv.weight.copy_(
+                    weights["model"]["decoder1.conv_block.conv2.conv.weight"]
+                )
+                self.decoder1.conv_block.conv3.conv.weight.copy_(
+                    weights["model"]["decoder1.conv_block.conv3.conv.weight"]
+                )
 
                 self.decoder2.transp_conv.conv.weight.copy_(weights["model"]["decoder2.transp_conv.conv.weight"])
-                self.decoder2.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder2.conv_block.conv1.conv.weight"])
-                self.decoder2.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder2.conv_block.conv2.conv.weight"])
-                self.decoder2.conv_block.conv3.conv.weight.copy_(weights["model"]["decoder2.conv_block.conv3.conv.weight"])
+                self.decoder2.conv_block.conv1.conv.weight.copy_(
+                    weights["model"]["decoder2.conv_block.conv1.conv.weight"]
+                )
+                self.decoder2.conv_block.conv2.conv.weight.copy_(
+                    weights["model"]["decoder2.conv_block.conv2.conv.weight"]
+                )
+                self.decoder2.conv_block.conv3.conv.weight.copy_(
+                    weights["model"]["decoder2.conv_block.conv3.conv.weight"]
+                )
 
                 self.decoder3.transp_conv.conv.weight.copy_(weights["model"]["decoder3.transp_conv.conv.weight"])
-                self.decoder3.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder3.conv_block.conv1.conv.weight"])
-                self.decoder3.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder3.conv_block.conv2.conv.weight"])
-                self.decoder3.conv_block.conv3.conv.weight.copy_(weights["model"]["decoder3.conv_block.conv3.conv.weight"])
+                self.decoder3.conv_block.conv1.conv.weight.copy_(
+                    weights["model"]["decoder3.conv_block.conv1.conv.weight"]
+                )
+                self.decoder3.conv_block.conv2.conv.weight.copy_(
+                    weights["model"]["decoder3.conv_block.conv2.conv.weight"]
+                )
+                self.decoder3.conv_block.conv3.conv.weight.copy_(
+                    weights["model"]["decoder3.conv_block.conv3.conv.weight"]
+                )
 
                 self.decoder4.transp_conv.conv.weight.copy_(weights["model"]["decoder4.transp_conv.conv.weight"])
-                self.decoder4.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder4.conv_block.conv1.conv.weight"])
-                self.decoder4.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder4.conv_block.conv2.conv.weight"])
-                self.decoder4.conv_block.conv3.conv.weight.copy_(weights["model"]["decoder4.conv_block.conv3.conv.weight"])
+                self.decoder4.conv_block.conv1.conv.weight.copy_(
+                    weights["model"]["decoder4.conv_block.conv1.conv.weight"]
+                )
+                self.decoder4.conv_block.conv2.conv.weight.copy_(
+                    weights["model"]["decoder4.conv_block.conv2.conv.weight"]
+                )
+                self.decoder4.conv_block.conv3.conv.weight.copy_(
+                    weights["model"]["decoder4.conv_block.conv3.conv.weight"]
+                )
 
                 self.decoder5.transp_conv.conv.weight.copy_(weights["model"]["decoder5.transp_conv.conv.weight"])
-                self.decoder5.conv_block.conv1.conv.weight.copy_(weights["model"]["decoder5.conv_block.conv1.conv.weight"])
-                self.decoder5.conv_block.conv2.conv.weight.copy_(weights["model"]["decoder5.conv_block.conv2.conv.weight"])
-                self.decoder5.conv_block.conv3.conv.weight.copy_(weights["model"]["decoder5.conv_block.conv3.conv.weight"])
+                self.decoder5.conv_block.conv1.conv.weight.copy_(
+                    weights["model"]["decoder5.conv_block.conv1.conv.weight"]
+                )
+                self.decoder5.conv_block.conv2.conv.weight.copy_(
+                    weights["model"]["decoder5.conv_block.conv2.conv.weight"]
+                )
+                self.decoder5.conv_block.conv3.conv.weight.copy_(
+                    weights["model"]["decoder5.conv_block.conv3.conv.weight"]
+                )
 
                 # self.decoder1.layer.conv1.conv.bias.copy_(weights["model"]["decoder1.layer.conv1.conv.bias"])
                 # self.decoder1.layer.conv2.conv.bias.copy_(weights["model"]["decoder1.layer.conv2.conv.bias"])
@@ -827,12 +899,6 @@ class SwinUNETR_OG(nn.Module):
                 # self.decoder5.layer.conv1.conv.bias.copy_(weights["model"]["decoder5.layer.conv1.conv.bias"])
                 # self.decoder5.layer.conv2.conv.bias.copy_(weights["model"]["decoder5.layer.conv2.conv.bias"])
                 # self.decoder5.layer.conv3.conv.bias.copy_(weights["model"]["decoder5.layer.conv3.conv.bias"])
-
-
-
-
-
-
 
     def forward(self, x_in):
         hidden_states_out = self.swinViT(x_in, self.normalize)
@@ -1244,7 +1310,6 @@ class PatchMerging(nn.Module):
             self.norm = norm_layer(4 * dim)
 
     def forward(self, x):
-
         x_shape = x.size()
         if len(x_shape) == 5:
             b, d, h, w, c = x_shape
@@ -1418,8 +1483,9 @@ class BasicLayer(nn.Module):
             x = rearrange(x, "b h w c -> b c h w")
         return x
 
+
 class PatchEmbed3D(nn.Module):
-    """ Video to Patch Embedding.
+    """Video to Patch Embedding.
 
     Args:
         patch_size (int): Patch token size. Default: (2,4,4).
@@ -1445,11 +1511,12 @@ class PatchEmbed3D(nn.Module):
         )
         # self.proj = nn.Conv3d(in_chans, embed_dim, kernel_size=patch_size, stride=patch_size)
 
-
     def forward(self, x):
         """Forward function."""
         x = self.proj(x)  # B C D Wh Ww
         return x
+
+
 class SwinTransformer(nn.Module):
     """
     Swin Transformer based on: "Liu et al.,
@@ -1624,7 +1691,7 @@ class SwinTransformerOG(nn.Module):
             in_chans=in_chans,
             embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None,  # type: ignore
-            spatial_dims=spatial_dims
+            spatial_dims=spatial_dims,
         )
         self.pos_drop = nn.Dropout(p=drop_rate)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]

@@ -9,6 +9,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+import pdb
 from typing import Sequence, Type, Union
 
 import numpy as np
@@ -20,9 +22,7 @@ from torch.nn import LayerNorm
 from monai.networks.layers import Conv
 from monai.utils import ensure_tuple_rep, optional_import
 from monai.utils.module import look_up_option
-import pdb
 
-import math
 
 def _no_grad_trunc_normal_(tensor, mean, std, a, b):
     """Tensor initialization with truncated normal distribution.
@@ -70,6 +70,7 @@ def trunc_normal_(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
         raise ValueError("minimum cutoff value (a) should be smaller than maximum cutoff value (b).")
 
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)
+
 
 Rearrange, _ = optional_import("einops.layers.torch", name="Rearrange")
 SUPPORTED_EMBEDDING_TYPES = {"conv", "perceptron"}

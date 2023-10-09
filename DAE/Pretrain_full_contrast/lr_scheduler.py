@@ -1,11 +1,10 @@
-
-from collections import Counter
 from bisect import bisect_right
+from collections import Counter
 
 import torch
 from timm.scheduler.cosine_lr import CosineLRScheduler
-from timm.scheduler.step_lr import StepLRScheduler
 from timm.scheduler.scheduler import Scheduler
+from timm.scheduler.step_lr import StepLRScheduler
 
 
 def build_scheduler(args, optimizer, n_iter_per_epoch):
@@ -15,18 +14,18 @@ def build_scheduler(args, optimizer, n_iter_per_epoch):
     multi_steps = [i * n_iter_per_epoch for i in []]
 
     lr_scheduler = None
-    if args.lr_scheduler_name == 'cosine':
+    if args.lr_scheduler_name == "cosine":
         lr_scheduler = CosineLRScheduler(
             optimizer,
             t_initial=num_steps,
-            t_mul=1.,
+            t_mul=1.0,
             lr_min=args.min_lr,
             warmup_lr_init=args.warmup_lr,
             warmup_t=warmup_steps,
             cycle_limit=1,
             t_in_epochs=False,
         )
-    elif args.lr_scheduler_name == 'linear':
+    elif args.lr_scheduler_name == "linear":
         lr_scheduler = LinearLRScheduler(
             optimizer,
             t_initial=num_steps,
@@ -35,7 +34,7 @@ def build_scheduler(args, optimizer, n_iter_per_epoch):
             warmup_t=warmup_steps,
             t_in_epochs=False,
         )
-    elif args.lr_scheduler_name == 'step':
+    elif args.lr_scheduler_name == "step":
         lr_scheduler = StepLRScheduler(
             optimizer,
             decay_t=decay_steps,
@@ -44,7 +43,7 @@ def build_scheduler(args, optimizer, n_iter_per_epoch):
             warmup_t=warmup_steps,
             t_in_epochs=False,
         )
-    elif args.lr_scheduler_name == 'multistep':
+    elif args.lr_scheduler_name == "multistep":
         lr_scheduler = MultiStepLRScheduler(
             optimizer,
             milestones=multi_steps,
@@ -58,23 +57,29 @@ def build_scheduler(args, optimizer, n_iter_per_epoch):
 
 
 class LinearLRScheduler(Scheduler):
-    def __init__(self,
-                 optimizer: torch.optim.Optimizer,
-                 t_initial: int,
-                 lr_min_rate: float,
-                 warmup_t=0,
-                 warmup_lr_init=0.,
-                 t_in_epochs=True,
-                 noise_range_t=None,
-                 noise_pct=0.67,
-                 noise_std=1.0,
-                 noise_seed=42,
-                 initialize=True,
-                 ) -> None:
+    def __init__(
+        self,
+        optimizer: torch.optim.Optimizer,
+        t_initial: int,
+        lr_min_rate: float,
+        warmup_t=0,
+        warmup_lr_init=0.0,
+        t_in_epochs=True,
+        noise_range_t=None,
+        noise_pct=0.67,
+        noise_std=1.0,
+        noise_seed=42,
+        initialize=True,
+    ) -> None:
         super().__init__(
-            optimizer, param_group_field="lr",
-            noise_range_t=noise_range_t, noise_pct=noise_pct, noise_std=noise_std, noise_seed=noise_seed,
-            initialize=initialize)
+            optimizer,
+            param_group_field="lr",
+            noise_range_t=noise_range_t,
+            noise_pct=noise_pct,
+            noise_std=noise_std,
+            noise_seed=noise_seed,
+            initialize=initialize,
+        )
 
         self.t_initial = t_initial
         self.lr_min_rate = lr_min_rate
@@ -110,7 +115,9 @@ class LinearLRScheduler(Scheduler):
 
 
 class MultiStepLRScheduler(Scheduler):
-    def __init__(self, optimizer: torch.optim.Optimizer, milestones, gamma=0.1, warmup_t=0, warmup_lr_init=0, t_in_epochs=True) -> None:
+    def __init__(
+        self, optimizer: torch.optim.Optimizer, milestones, gamma=0.1, warmup_t=0, warmup_lr_init=0, t_in_epochs=True
+    ) -> None:
         super().__init__(optimizer, param_group_field="lr")
 
         self.milestones = milestones

@@ -1,8 +1,8 @@
-
 import os
+
+import numpy as np
 import torch
 import torch.distributed as dist
-import numpy as np
 from scipy import interpolate
 from tensorboardX import SummaryWriter
 
@@ -24,7 +24,7 @@ class TensorboardLogger(object):
         else:
             self.step += 1
 
-    def update(self, head='scalar', step=None, **kwargs):
+    def update(self, head="scalar", step=None, **kwargs):
         for k, v in kwargs.items():
             if v is None:
                 continue
@@ -33,7 +33,7 @@ class TensorboardLogger(object):
             assert isinstance(v, (float, int))
             self.writer.add_scalar(head + "/" + k, v, self.step if step is None else step)
 
-    def update_img(self, head='images', step=None, **kwargs):
+    def update_img(self, head="images", step=None, **kwargs):
         for k, v in kwargs.items():
             self.writer.add_image(head + "/" + k, v, self.step if step is None else step)
 
@@ -43,43 +43,45 @@ class TensorboardLogger(object):
 
 def load_checkpoint(config, model, optimizer, lr_scheduler, logger):
     logger.info(f">>>>>>>>>> Resuming from {config.MODEL.RESUME} ..........")
-    if config.MODEL.RESUME.startswith('https'):
-        checkpoint = torch.hub.load_state_dict_from_url(
-            config.MODEL.RESUME, map_location='cpu', check_hash=True)
+    if config.MODEL.RESUME.startswith("https"):
+        checkpoint = torch.hub.load_state_dict_from_url(config.MODEL.RESUME, map_location="cpu", check_hash=True)
     else:
-        checkpoint = torch.load(config.MODEL.RESUME, map_location='cpu')
-    msg = model.load_state_dict(checkpoint['model'], strict=False)
+        checkpoint = torch.load(config.MODEL.RESUME, map_location="cpu")
+    msg = model.load_state_dict(checkpoint["model"], strict=False)
     logger.info(msg)
     max_accuracy = 0.0
-    if not config.EVAL_MODE and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+    if not config.EVAL_MODE and "optimizer" in checkpoint and "lr_scheduler" in checkpoint and "epoch" in checkpoint:
+        optimizer.load_state_dict(checkpoint["optimizer"])
+        lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
         config.defrost()
-        config.TRAIN.START_EPOCH = checkpoint['epoch'] + 1
+        config.TRAIN.START_EPOCH = checkpoint["epoch"] + 1
         config.freeze()
-        if 'amp' in checkpoint and config.AMP_OPT_LEVEL != "O0" and checkpoint['config'].AMP_OPT_LEVEL != "O0":
-            amp.load_state_dict(checkpoint['amp'])
+        if "amp" in checkpoint and config.AMP_OPT_LEVEL != "O0" and checkpoint["config"].AMP_OPT_LEVEL != "O0":
+            amp.load_state_dict(checkpoint["amp"])
         logger.info(f"=> loaded successfully '{config.MODEL.RESUME}' (epoch {checkpoint['epoch']})")
-        if 'max_accuracy' in checkpoint:
-            max_accuracy = checkpoint['max_accuracy']
+        if "max_accuracy" in checkpoint:
+            max_accuracy = checkpoint["max_accuracy"]
 
     del checkpoint
     torch.cuda.empty_cache()
     return max_accuracy
 
+
 def save_checkpoint(args, epoch, model, max_accuracy, optimizer, lr_scheduler, logger, best_model=False):
-    save_state = {'model': model.state_dict(),
-                  'optimizer': optimizer.state_dict(),
-                  'lr_scheduler': lr_scheduler.state_dict(),
-                  'max_accuracy': max_accuracy,
-                  'epoch': epoch}
+    save_state = {
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "lr_scheduler": lr_scheduler.state_dict(),
+        "max_accuracy": max_accuracy,
+        "epoch": epoch,
+    }
     if args.amp_opt_level != "O0":
-        save_state['amp'] = amp.state_dict()
+        save_state["amp"] = amp.state_dict()
 
     if best_model:
-        save_path = os.path.join(args.output, f'ckpt_best.pth')
+        save_path = os.path.join(args.output, f"ckpt_best.pth")
     else:
-        save_path = os.path.join(args.output, f'ckpt_epoch_{epoch}.pth')
+        save_path = os.path.join(args.output, f"ckpt_epoch_{epoch}.pth")
     logger.info(f"{save_path} saving......")
     torch.save(save_state, save_path)
     logger.info(f"{save_path} saved !!!")
@@ -94,13 +96,13 @@ def get_grad_norm(parameters, norm_type=2):
     for p in parameters:
         param_norm = p.grad.data.norm(norm_type)
         total_norm += param_norm.item() ** norm_type
-    total_norm = total_norm ** (1. / norm_type)
+    total_norm = total_norm ** (1.0 / norm_type)
     return total_norm
 
 
 def auto_resume_helper(output_dir, logger):
     checkpoints = os.listdir(output_dir)
-    checkpoints = [ckpt for ckpt in checkpoints if ckpt.endswith('pth')]
+    checkpoints = [ckpt for ckpt in checkpoints if ckpt.endswith("pth")]
     logger.info(f"All checkpoints founded in {output_dir}: {checkpoints}")
     if len(checkpoints) > 0:
         latest_checkpoint = max([os.path.join(output_dir, d) for d in checkpoints], key=os.path.getmtime)
@@ -120,19 +122,21 @@ def reduce_tensor(tensor):
 
 def load_pretrained(config, model, logger):
     logger.info(f">>>>>>>>>> Fine-tuned from {config.PRETRAINED} ..........")
-    checkpoint = torch.load(config.PRETRAINED, map_location='cpu')
-    checkpoint_model = checkpoint['model']
+    checkpoint = torch.load(config.PRETRAINED, map_location="cpu")
+    checkpoint_model = checkpoint["model"]
 
-    if any([True if 'encoder.' in k else False for k in checkpoint_model.keys()]):
-        checkpoint_model = {k.replace('encoder.', ''): v for k, v in checkpoint_model.items() if k.startswith('encoder.')}
-        logger.info('Detect pre-trained model, remove [encoder.] prefix.')
+    if any([True if "encoder." in k else False for k in checkpoint_model.keys()]):
+        checkpoint_model = {
+            k.replace("encoder.", ""): v for k, v in checkpoint_model.items() if k.startswith("encoder.")
+        }
+        logger.info("Detect pre-trained model, remove [encoder.] prefix.")
     else:
-        logger.info('Detect non-pre-trained model, pass without doing anything.')
+        logger.info("Detect non-pre-trained model, pass without doing anything.")
 
-    if config.MODEL.TYPE == 'swin':
+    if config.MODEL.TYPE == "swin":
         logger.info(f">>>>>>>>>> Remapping pre-trained keys for SWIN ..........")
         checkpoint = remap_pretrained_keys_swin(model, checkpoint_model, logger)
-    elif config.MODEL.TYPE == 'vit':
+    elif config.MODEL.TYPE == "vit":
         logger.info(f">>>>>>>>>> Remapping pre-trained keys for VIT ..........")
         checkpoint = remap_pretrained_keys_vit(model, checkpoint_model, logger)
     else:
@@ -162,11 +166,11 @@ def remap_pretrained_keys_swin(model, checkpoint_model, logger):
             else:
                 if L1 != L2:
                     logger.info(f"{key}: Interpolate relative_position_bias_table using geo.")
-                    src_size = int(L1 ** 0.5)
-                    dst_size = int(L2 ** 0.5)
+                    src_size = int(L1**0.5)
+                    dst_size = int(L2**0.5)
 
                     def geometric_progression(a, r, n):
-                        return a * (1.0 - r ** n) / (1.0 - r)
+                        return a * (1.0 - r**n) / (1.0 - r)
 
                     left, right = 1.01, 1.5
                     while right - left > 1e-6:
@@ -202,9 +206,13 @@ def remap_pretrained_keys_swin(model, checkpoint_model, logger):
 
                     for i in range(nH1):
                         z = relative_position_bias_table_pretrained[:, i].view(src_size, src_size).float().numpy()
-                        f_cubic = interpolate.interp2d(x, y, z, kind='cubic')
-                        all_rel_pos_bias.append(torch.Tensor(f_cubic(dx, dy)).contiguous().view(-1, 1).to(
-                            relative_position_bias_table_pretrained.device))
+                        f_cubic = interpolate.interp2d(x, y, z, kind="cubic")
+                        all_rel_pos_bias.append(
+                            torch.Tensor(f_cubic(dx, dy))
+                            .contiguous()
+                            .view(-1, 1)
+                            .to(relative_position_bias_table_pretrained.device)
+                        )
 
                     new_rel_pos_bias = torch.cat(all_rel_pos_bias, dim=-1)
                     checkpoint_model[key] = new_rel_pos_bias
@@ -229,7 +237,7 @@ def remap_pretrained_keys_swin(model, checkpoint_model, logger):
 
 def remap_pretrained_keys_vit(model, checkpoint_model, logger):
     # Duplicate shared rel_pos_bias to each layer
-    if getattr(model, 'use_rel_pos_bias', False) and "rel_pos_bias.relative_position_bias_table" in checkpoint_model:
+    if getattr(model, "use_rel_pos_bias", False) and "rel_pos_bias.relative_position_bias_table" in checkpoint_model:
         logger.info("Expand the shared relative position embedding to each transformer block.")
     num_layers = model.get_num_layers()
     rel_pos_bias = checkpoint_model["rel_pos_bias.relative_position_bias_table"]
@@ -254,12 +262,14 @@ def remap_pretrained_keys_vit(model, checkpoint_model, logger):
             src_size = int((src_num_pos - num_extra_tokens) ** 0.5)
             dst_size = int((dst_num_pos - num_extra_tokens) ** 0.5)
             if src_size != dst_size:
-                logger.info("Position interpolate for %s from %dx%d to %dx%d" % (key, src_size, src_size, dst_size, dst_size))
+                logger.info(
+                    "Position interpolate for %s from %dx%d to %dx%d" % (key, src_size, src_size, dst_size, dst_size)
+                )
                 extra_tokens = rel_pos_bias[-num_extra_tokens:, :]
                 rel_pos_bias = rel_pos_bias[:-num_extra_tokens, :]
 
                 def geometric_progression(a, r, n):
-                    return a * (1.0 - r ** n) / (1.0 - r)
+                    return a * (1.0 - r**n) / (1.0 - r)
 
                 left, right = 1.01, 1.5
                 while right - left > 1e-6:
@@ -295,9 +305,8 @@ def remap_pretrained_keys_vit(model, checkpoint_model, logger):
 
                 for i in range(num_attn_heads):
                     z = rel_pos_bias[:, i].view(src_size, src_size).float().numpy()
-                    f = interpolate.interp2d(x, y, z, kind='cubic')
-                    all_rel_pos_bias.append(
-                        torch.Tensor(f(dx, dy)).contiguous().view(-1, 1).to(rel_pos_bias.device))
+                    f = interpolate.interp2d(x, y, z, kind="cubic")
+                    all_rel_pos_bias.append(torch.Tensor(f(dx, dy)).contiguous().view(-1, 1).to(rel_pos_bias.device))
 
                 rel_pos_bias = torch.cat(all_rel_pos_bias, dim=-1)
 
