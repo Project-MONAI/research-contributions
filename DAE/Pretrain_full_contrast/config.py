@@ -1,11 +1,12 @@
 import os
+
 import yaml
 from yacs.config import CfgNode as CN
 
 _C = CN()
 
 # Base config files
-_C.BASE = ['']
+_C.BASE = [""]
 
 # -----------------------------------------------------------------------------
 # Data settings
@@ -19,13 +20,13 @@ _C.DATA.SW_BATCH_SIZE = 4
 # _C.DATA.SMART_CACHE_DATASET = False
 
 # Path to dataset, could be overwritten by command line argument
-_C.DATA.DATA_PATH = ''
+_C.DATA.DATA_PATH = ""
 # Dataset name
-_C.DATA.DATASET = 'imagenet'
+_C.DATA.DATASET = "imagenet"
 # Input image size
 _C.DATA.IMG_SIZE = 96
 # Interpolation to resize image (random, bilinear, bicubic)
-_C.DATA.INTERPOLATION = 'bicubic'
+_C.DATA.INTERPOLATION = "bicubic"
 # Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.
 _C.DATA.PIN_MEMORY = True
 # Number of data loading threads
@@ -41,11 +42,11 @@ _C.DATA.MASK_RATIO = 0.6
 # -----------------------------------------------------------------------------
 _C.MODEL = CN()
 # Model type
-_C.MODEL.TYPE = 'swin'
+_C.MODEL.TYPE = "swin"
 # Model name
-_C.MODEL.NAME = 'swin_base_patch4_window7_224'
+_C.MODEL.NAME = "swin_base_patch4_window7_224"
 # Checkpoint to resume, could be overwritten by command line argument
-_C.MODEL.RESUME = ''
+_C.MODEL.RESUME = ""
 # Number of classes, overwritten in data preparation
 _C.MODEL.NUM_CLASSES = 1000
 # Dropout rate
@@ -63,7 +64,7 @@ _C.MODEL.SWIN.EMBED_DIM = 96
 _C.MODEL.SWIN.DEPTHS = [2, 2, 6, 2]
 _C.MODEL.SWIN.NUM_HEADS = [3, 6, 12, 24]
 _C.MODEL.SWIN.WINDOW_SIZE = 7
-_C.MODEL.SWIN.MLP_RATIO = 4.
+_C.MODEL.SWIN.MLP_RATIO = 4.0
 _C.MODEL.SWIN.QKV_BIAS = True
 _C.MODEL.SWIN.QK_SCALE = None
 _C.MODEL.SWIN.APE = False
@@ -108,7 +109,7 @@ _C.TRAIN.USE_CHECKPOINT = False
 
 # LR scheduler
 _C.TRAIN.LR_SCHEDULER = CN()
-_C.TRAIN.LR_SCHEDULER.NAME = 'cosine'
+_C.TRAIN.LR_SCHEDULER.NAME = "cosine"
 # Epoch interval to decay LR, used in StepLRScheduler
 _C.TRAIN.LR_SCHEDULER.DECAY_EPOCHS = 30
 # LR decay rate, used in StepLRScheduler
@@ -119,7 +120,7 @@ _C.TRAIN.LR_SCHEDULER.MULTISTEPS = []
 
 # Optimizer
 _C.TRAIN.OPTIMIZER = CN()
-_C.TRAIN.OPTIMIZER.NAME = 'adamw'
+_C.TRAIN.OPTIMIZER.NAME = "adamw"
 # Optimizer Epsilon
 _C.TRAIN.OPTIMIZER.EPS = 1e-8
 # Optimizer Betas
@@ -137,11 +138,11 @@ _C.AUG = CN()
 # Color jitter factor
 _C.AUG.COLOR_JITTER = 0.4
 # Use AutoAugment policy. "v0" or "original"
-_C.AUG.AUTO_AUGMENT = 'rand-m9-mstd0.5-inc1'
+_C.AUG.AUTO_AUGMENT = "rand-m9-mstd0.5-inc1"
 # Random erase prob
 _C.AUG.REPROB = 0.25
 # Random erase mode
-_C.AUG.REMODE = 'pixel'
+_C.AUG.REMODE = "pixel"
 # Random erase count
 _C.AUG.RECOUNT = 1
 # Mixup alpha, mixup enabled if > 0
@@ -155,7 +156,7 @@ _C.AUG.MIXUP_PROB = 1.0
 # Probability of switching to cutmix when both mixup and cutmix enabled
 _C.AUG.MIXUP_SWITCH_PROB = 0.5
 # How to apply mixup/cutmix params. Per "batch", "pair", or "elem"
-_C.AUG.MIXUP_MODE = 'batch'
+_C.AUG.MIXUP_MODE = "batch"
 
 # -----------------------------------------------------------------------------
 # Testing settings
@@ -169,11 +170,11 @@ _C.TEST.CROP = True
 # -----------------------------------------------------------------------------
 # Mixed precision opt level, if O0, no amp is used ('O0', 'O1', 'O2')
 # overwritten by command line argument
-_C.AMP_OPT_LEVEL = ''
+_C.AMP_OPT_LEVEL = ""
 # Path to output folder, overwritten by command line argument
-_C.OUTPUT = ''
+_C.OUTPUT = ""
 # Tag of experiment, overwritten by command line argument
-_C.TAG = 'default'
+_C.TAG = "default"
 # Frequency to save checkpoint
 _C.SAVE_FREQ = 1
 # Frequency to logging info
@@ -188,20 +189,18 @@ _C.THROUGHPUT_MODE = False
 _C.LOCAL_RANK = 0
 
 # [SimMIM] path to pre-trained model
-_C.PRETRAINED = ''
+_C.PRETRAINED = ""
 
 
 def _update_config_from_file(config, cfg_file):
     config.defrost()
-    with open(cfg_file, 'r') as f:
+    with open(cfg_file, "r") as f:
         yaml_cfg = yaml.load(f, Loader=yaml.FullLoader)
 
-    for cfg in yaml_cfg.setdefault('BASE', ['']):
+    for cfg in yaml_cfg.setdefault("BASE", [""]):
         if cfg:
-            _update_config_from_file(
-                config, os.path.join(os.path.dirname(cfg_file), cfg)
-            )
-    print('=> merge config from {}'.format(cfg_file))
+            _update_config_from_file(config, os.path.join(os.path.dirname(cfg_file), cfg))
+    print("=> merge config from {}".format(cfg_file))
     config.merge_from_file(cfg_file)
     config.freeze()
 
@@ -214,32 +213,32 @@ def update_config(config, args):
         config.merge_from_list(args.opts)
 
     def _check_args(name):
-        if hasattr(args, name) and eval(f'args.{name}'):
+        if hasattr(args, name) and eval(f"args.{name}"):
             return True
         return False
 
     # merge from specific arguments
-    if _check_args('batch_size'):
+    if _check_args("batch_size"):
         config.DATA.BATCH_SIZE = args.batch_size
-    if _check_args('data_path'):
+    if _check_args("data_path"):
         config.DATA.DATA_PATH = args.data_path
-    if _check_args('resume'):
+    if _check_args("resume"):
         config.MODEL.RESUME = args.resume
-    if _check_args('pretrained'):
+    if _check_args("pretrained"):
         config.PRETRAINED = args.pretrained
-    if _check_args('accumulation_steps'):
+    if _check_args("accumulation_steps"):
         config.TRAIN.ACCUMULATION_STEPS = args.accumulation_steps
-    if _check_args('use_checkpoint'):
+    if _check_args("use_checkpoint"):
         config.TRAIN.USE_CHECKPOINT = True
-    if _check_args('amp_opt_level'):
+    if _check_args("amp_opt_level"):
         config.AMP_OPT_LEVEL = args.amp_opt_level
-    if _check_args('output'):
+    if _check_args("output"):
         config.OUTPUT = args.output
-    if _check_args('tag'):
+    if _check_args("tag"):
         config.TAG = args.tag
-    if _check_args('eval'):
+    if _check_args("eval"):
         config.EVAL_MODE = True
-    if _check_args('throughput'):
+    if _check_args("throughput"):
         config.THROUGHPUT_MODE = True
 
     # set local rank for distributed training

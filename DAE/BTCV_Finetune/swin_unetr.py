@@ -9,27 +9,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Sequence, Tuple, Type, Union
+import math
 import pdb
+from typing import Sequence, Tuple, Type, Union
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
+from mlp_new import MLPBlock as Mlp
+from patchembedding import PatchEmbed
 from torch.nn import LayerNorm
 
-from mlp_new import MLPBlock as Mlp
 from monai.networks.blocks import UnetOutBlock, UnetrBasicBlock, UnetrUpBlock
+
 # from monai.networks.layers import trunc_normal_
 from monai.utils import ensure_tuple_rep, optional_import
 
-from patchembedding import PatchEmbed
-
-
 rearrange, _ = optional_import("einops", name="rearrange")
 
-
-import math
 
 def _no_grad_trunc_normal_(tensor, mean, std, a, b):
     """Tensor initialization with truncated normal distribution.
@@ -78,6 +77,7 @@ def trunc_normal_(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
 
     return _no_grad_trunc_normal_(tensor, mean, std, a, b)
 
+
 class DropPath(nn.Module):
     """Stochastic drop paths per sample for residual blocks.
     Based on:
@@ -109,6 +109,7 @@ class DropPath(nn.Module):
 
     def forward(self, x):
         return self.drop_path(x, self.drop_prob, self.training, self.scale_by_keep)
+
 
 class SwinUNETR(nn.Module):
     """
@@ -306,7 +307,6 @@ class SwinUNETR(nn.Module):
         )  # type: ignore
 
     def load_from(self, weights):
-
         with torch.no_grad():
             self.swinViT.patch_embed.proj.weight.copy_(weights["state_dict"]["module.patch_embed.proj.weight"])
             self.swinViT.patch_embed.proj.bias.copy_(weights["state_dict"]["module.patch_embed.proj.bias"])
@@ -516,8 +516,8 @@ class SwinUNETR2(nn.Module):
         )
         self.decoder5 = nn.Conv3d(16 * feature_size, 4 * feature_size, kernel_size=3, stride=1, padding=1)
         self.decoder4 = nn.Conv3d(4 * feature_size, 2 * feature_size, kernel_size=3, stride=1, padding=1)
-        self.decoder3 = nn.Conv3d(2 * feature_size,  feature_size, kernel_size=3, stride=1, padding=1)
-        self.decoder2  = nn.Conv3d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.decoder3 = nn.Conv3d(2 * feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.decoder2 = nn.Conv3d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
         # self.decoder5 = nn.Conv3D(16 * feature_size, 4 * feature_size, kernel_size=3, stride=1, padding=1)
         # self.decoder5 = UnetrUpBlock(
@@ -574,7 +574,6 @@ class SwinUNETR2(nn.Module):
         )  # type: ignore
 
     def load_from(self, weights):
-
         with torch.no_grad():
             self.swinViT.patch_embed.proj.weight.copy_(weights["state_dict"]["module.patch_embed.proj.weight"])
             self.swinViT.patch_embed.proj.bias.copy_(weights["state_dict"]["module.patch_embed.proj.bias"])
@@ -636,13 +635,13 @@ class SwinUNETR2(nn.Module):
         enc3 = self.encoder4(hidden_states_out[2])
         enc4 = self.encoder10(hidden_states_out[4])
         # pdb.set_trace()
-        dec4 = F.relu(F.upsample(self.decoder5(enc4),size=(int(x_size/8),int(y_size/8),int(z_size/8))))
+        dec4 = F.relu(F.upsample(self.decoder5(enc4), size=(int(x_size / 8), int(y_size / 8), int(z_size / 8))))
         dec4 = dec4 + enc3
-        dec3 = F.relu(F.upsample(self.decoder4(dec4),size=(int(x_size/4),int(y_size/4),int(z_size/4))))
+        dec3 = F.relu(F.upsample(self.decoder4(dec4), size=(int(x_size / 4), int(y_size / 4), int(z_size / 4))))
         dec3 = dec3 + enc2
-        dec2 = F.relu(F.upsample(self.decoder3(dec3),size=(int(x_size/2),int(y_size/2),int(z_size/2))))
+        dec2 = F.relu(F.upsample(self.decoder3(dec3), size=(int(x_size / 2), int(y_size / 2), int(z_size / 2))))
         dec2 = dec2 + enc1
-        dec1 = F.relu(F.upsample(self.decoder2(dec2),size=(x_size,y_size,z_size)))
+        dec1 = F.relu(F.upsample(self.decoder2(dec2), size=(x_size, y_size, z_size)))
         out = dec1 + enc0
         # pdb.set_trace()
         logits = self.out(out)
@@ -792,8 +791,8 @@ class SwinUNETR2_bn(nn.Module):
         )
         self.decoder5 = nn.Conv3d(16 * feature_size, 4 * feature_size, kernel_size=3, stride=1, padding=1)
         self.decoder4 = nn.Conv3d(4 * feature_size, 2 * feature_size, kernel_size=3, stride=1, padding=1)
-        self.decoder3 = nn.Conv3d(2 * feature_size,  feature_size, kernel_size=3, stride=1, padding=1)
-        self.decoder2  = nn.Conv3d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.decoder3 = nn.Conv3d(2 * feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.decoder2 = nn.Conv3d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
         # self.decoder5 = nn.Conv3D(16 * feature_size, 4 * feature_size, kernel_size=3, stride=1, padding=1)
         # self.decoder5 = UnetrUpBlock(
@@ -850,21 +849,20 @@ class SwinUNETR2_bn(nn.Module):
         self.bn1_e = nn.BatchNorm3d(feature_size)
         self.bn1_d = nn.BatchNorm3d(feature_size)
 
-        self.bn2_e = nn.BatchNorm3d(feature_size*2)
-        self.bn2_d = nn.BatchNorm3d(feature_size*2)
+        self.bn2_e = nn.BatchNorm3d(feature_size * 2)
+        self.bn2_d = nn.BatchNorm3d(feature_size * 2)
 
-        self.bn3_e = nn.BatchNorm3d(feature_size*4)
-        self.bn3_d = nn.BatchNorm3d(feature_size*4)
+        self.bn3_e = nn.BatchNorm3d(feature_size * 4)
+        self.bn3_d = nn.BatchNorm3d(feature_size * 4)
 
-        self.bn4_e = nn.BatchNorm3d(feature_size*16)
-        self.bn4_d = nn.BatchNorm3d(feature_size*16)
+        self.bn4_e = nn.BatchNorm3d(feature_size * 16)
+        self.bn4_d = nn.BatchNorm3d(feature_size * 16)
 
         self.out = UnetOutBlock(
             spatial_dims=spatial_dims, in_channels=feature_size, out_channels=out_channels
         )  # type: ignore
 
     def load_from(self, weights):
-
         with torch.no_grad():
             self.swinViT.patch_embed.proj.weight.copy_(weights["state_dict"]["module.patch_embed.proj.weight"])
             self.swinViT.patch_embed.proj.bias.copy_(weights["state_dict"]["module.patch_embed.proj.bias"])
@@ -926,17 +924,24 @@ class SwinUNETR2_bn(nn.Module):
         enc3 = self.encoder4(hidden_states_out[2])
         enc4 = self.encoder10(hidden_states_out[4])
         # pdb.set_trace()
-        dec4 = F.leaky_relu(self.bn3_d(F.upsample(self.decoder5(enc4),size=(int(x_size/8),int(y_size/8),int(z_size/8)))))
+        dec4 = F.leaky_relu(
+            self.bn3_d(F.upsample(self.decoder5(enc4), size=(int(x_size / 8), int(y_size / 8), int(z_size / 8))))
+        )
         dec4 = dec4 + enc3
-        dec3 = F.leaky_relu(self.bn2_d(F.upsample(self.decoder4(dec4),size=(int(x_size/4),int(y_size/4),int(z_size/4)))))
+        dec3 = F.leaky_relu(
+            self.bn2_d(F.upsample(self.decoder4(dec4), size=(int(x_size / 4), int(y_size / 4), int(z_size / 4))))
+        )
         dec3 = dec3 + enc2
-        dec2 = F.leaky_relu(self.bn1_d(F.upsample(self.decoder3(dec3),size=(int(x_size/2),int(y_size/2),int(z_size/2)))))
+        dec2 = F.leaky_relu(
+            self.bn1_d(F.upsample(self.decoder3(dec3), size=(int(x_size / 2), int(y_size / 2), int(z_size / 2))))
+        )
         dec2 = dec2 + enc1
-        dec1 = F.leaky_relu(self.bn0_d(F.upsample(self.decoder2(dec2),size=(x_size,y_size,z_size))))
+        dec1 = F.leaky_relu(self.bn0_d(F.upsample(self.decoder2(dec2), size=(x_size, y_size, z_size))))
         out = dec1 + enc0
         # pdb.set_trace()
         logits = self.out(out)
         return logits
+
 
 def window_partition(x, window_size):
     """window partition operation based on: "Liu et al.,
@@ -1331,7 +1336,6 @@ class PatchMerging(nn.Module):
             self.norm = norm_layer(4 * dim)
 
     def forward(self, x):
-
         x_shape = x.size()
         if len(x_shape) == 5:
             b, d, h, w, c = x_shape
