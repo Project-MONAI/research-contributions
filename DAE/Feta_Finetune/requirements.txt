@@ -3,4 +3,4 @@ nibabel==3.1.1
 tqdm==4.59.0
 einops==0.4.1
 tensorboardX==2.1
-scipy==1.2.1
+scipy==1.10.0
