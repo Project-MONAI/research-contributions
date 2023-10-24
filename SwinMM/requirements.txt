@@ -28,6 +28,6 @@ torchvision==0.15.2
 tqdm==4.65.0
 transformers==4.30.2
 typing_extensions==4.7.1
-urllib3==1.26.17
+urllib3==1.26.18
 xmlrunner==1.7.7
 xxhash==3.2.0
