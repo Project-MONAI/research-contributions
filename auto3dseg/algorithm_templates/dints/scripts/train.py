@@ -17,6 +17,8 @@ import gc
 import io
 import logging
 import math
+import mlflow
+import mlflow.pytorch
 import os
 import random
 import sys
@@ -526,6 +528,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
+        mlflow.set_tracking_uri(os.path.join(ckpt_path, "mlruns"))
+
+        mlflow.start_run(run_name=f'dints - fold{fold} - train')
 
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
@@ -618,6 +623,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 f"[{str(datetime.now())[:19]}] " + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}"
                             )
                             writer.add_scalar("train/loss", loss.item(), epoch_len * _round + step)
+                            mlflow.log_metric('train/loss', loss.item(), step=epoch_len * _round + step)
 
                 lr_scheduler.step()
 
@@ -760,8 +766,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 writer.add_scalar(
                                     f"val_class/acc_{class_names[_c]}", metric[2 * _c] / metric[2 * _c + 1], epoch
                                 )
+                                mlflow.log_metric(f"val_class/acc_{class_names[_c]}", metric[2 * _c] / metric[2 * _c + 1], step=epoch)
                             except BaseException:
                                 writer.add_scalar(f"val_class/acc_{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
+                                mlflow.log_metric(f"val_class/acc_{_c}", metric[2 * _c] / metric[2 * _c + 1], step=epoch)
 
                         avg_metric = 0
                         for _c in range(metric_dim):
@@ -770,6 +778,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         logger.debug(f"avg_metric: {avg_metric}")
 
                         writer.add_scalar("val/acc", avg_metric, epoch)
+                        mlflow.log_metric("val/acc", avg_metric, step=epoch)
 
                         if torch.cuda.device_count() > 1:
                             torch.save(model.module.state_dict(), os.path.join(ckpt_path, "current_model.pt"))
@@ -964,6 +973,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
         writer.flush()
         writer.close()
+
+        mlflow.end_run()
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         if (not valid_at_orig_resolution_only) and es and (_round + 1) < num_rounds:
