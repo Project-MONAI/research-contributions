@@ -10,6 +10,10 @@ python auto3dseg/tests/test_algo_templates.py
 python auto3dseg/tests/test_gpu_customization.py
 ```
 
+## Version control
+
+If the folder `auto3dseg` is changed, a new `version` and the corresponding `changelog` should be added into the `metadata.json` file.
+
 ## Adding new templates
 
 ### Class/Folder naming convention
