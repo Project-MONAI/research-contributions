@@ -19,7 +19,7 @@ training:
   num_images_per_batch: 2
   num_epochs: 200
   num_epochs_per_validation: 2
-  num_patches_per_image: 1
+  num_crops_per_image: 1
   num_patches_per_iter: 1
   num_sw_batch_size: null
   num_workers: 8
@@ -28,10 +28,10 @@ training:
   output_classes: null
   overlap_ratio_train: 0.125
   overlap_ratio: 0.625
-  patch_size: null
-  patch_size_valid: null
+  roi_size: null
+  roi_size_valid: null
   random_seed: 0
-  resample_to_spacing: null
+  resample_resolution: null
   sw_input_on_cpu: false
   softmax: true
   valid_at_orig_resolution_at_last: true
@@ -49,7 +49,7 @@ training:
   train_cache_rate: "$@training#cache_rate"
   validate_cache_rate: "$@training#cache_rate"
   transforms:
-    resample_to_spacing: "$@training#resample_to_spacing"
+    resample_to_spacing: "$@training#resample_resolution"
 
   loss:
     _target_: DiceFocalLoss

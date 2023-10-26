@@ -34,7 +34,7 @@ transforms_train:
     track_meta: true
   - _target_: SpatialPadd
     keys: ["@image_key", "@label_key"]
-    spatial_size: "@training#patch_size"
+    spatial_size: "@training#roi_size"
     mode: [constant, constant]
 
   - _target_: IdentityD  # make the label uptodate (the next transform requires label_key input)
@@ -45,8 +45,8 @@ transforms_train:
     keys: ["@image_key", "@label_key"]
     label_key: "@label_key"
     num_classes: "@training#output_classes"
-    spatial_size: "@training#patch_size"
-    num_samples: "@training#num_patches_per_image"
+    spatial_size: "@training#roi_size"
+    num_samples: "@training#num_crops_per_image"
     warn: false
   - _target_: RandRotated
     keys: ["@image_key", "@label_key"]

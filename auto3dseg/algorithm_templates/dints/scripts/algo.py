@@ -111,13 +111,13 @@ class DintsAlgo(BundleAlgo):
             hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
             hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
 
-            hyper_parameters.update({"training#patch_size": patch_size})
-            hyper_parameters.update({"training#patch_size_valid": patch_size})
+            hyper_parameters.update({"training#roi_size": patch_size})
+            hyper_parameters.update({"training#roi_size_valid": patch_size})
             hyper_parameters.update({"training#input_channels": input_channels})
             hyper_parameters.update({"training#output_classes": output_classes})
 
-            hyper_parameters_search.update({"searching#patch_size": patch_size})
-            hyper_parameters_search.update({"searching#patch_size_valid": patch_size})
+            hyper_parameters_search.update({"searching#roi_size": patch_size})
+            hyper_parameters_search.update({"searching#roi_size_valid": patch_size})
             hyper_parameters_search.update({"searching#input_channels": input_channels})
             hyper_parameters_search.update({"searching#output_classes": output_classes})
 
@@ -252,8 +252,8 @@ class DintsAlgo(BundleAlgo):
                                 "keys": ["@image_key", "@label_key"],
                                 "label_key": "crop_label",
                                 "num_classes": None,
-                                "spatial_size": "@training#patch_size",
-                                "num_samples": "@training#num_patches_per_image",
+                                "spatial_size": "@training#roi_size",
+                                "num_samples": "@training#num_crops_per_image",
                                 "warn": False,
                             },
                             {"_target_": "Lambdad", "keys": "crop_label", "func": f"$lambda x: 0"},
