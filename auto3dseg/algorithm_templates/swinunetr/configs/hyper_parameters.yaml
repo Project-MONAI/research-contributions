@@ -5,7 +5,7 @@ data_list_file_path: null
 fold: 0
 
 transforms:
-  resample_to_spacing: "$@resample_to_spacing"
+  resample_resolution: "$@resample_resolution"
   lazy_resampling: false
 cache_rate: 0
 train_cache_rate: "$@cache_rate"
@@ -21,7 +21,7 @@ num_images_per_batch: 2
 num_epochs: null
 auto_scale_max_epochs: 1000
 num_epochs_per_validation: 5
-num_patches_per_image: null
+num_crops_per_image: null
 num_patches_per_iter: null
 num_sw_batch_size: "$@num_patches_per_iter"
 num_workers: 8
@@ -31,10 +31,10 @@ output_classes: null
 n_cases: null
 overlap_ratio: 0.125
 overlap_ratio_final: 0.625
-patch_size: null
-patch_size_valid: null
+roi_size: null
+roi_size_valid: null
 random_seed: 0
-resample_to_spacing: null
+resample_resolution: null
 sw_input_on_cpu: false
 softmax: true
 valid_at_orig_resolution_at_last: true

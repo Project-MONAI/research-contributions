@@ -14,7 +14,7 @@ transforms_train:
     axcodes: RAS
   - _target_: Spacingd
     keys: ["@image_key", "@label_key"]
-    pixdim: "$@transforms#resample_to_spacing"
+    pixdim: "$@transforms#resample_resolution"
     mode: [bilinear, nearest]
     align_corners: [true, true]
   - _target_: CastToTyped
@@ -25,7 +25,7 @@ transforms_train:
     track_meta: true
   - _target_: SpatialPadd
     keys: ["@image_key", "@label_key"]
-    spatial_size: "@patch_size"
+    spatial_size: "@roi_size"
     mode: [constant, constant]
 
   - _target_: IdentityD  # make the label uptodate (the next transform requires label_key input)
@@ -36,8 +36,8 @@ transforms_train:
     keys: ["@image_key", "@label_key"]
     label_key: "@label_key"
     num_classes: "@output_classes"
-    spatial_size: "@patch_size"
-    num_samples: "@num_patches_per_image"
+    spatial_size: "@roi_size"
+    num_samples: "@num_crops_per_image"
     warn: false
 
   - _target_: IdentityD   # make image up-to-date, before this line the cropping hasn't been applied

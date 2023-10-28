@@ -49,12 +49,12 @@ def auto_scale(output_classes, n_cases, max_epoch=1000):
 
     # fixed two iters per whole image, each iter with num_patches_per_iter
     num_patches_per_iter = batch_size
-    num_patches_per_image = batch_size * 2
-    # heuristics for 400k patch iteration. epoch * n_cases * num_patches_per_image = total 400k patch
-    num_epochs = min(max_epoch, int(400000 / n_cases / num_patches_per_image))
+    num_crops_per_image = batch_size * 2
+    # heuristics for 800k patch iteration. epoch * n_cases * num_crops_per_image = total 400k patch
+    num_epochs = min(max_epoch, int(800000 / n_cases / num_crops_per_image))
     return {
         "num_patches_per_iter": num_patches_per_iter,
-        "num_patches_per_image": num_patches_per_image,
+        "num_crops_per_image": num_crops_per_image,
         "num_epochs": num_epochs,
     }
 
@@ -89,10 +89,10 @@ class SwinunetrAlgo(BundleAlgo):
             transforms_validate = {}
             transforms_infer = {}
 
-            patch_size = [96, 96, 96]
+            roi_size = [96, 96, 96]
             max_shape = data_stats["stats_summary#image_stats#shape#max"]
-            patch_size = [
-                max(64, shape_k // 64 * 64) if shape_k < p_k else p_k for p_k, shape_k in zip(patch_size, max_shape)
+            roi_size = [
+                max(64, shape_k // 64 * 64) if shape_k < p_k else p_k for p_k, shape_k in zip(roi_size, max_shape)
             ]
 
             try:
@@ -114,8 +114,8 @@ class SwinunetrAlgo(BundleAlgo):
             hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
             hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
 
-            hyper_parameters.update({"patch_size": patch_size})
-            hyper_parameters.update({"patch_size_valid": patch_size})
+            hyper_parameters.update({"roi_size": roi_size})
+            hyper_parameters.update({"roi_size_valid": roi_size})
             hyper_parameters.update({"input_channels": input_channels})
             hyper_parameters.update({"output_classes": output_classes})
             hyper_parameters.update({"n_cases": n_cases})
@@ -127,11 +127,11 @@ class SwinunetrAlgo(BundleAlgo):
             if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
                 spacing = [1.0, 1.0, 1.0]
 
-            hyper_parameters.update({"resample_to_spacing": spacing})
+            hyper_parameters.update({"resample_resolution": spacing})
 
             scaled = auto_scale(output_classes, n_cases, max_epoch=1000)
             hyper_parameters.update({"num_patches_per_iter": scaled["num_patches_per_iter"]})
-            hyper_parameters.update({"num_patches_per_image": scaled["num_patches_per_image"]})
+            hyper_parameters.update({"num_crops_per_image": scaled["num_crops_per_image"]})
             hyper_parameters.update({"num_epochs": scaled["num_epochs"]})
 
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])

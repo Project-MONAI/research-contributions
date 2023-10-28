@@ -21,6 +21,8 @@ import random
 import sys
 import time
 import warnings
+import mlflow
+import mlflow.pytorch
 from datetime import datetime
 from typing import Optional, Sequence, Union
 
@@ -44,7 +46,7 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
-from monai.utils import set_determinism
+from monai.utils import RankFilter, set_determinism
 
 if __package__ in (None, ""):
     from algo import auto_scale
@@ -58,7 +60,7 @@ CONFIG = {
     "loggers": {
         "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
-    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+    "filters": {"rank_filter": {"()": RankFilter}},
     "handlers": {
         "file": {
             "class": "logging.FileHandler",
@@ -120,7 +122,7 @@ def pre_operation(config_file, **override):
                     n_cases = parser["n_cases"]
                     scaled = auto_scale(output_classes, n_cases, max_epoch)
                     parser.update({"num_patches_per_iter": scaled["num_patches_per_iter"]})
-                    parser.update({"num_patches_per_image": scaled["num_patches_per_image"]})
+                    parser.update({"num_crops_per_image": scaled["num_crops_per_image"]})
                     parser.update({"num_epochs": scaled["num_epochs"]})
                     ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
     return
@@ -164,7 +166,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     output_classes = parser.get_parsed_content("output_classes")
     overlap_ratio = parser.get_parsed_content("overlap_ratio")
     overlap_ratio_final = parser.get_parsed_content("overlap_ratio_final")
-    patch_size_valid = parser.get_parsed_content("patch_size_valid")
+    roi_size_valid = parser.get_parsed_content("roi_size_valid")
     random_seed = parser.get_parsed_content("random_seed")
     sw_input_on_cpu = parser.get_parsed_content("sw_input_on_cpu")
     softmax = parser.get_parsed_content("softmax")
@@ -398,7 +400,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
-
+        mlflow.set_tracking_uri(os.path.join(ckpt_path, "mlruns"))
+        mlflow.start_run(run_name=f'swinunetr - fold{fold} - train')
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
 
@@ -410,7 +413,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     # To increase speed, the training script is not based on epoch, but based on validation rounds.
     # In each batch, num_images_per_batch=2 whole 3D images are loaded into CPU for data transformation
-    # num_patches_per_image=2*num_patches_per_iter is extracted from each 3D image, in each iteration,
+    # num_crops_per_image=2*num_patches_per_iter is extracted from each 3D image, in each iteration,
     # num_patches_per_iter patches is used for training (real batch size on each GPU).
     num_rounds = int(np.ceil(float(num_epochs) // float(num_epochs_per_validation)))
     if num_rounds == 0:
@@ -558,7 +561,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 with autocast(enabled=amp):
                                     val_outputs = sliding_window_inference(
                                         inputs=val_data["image"].to(_device_in),
-                                        roi_size=patch_size_valid,
+                                        roi_size=roi_size_valid,
                                         sw_batch_size=num_sw_batch_size,
                                         predictor=model,
                                         mode="gaussian",
@@ -702,7 +705,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             with autocast(enabled=amp):
                                 val_data["pred"] = sliding_window_inference(
                                     inputs=val_data["image"].to(_device_in),
-                                    roi_size=patch_size_valid,
+                                    roi_size=roi_size_valid,
                                     sw_batch_size=num_sw_batch_size,
                                     predictor=model,
                                     mode="gaussian",
