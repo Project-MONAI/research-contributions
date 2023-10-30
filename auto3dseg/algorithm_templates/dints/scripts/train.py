@@ -160,7 +160,7 @@ def pre_operation(config_file, **override):
                     batch_size = max(batch_size, 1)
 
                     parser["training"].update({"num_patches_per_iter": batch_size})
-                    parser["training"].update({"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update({"num_crops_per_image": 2 * batch_size})
 
                     # estimate data size based on number of images and image
                     # size
@@ -175,7 +175,7 @@ def pre_operation(config_file, **override):
                     except BaseException:
                         pass
 
-                    _patch_size = parser["training"]["patch_size"]
+                    _patch_size = parser["training"]["roi_size"]
                     _factor *= 96.0 / float(_patch_size[0])
                     _factor *= 96.0 / float(_patch_size[1])
                     _factor *= 96.0 / float(_patch_size[2])
@@ -248,7 +248,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
     overlap_ratio_train = parser.get_parsed_content("training#overlap_ratio_train")
-    patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
+    patch_size_valid = parser.get_parsed_content("training#roi_size_valid")
     random_seed = parser.get_parsed_content("training#random_seed")
     softmax = parser.get_parsed_content("training#softmax")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")

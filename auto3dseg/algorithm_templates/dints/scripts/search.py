@@ -104,11 +104,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     num_epochs = parser.get_parsed_content("searching#num_epochs")
     num_epochs_per_validation = parser.get_parsed_content("searching#num_epochs_per_validation")
     num_epochs_warmup = parser.get_parsed_content("searching#num_warmup_epochs")
-    num_patches_per_image = parser.get_parsed_content("searching#num_patches_per_image")
+    num_crops_per_image = parser.get_parsed_content("searching#num_crops_per_image")
     num_sw_batch_size = parser.get_parsed_content("searching#num_sw_batch_size")
     output_classes = parser.get_parsed_content("searching#output_classes")
     overlap_ratio = parser.get_parsed_content("searching#overlap_ratio")
-    patch_size_valid = parser.get_parsed_content("searching#patch_size_valid")
+    patch_size_valid = parser.get_parsed_content("searching#roi_size_valid")
     ram_cost_factor = parser.get_parsed_content("searching#ram_cost_factor")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     softmax = parser.get_parsed_content("searching#softmax")
@@ -119,7 +119,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             "crop" in parser["transforms_train"]["transforms"][_i]["_target_"].lower()
             and "num_samples" in parser["transforms_train"]["transforms"][_i]
         ):
-            parser["transforms_train"]["transforms"][_i]["num_samples"] = num_patches_per_image
+            parser["transforms_train"]["transforms"][_i]["num_samples"] = num_crops_per_image
 
     train_transforms = parser.get_parsed_content("transforms_train")
     val_transforms = parser.get_parsed_content("transforms_validate")

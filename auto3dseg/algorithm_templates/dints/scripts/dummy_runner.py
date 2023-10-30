@@ -35,8 +35,8 @@ class DummyRunnerDiNTS(object):
         self.device = torch.device("cuda:{0:d}".format(device_id))
 
         self.input_channels = parser.get_parsed_content("training#input_channels")
-        self.patch_size = parser.get_parsed_content("training#patch_size")
-        self.patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
+        self.patch_size = parser.get_parsed_content("training#roi_size")
+        self.patch_size_valid = parser.get_parsed_content("training#roi_size_valid")
         self.overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
 
         self.output_classes = parser.get_parsed_content("training#output_classes")
