@@ -11,6 +11,8 @@
 
 import logging
 import math
+import mlflow
+import mlflow.pytorch
 import os
 import random
 import sys
@@ -36,7 +38,7 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
-from monai.utils import set_determinism
+from monai.utils import RankFilter, set_determinism
 
 try:
     from apex.contrib.clip_grad import clip_grad_norm_
@@ -51,7 +53,7 @@ CONFIG = {
     "loggers": {
         "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
-    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+    "filters": {"rank_filter": {"()": RankFilter}},
     "handlers": {
         "file": {
             "class": "logging.FileHandler",
@@ -291,6 +293,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(arch_path, "Events"))
+        mlflow.set_tracking_uri(os.path.join(ckpt_path, "mlruns"))
+
+        mlflow.start_run(run_name=f'dints - fold{fold} - search')
 
         with open(os.path.join(arch_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
@@ -355,6 +360,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                 logger.debug(f"[{str(datetime.now())[:19]}] " + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
                 writer.add_scalar("Loss/train", loss.item(), epoch_len * epoch + step)
+                mlflow.log_metric('Loss/train', loss.item(), step=epoch_len * epoch + step)
 
             if epoch < num_epochs_warmup:
                 continue
@@ -437,6 +443,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     f"[{str(datetime.now())[:19]}] " + f"{step}/{epoch_len}, train_loss_arch: {loss.item():.4f}"
                 )
                 writer.add_scalar("train_loss_arch", loss.item(), epoch_len * epoch + step)
+                mlflow.log_metric('train_loss_arch', loss.item(), step=epoch_len * epoch + step)
 
         lr_scheduler.step()
 
@@ -544,6 +551,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     avg_metric = avg_metric / float(metric_dim)
                     logger.debug(f"avg_metric, {avg_metric}")
 
+                    writer.add_scalar("val/acc", avg_metric, epoch)
+                    mlflow.log_metric("val/acc", avg_metric, step=epoch)
+
                     if avg_metric > best_metric:
                         best_metric = avg_metric
                         best_metric_epoch = epoch + 1
@@ -614,6 +624,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer.flush()
         writer.close()
+
+        mlflow.end_run()
 
     if torch.cuda.device_count() > 1:
         dist.destroy_process_group()
