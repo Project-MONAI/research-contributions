@@ -51,7 +51,7 @@ class InferClass:
         self.fast = parser.get_parsed_content("infer")["fast"]
         self.num_sw_batch_size = parser.get_parsed_content("num_sw_batch_size")
         self.overlap_ratio_final = parser.get_parsed_content("overlap_ratio_final")
-        self.patch_size_valid = parser.get_parsed_content("patch_size_valid")
+        self.roi_size_valid = parser.get_parsed_content("roi_size_valid")
         softmax = parser.get_parsed_content("softmax")
 
         ckpt_name = parser.get_parsed_content("infer")["ckpt_name"]
@@ -140,7 +140,7 @@ class InferClass:
                 with torch.cuda.amp.autocast(enabled=self.amp):
                     batch_data["pred"] = sliding_window_inference(
                         inputs=batch_data["image"].to(_device_in),
-                        roi_size=self.patch_size_valid,
+                        roi_size=self.roi_size_valid,
                         sw_batch_size=self.num_sw_batch_size,
                         predictor=self.model,
                         mode="gaussian",
@@ -185,7 +185,7 @@ class InferClass:
                         with torch.cuda.amp.autocast(enabled=self.amp):
                             d["pred"] = sliding_window_inference(
                                 inputs=infer_images,
-                                roi_size=self.patch_size_valid,
+                                roi_size=self.roi_size_valid,
                                 sw_batch_size=self.num_sw_batch_size,
                                 predictor=self.model,
                                 mode="gaussian",

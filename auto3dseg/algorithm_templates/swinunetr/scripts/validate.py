@@ -54,7 +54,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     num_sw_batch_size = parser.get_parsed_content("num_sw_batch_size")
     output_classes = parser.get_parsed_content("output_classes")
     overlap_ratio_final = parser.get_parsed_content("overlap_ratio_final")
-    patch_size_valid = parser.get_parsed_content("patch_size_valid")
+    roi_size_valid = parser.get_parsed_content("roi_size_valid")
     softmax = parser.get_parsed_content("softmax")
 
     ckpt_name = parser.get_parsed_content("validate")["ckpt_name"]
@@ -161,7 +161,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     with torch.cuda.amp.autocast(enabled=amp):
                         val_data["pred"] = sliding_window_inference(
                             inputs=val_data["image"].to(_device_in),
-                            roi_size=patch_size_valid,
+                            roi_size=roi_size_valid,
                             sw_batch_size=num_sw_batch_size,
                             predictor=model,
                             mode="gaussian",
