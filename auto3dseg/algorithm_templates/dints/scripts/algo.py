@@ -111,13 +111,13 @@ class DintsAlgo(BundleAlgo):
             hyper_parameters.update({"data_file_base_dir": os.path.abspath(data_src_cfg["dataroot"])})
             hyper_parameters.update({"data_list_file_path": os.path.abspath(data_src_cfg["datalist"])})
 
-            hyper_parameters.update({"training#patch_size": patch_size})
-            hyper_parameters.update({"training#patch_size_valid": patch_size})
+            hyper_parameters.update({"training#roi_size": patch_size})
+            hyper_parameters.update({"training#roi_size_valid": patch_size})
             hyper_parameters.update({"training#input_channels": input_channels})
             hyper_parameters.update({"training#output_classes": output_classes})
 
-            hyper_parameters_search.update({"searching#patch_size": patch_size})
-            hyper_parameters_search.update({"searching#patch_size_valid": patch_size})
+            hyper_parameters_search.update({"searching#roi_size": patch_size})
+            hyper_parameters_search.update({"searching#roi_size_valid": patch_size})
             hyper_parameters_search.update({"searching#input_channels": input_channels})
             hyper_parameters_search.update({"searching#output_classes": output_classes})
 
@@ -128,8 +128,8 @@ class DintsAlgo(BundleAlgo):
             if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
                 spacing = [1.0, 1.0, 1.0]
 
-            hyper_parameters.update({"training#resample_to_spacing": spacing})
-            hyper_parameters_search.update({"searching#resample_to_spacing": spacing})
+            hyper_parameters.update({"training#resample_resolution": spacing})
+            hyper_parameters_search.update({"searching#resample_resolution": spacing})
 
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])
@@ -252,8 +252,8 @@ class DintsAlgo(BundleAlgo):
                                 "keys": ["@image_key", "@label_key"],
                                 "label_key": "crop_label",
                                 "num_classes": None,
-                                "spatial_size": "@training#patch_size",
-                                "num_samples": "@training#num_patches_per_image",
+                                "spatial_size": "@training#roi_size",
+                                "num_samples": "@training#num_crops_per_image",
                                 "warn": False,
                             },
                             {"_target_": "Lambdad", "keys": "crop_label", "func": f"$lambda x: 0"},

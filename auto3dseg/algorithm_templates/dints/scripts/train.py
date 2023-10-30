@@ -17,8 +17,6 @@ import gc
 import io
 import logging
 import math
-import mlflow
-import mlflow.pytorch
 import os
 import random
 import sys
@@ -27,6 +25,8 @@ import warnings
 from datetime import datetime, timedelta
 from typing import Optional, Sequence, Union
 
+import mlflow
+import mlflow.pytorch
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -160,7 +160,7 @@ def pre_operation(config_file, **override):
                     batch_size = max(batch_size, 1)
 
                     parser["training"].update({"num_patches_per_iter": batch_size})
-                    parser["training"].update({"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update({"num_crops_per_image": 2 * batch_size})
 
                     # estimate data size based on number of images and image
                     # size
@@ -175,7 +175,7 @@ def pre_operation(config_file, **override):
                     except BaseException:
                         pass
 
-                    _patch_size = parser["training"]["patch_size"]
+                    _patch_size = parser["training"]["roi_size"]
                     _factor *= 96.0 / float(_patch_size[0])
                     _factor *= 96.0 / float(_patch_size[1])
                     _factor *= 96.0 / float(_patch_size[2])
@@ -248,7 +248,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
     overlap_ratio_train = parser.get_parsed_content("training#overlap_ratio_train")
-    patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
+    patch_size_valid = parser.get_parsed_content("training#roi_size_valid")
     random_seed = parser.get_parsed_content("training#random_seed")
     softmax = parser.get_parsed_content("training#softmax")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
@@ -530,7 +530,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
         mlflow.set_tracking_uri(os.path.join(ckpt_path, "mlruns"))
 
-        mlflow.start_run(run_name=f'dints - fold{fold} - train')
+        mlflow.start_run(run_name=f"dints - fold{fold} - train")
 
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
@@ -623,7 +623,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 f"[{str(datetime.now())[:19]}] " + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}"
                             )
                             writer.add_scalar("train/loss", loss.item(), epoch_len * _round + step)
-                            mlflow.log_metric('train/loss', loss.item(), step=epoch_len * _round + step)
+                            mlflow.log_metric("train/loss", loss.item(), step=epoch_len * _round + step)
 
                 lr_scheduler.step()
 
@@ -766,10 +766,14 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 writer.add_scalar(
                                     f"val_class/acc_{class_names[_c]}", metric[2 * _c] / metric[2 * _c + 1], epoch
                                 )
-                                mlflow.log_metric(f"val_class/acc_{class_names[_c]}", metric[2 * _c] / metric[2 * _c + 1], step=epoch)
+                                mlflow.log_metric(
+                                    f"val_class/acc_{class_names[_c]}", metric[2 * _c] / metric[2 * _c + 1], step=epoch
+                                )
                             except BaseException:
                                 writer.add_scalar(f"val_class/acc_{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
-                                mlflow.log_metric(f"val_class/acc_{_c}", metric[2 * _c] / metric[2 * _c + 1], step=epoch)
+                                mlflow.log_metric(
+                                    f"val_class/acc_{_c}", metric[2 * _c] / metric[2 * _c + 1], step=epoch
+                                )
 
                         avg_metric = 0
                         for _c in range(metric_dim):
