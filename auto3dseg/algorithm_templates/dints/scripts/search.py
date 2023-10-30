@@ -11,8 +11,6 @@
 
 import logging
 import math
-import mlflow
-import mlflow.pytorch
 import os
 import random
 import sys
@@ -20,6 +18,8 @@ import time
 from datetime import datetime
 from typing import Optional, Sequence, Union
 
+import mlflow
+import mlflow.pytorch
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -295,7 +295,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         writer = SummaryWriter(log_dir=os.path.join(arch_path, "Events"))
         mlflow.set_tracking_uri(os.path.join(ckpt_path, "mlruns"))
 
-        mlflow.start_run(run_name=f'dints - fold{fold} - search')
+        mlflow.start_run(run_name=f"dints - fold{fold} - search")
 
         with open(os.path.join(arch_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
@@ -360,7 +360,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                 logger.debug(f"[{str(datetime.now())[:19]}] " + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
                 writer.add_scalar("Loss/train", loss.item(), epoch_len * epoch + step)
-                mlflow.log_metric('Loss/train', loss.item(), step=epoch_len * epoch + step)
+                mlflow.log_metric("Loss/train", loss.item(), step=epoch_len * epoch + step)
 
             if epoch < num_epochs_warmup:
                 continue
@@ -443,7 +443,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     f"[{str(datetime.now())[:19]}] " + f"{step}/{epoch_len}, train_loss_arch: {loss.item():.4f}"
                 )
                 writer.add_scalar("train_loss_arch", loss.item(), epoch_len * epoch + step)
-                mlflow.log_metric('train_loss_arch', loss.item(), step=epoch_len * epoch + step)
+                mlflow.log_metric("train_loss_arch", loss.item(), step=epoch_len * epoch + step)
 
         lr_scheduler.step()
 
