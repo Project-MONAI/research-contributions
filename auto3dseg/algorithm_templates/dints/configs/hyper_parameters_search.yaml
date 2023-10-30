@@ -28,7 +28,7 @@ searching:
   train_cache_rate: "$@searching#cache_rate"
   validate_cache_rate: "$@searching#cache_rate"
   transforms:
-    resample_to_spacing: "$@searching#resample_resolution"
+    resample_resolution: "$@searching#resample_resolution"
   # architecture searching
   loss:
     _target_: DiceFocalLoss

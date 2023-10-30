@@ -128,8 +128,8 @@ class DintsAlgo(BundleAlgo):
             if max(spacing) > (1.0 + epsilon) and min(spacing) < (1.0 - epsilon):
                 spacing = [1.0, 1.0, 1.0]
 
-            hyper_parameters.update({"training#resample_to_spacing": spacing})
-            hyper_parameters_search.update({"searching#resample_to_spacing": spacing})
+            hyper_parameters.update({"training#resample_resolution": spacing})
+            hyper_parameters_search.update({"searching#resample_resolution": spacing})
 
             intensity_upper_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_99_5"])
             intensity_lower_bound = float(data_stats["stats_summary#image_foreground_stats#intensity#percentile_00_5"])

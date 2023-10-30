@@ -23,7 +23,7 @@ transforms_train:
     axcodes: RAS
   - _target_: Spacingd
     keys: ["@image_key", "@label_key"]
-    pixdim: "$@training#transforms#resample_to_spacing"
+    pixdim: "$@training#transforms#resample_resolution"
     mode: [bilinear, nearest]
     align_corners: [true, true]
   - _target_: CastToTyped

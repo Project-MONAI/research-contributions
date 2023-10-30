@@ -49,7 +49,7 @@ training:
   train_cache_rate: "$@training#cache_rate"
   validate_cache_rate: "$@training#cache_rate"
   transforms:
-    resample_to_spacing: "$@training#resample_resolution"
+    resample_resolution: "$@training#resample_resolution"
 
   loss:
     _target_: DiceFocalLoss
