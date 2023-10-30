@@ -21,7 +21,7 @@ import shutil
 import sys
 import time
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, Hashable, List, Mapping, Optional, Sequence, Tuple, Union
 
@@ -1820,7 +1820,7 @@ class Segmenter:
                 if global_rank == 0:
                     print(
                         f"Val {epoch}/{num_epochs} {idx}/{len(val_loader)}  loss: {avg_loss:.4f} "
-                        f"acc {avg_acc}  time {time.time() - start_time:.2f}s"
+                        f"acc {avg_acc}  time {time.time() - start_time:.2f}s {filename}"
                     )
 
             else:
@@ -1974,7 +1974,7 @@ def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]
         mgpu = override.get("mgpu", None)
         if mgpu is not None:
             logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
-            dist.init_process_group(backend="nccl", rank=rank, **mgpu)  # we spawn this process
+            dist.init_process_group(backend="nccl", rank=rank, timeout=timedelta(seconds=5400), **mgpu)
             mgpu.update({"rank": rank, "global_rank": rank})
             if rank == 0:
                 print(f"Distributed: initializing multi-gpu tcp:// process group {mgpu}")
