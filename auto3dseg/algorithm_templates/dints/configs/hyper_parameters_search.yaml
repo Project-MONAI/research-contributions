@@ -25,16 +25,16 @@ searching:
   resample_resolution: null
   softmax: true
   cache_rate: 1
-  train_cache_rate: "$@searching#cache_rate"
-  validate_cache_rate: "$@searching#cache_rate"
+  train_cache_rate: "@searching#cache_rate"
+  validate_cache_rate: "@searching#cache_rate"
   transforms:
-    resample_resolution: "$@searching#resample_resolution"
+    resample_resolution: "@searching#resample_resolution"
   # architecture searching
   loss:
     _target_: DiceFocalLoss
     include_background: true
-    to_onehot_y: "$@searching#softmax"
-    softmax: "$@searching#softmax"
+    to_onehot_y: "@searching#softmax"
+    softmax: "@searching#softmax"
     sigmoid: "$not @searching#softmax"
     squared_pred: true
     batch: true

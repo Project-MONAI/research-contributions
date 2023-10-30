@@ -14,7 +14,7 @@ transforms_infer:
     axcodes: RAS
   - _target_: Spacingd
     keys: "@image_key"
-    pixdim: "$@training#transforms#resample_resolution"
+    pixdim: "@training#transforms#resample_resolution"
     mode: bilinear
     align_corners: true
   - _target_: CastToTyped
