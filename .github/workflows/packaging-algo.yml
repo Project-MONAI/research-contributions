@@ -54,7 +54,7 @@ jobs:
         git config --global user.email 'monai.miccai2019@gmail.com'
 
         # modify hash
-        filename="monai/apps/auto3dseg/bundle_gen.py"
+        filename="monai/utils/misc.py"
         current_hash=$(grep -oE "[0-9a-f]{7}" $filename)
         sed -i s/$current_hash/${{ steps.name.outputs.sha_short }}/ $filename
 

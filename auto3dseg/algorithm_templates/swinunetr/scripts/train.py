@@ -350,10 +350,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         if softmax:
             post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
         else:
-            post_transforms += [
-                transforms.Activationsd(keys="pred", sigmoid=True),
-                transforms.AsDiscreted(keys="pred", threshold=0.5),
-            ]
+            post_transforms = (
+                [transforms.Activationsd(keys="pred", sigmoid=True)]
+                + post_transforms
+                + [transforms.AsDiscreted(keys="pred", threshold=0.5)]
+            )
         post_transforms = transforms.Compose(post_transforms)
 
     loss_function = parser.get_parsed_content("loss")
@@ -554,9 +555,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         elif val_filename in val_devices_input and val_filename in val_devices_output:
                             device_list_input = [val_devices_input[val_filename]]
                             device_list_output = [val_devices_output[val_filename]]
-                        val_outputs = None
+
                         for _device_in, _device_out in zip(device_list_input, device_list_output):
                             try:
+                                val_outputs = None
                                 val_devices_input[val_filename] = _device_in
                                 val_devices_output[val_filename] = _device_out
                                 with autocast(enabled=amp):
@@ -583,15 +585,19 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                             if finished:
                                 break
-                        if not finished:
-                            raise RuntimeError(f"{val_filename} validation failed due to OOM.")
-                        val_outputs = val_outputs[None, ...]
-                        value = compute_dice(
-                            y_pred=val_outputs,
-                            y=val_data["label"].to(val_outputs.device),
-                            include_background=not softmax,
-                            num_classes=output_classes,
-                        ).to(device)
+
+                        if finished:
+                            val_outputs = val_outputs[None, ...]
+                            value = compute_dice(
+                                y_pred=val_outputs,
+                                y=val_data["label"].to(val_outputs.device),
+                                include_background=not softmax,
+                                num_classes=output_classes,
+                            ).to(device)
+                        else:
+                            # During training, allow validation OOM for some big data to avoid crush.
+                            logger.debug(f"{val_filename} is skipped due to OOM, using NaN dice values")
+                            value = torch.full((1, metric_dim), float("nan")).to(device)
 
                         logger.debug(f"{_index + 1} / {len(val_loader)}/ {val_filename}: {value}")
 
@@ -711,6 +717,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                     for _device_in, _device_out in zip(device_list_input, device_list_output):
                         try:
+                            val_data["pred"] = None
                             with autocast(enabled=amp):
                                 val_data["pred"] = sliding_window_inference(
                                     inputs=val_data["image"].to(_device_in),
@@ -731,23 +738,25 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         if finished:
                             break
 
-                    if not finished:
-                        raise RuntimeError(f"{val_filename} validation at original resolution failed due to OOM.")
+                    if finished:
+                        # move all to cpu to avoid potential out memory in invert transform
+                        val_data["pred"] = val_data["pred"].to("cpu")
+                        val_data["image"] = val_data["image"].to("cpu")
+                        val_data["label"] = val_data["label"].to("cpu")
+                        torch.cuda.empty_cache()
+                        val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
+                        val_outputs = val_data[0]["pred"][None, ...]
 
-                    # move all to cpu to avoid potential out memory in invert transform
-                    val_data["pred"] = val_data["pred"].to("cpu")
-                    val_data["image"] = val_data["image"].to("cpu")
-                    val_data["label"] = val_data["label"].to("cpu")
-                    torch.cuda.empty_cache()
-                    val_data = [post_transforms(i) for i in monai.data.decollate_batch(val_data)]
-                    val_outputs = val_data[0]["pred"][None, ...]
+                        value = compute_dice(
+                            y_pred=val_outputs,
+                            y=val_data[0]["label"][None, ...].to(val_outputs.device),
+                            include_background=not softmax,
+                            num_classes=output_classes,
+                        ).to(device)
+                    else:
+                        logger.debug(f"{val_filename} is skipped due to OOM, using NaN dice values")
+                        value = torch.full((1, metric_dim), float("nan")).to(device)
 
-                    value = compute_dice(
-                        y_pred=val_outputs,
-                        y=val_data[0]["label"][None, ...].to(val_outputs.device),
-                        include_background=not softmax,
-                        num_classes=output_classes,
-                    ).to(device)
                     logger.debug(
                         f"Validation Dice score at original resolution: {_index + 1} / {len(orig_val_loader)}/ {val_filename}: {value}"
                     )
