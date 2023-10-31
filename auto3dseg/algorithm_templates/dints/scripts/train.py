@@ -532,7 +532,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
 
         mlflow.set_tracking_uri(mlflow_tracking_uri)
-        mlflow.start_run(run_name=f"dints v1 - fold{fold} - train")
+        mlflow.start_run(run_name=f"dints - fold{fold} - train")
 
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
