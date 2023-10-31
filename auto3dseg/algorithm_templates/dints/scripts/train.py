@@ -34,7 +34,6 @@ import yaml
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from urllib.parse import urlparse
 
 import monai
 from monai import transforms
