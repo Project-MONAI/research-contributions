@@ -34,6 +34,7 @@ import yaml
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from urllib.parse import urlparse
 
 import monai
 from monai import transforms
@@ -528,7 +529,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
-        mlflow.set_tracking_uri(os.path.join(ckpt_path, "mlruns"))
+
+        current_uri = mlflow.get_tracking_uri()
+        parsed_uri = urlparse(current_uri)
+        if not parsed_uri.scheme in ['http', 'https']:
+            mlflow.set_tracking_uri(os.path.join(ckpt_path, "mlruns"))
 
         mlflow.start_run(run_name=f"dints - fold{fold} - train")
 
