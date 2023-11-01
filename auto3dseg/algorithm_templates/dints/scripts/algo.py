@@ -121,6 +121,7 @@ class DintsAlgo(BundleAlgo):
             hyper_parameters_search.update({"searching#input_channels": input_channels})
             hyper_parameters_search.update({"searching#output_classes": output_classes})
 
+            print(f'hasattr(self, mlflow_tracking_uri): {hasattr(self, mlflow_tracking_uri)}.')
             if hasattr(self, mlflow_tracking_uri) and self.mlflow_tracking_uri != None:
                 hyper_parameters.update({"mlflow_tracking_uri": self.mlflow_tracking_uri})
 
