@@ -293,7 +293,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(arch_path, "Events"))
-        mlflow.set_tracking_uri(os.path.join(arch_path, "mlruns"))
+        mlflow.set_tracking_uri(os.path.join(ckpt_path, "mlruns"))
 
         mlflow.start_run(run_name=f"dints - fold{fold} - search")
 

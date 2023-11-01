@@ -5,7 +5,6 @@ data_file_base_dir: null
 data_list_file_path: null
 fold: 0
 
-mlflow_tracking_uri: "$@bundle_root + '/model_fold' + str(@fold) + '/mlruns/'"
 show_cache_progress: false
 
 training:
