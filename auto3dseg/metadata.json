@@ -1,6 +1,9 @@
 {
-    "version": "0.0.1",
+    "version": "0.0.4",
     "changelog": {
-        "0.0.1": "this version is based on commit 03a6d4effb9223670f439c3a29198ef34938922f"
+        "0.0.4": "Enable support of mlflow in swinunetr algorithm template for public server.",
+        "0.0.3": "update hyper-parameter naming and mlflow in swinunetr algorithm template.",
+        "0.0.2": "update hyper-parameter naming in dints algorithm template.",
+        "0.0.1": "this version is based on commit 03a6d4effb9223670f439c3a29198ef34938922f."
     }
 }
