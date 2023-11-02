@@ -1,6 +1,7 @@
 {
-    "version": "0.0.4",
+    "version": "0.0.5",
     "changelog": {
+        "0.0.5": "Enable support of mlflow in segresnet algorithm template for public server.",
         "0.0.4": "Enable support of mlflow in swinunetr algorithm template for public server.",
         "0.0.3": "update hyper-parameter naming and mlflow in swinunetr algorithm template.",
         "0.0.2": "update hyper-parameter naming in dints algorithm template.",
