@@ -158,6 +158,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     data_list_file_path = parser.get_parsed_content("data_list_file_path")
     finetune = parser.get_parsed_content("finetune")
     fold = parser.get_parsed_content("fold")
+    mlflow_tracking_uri = parser.get_parsed_content("mlflow_tracking_uri")
     num_images_per_batch = parser.get_parsed_content("num_images_per_batch")
     num_epochs = parser.get_parsed_content("num_epochs")
     num_epochs_per_validation = parser.get_parsed_content("num_epochs_per_validation")
@@ -401,7 +402,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
-        mlflow.set_tracking_uri(os.path.join(ckpt_path, "mlruns"))
+        mlflow.set_tracking_uri(mlflow_tracking_uri)
         mlflow.start_run(run_name=f'swinunetr - fold{fold} - train')
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
