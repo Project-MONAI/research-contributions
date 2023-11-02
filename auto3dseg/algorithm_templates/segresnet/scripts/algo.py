@@ -262,6 +262,10 @@ class SegresnetAlgo(BundleAlgo):
             else:
                 config["crop_mode"] = "rand"
 
+            # mlflow
+            if hasattr(self, "mlflow_tracking_uri") and self.mlflow_tracking_uri != None:
+                config.update({"mlflow_tracking_uri": self.mlflow_tracking_uri})
+
             config.update(input_config)  # override if any additional inputs provided
             fill_records = {"hyper_parameters.yaml": config}
         else:

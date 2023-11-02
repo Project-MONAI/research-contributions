@@ -1127,7 +1127,7 @@ class Segmenter:
             print(f"Writing Tensorboard logs to {tb_writer.log_dir}")
 
             if mlflow_is_imported:
-                mlflow.set_tracking_uri(os.path.join(ckpt_path, "mlruns"))
+                mlflow.set_tracking_uri(config['mlflow_tracking_uri'])
                 mlflow.start_run(run_name=f'segresnet - fold{config["fold"]} - train')
                 
 
@@ -1412,7 +1412,7 @@ class Segmenter:
         if tb_writer is not None:
             tb_writer.flush()
             tb_writer.close()
-            
+
             if mlflow_is_imported:
                 mlflow.end_run()
 
