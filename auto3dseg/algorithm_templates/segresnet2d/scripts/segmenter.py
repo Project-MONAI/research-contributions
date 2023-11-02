@@ -1129,7 +1129,7 @@ class Segmenter:
             if mlflow_is_imported:
                 mlflow.set_tracking_uri(config['mlflow_tracking_uri'])
                 mlflow.start_run(run_name=f'segresnet - fold{config["fold"]} - train')
-                
+
 
             csv_path = os.path.join(ckpt_path, "accuracy_history.csv")
             self.save_history_csv(
@@ -1290,7 +1290,7 @@ class Segmenter:
 
                         if calc_val_loss:
                             tb_writer.add_scalar("val/loss", val_loss, report_epoch)
-                            
+
                     timing_dict = dict(
                         time="{:.2f} hr".format((time.time() - pre_loop_time) / 3600),
                         train_time="{:.2f}s".format(train_time),
