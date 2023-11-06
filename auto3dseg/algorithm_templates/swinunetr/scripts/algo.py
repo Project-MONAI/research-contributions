@@ -129,7 +129,7 @@ class SwinunetrAlgo(BundleAlgo):
             hyper_parameters.update({"output_classes": output_classes})
             hyper_parameters.update({"n_cases": n_cases})
 
-            if hasattr(self, "mlflow_tracking_uri") and self.mlflow_tracking_uri != None:
+            if hasattr(self, "mlflow_tracking_uri") and self.mlflow_tracking_uri is not None:
                 hyper_parameters.update({"mlflow_tracking_uri": self.mlflow_tracking_uri})
 
             modality = data_src_cfg.get("modality", "ct").lower()

@@ -21,11 +21,11 @@ import random
 import sys
 import time
 import warnings
-import mlflow
-import mlflow.pytorch
 from datetime import datetime
 from typing import Optional, Sequence, Union
 
+import mlflow
+import mlflow.pytorch
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -403,7 +403,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
         mlflow.set_tracking_uri(mlflow_tracking_uri)
-        mlflow.start_run(run_name=f'swinunetr - fold{fold} - train')
+        mlflow.start_run(run_name=f"swinunetr - fold{fold} - train")
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
 

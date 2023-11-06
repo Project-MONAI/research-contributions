@@ -80,6 +80,7 @@ from monai.transforms import (
 )
 from monai.transforms.transform import MapTransform
 from monai.utils import ImageMetaKey, convert_to_dst_type, optional_import, set_determinism
+
 mlflow, mlflow_is_imported = optional_import("mlflow")
 
 
@@ -1127,9 +1128,8 @@ class Segmenter:
             print(f"Writing Tensorboard logs to {tb_writer.log_dir}")
 
             if mlflow_is_imported:
-                mlflow.set_tracking_uri(config['mlflow_tracking_uri'])
+                mlflow.set_tracking_uri(config["mlflow_tracking_uri"])
                 mlflow.start_run(run_name=f'segresnet - fold{config["fold"]} - train')
-
 
             csv_path = os.path.join(ckpt_path, "accuracy_history.csv")
             self.save_history_csv(
@@ -1234,7 +1234,7 @@ class Segmenter:
                     tb_writer.add_scalar("train/loss", train_loss, report_epoch)
                     tb_writer.add_scalar("train/acc", np.mean(train_acc), report_epoch)
                     if mlflow_is_imported:
-                        mlflow.log_metric('train/loss', train_loss, step=report_epoch)
+                        mlflow.log_metric("train/loss", train_loss, step=report_epoch)
 
             # validate every num_epochs_per_validation epochs (defaults to 1, every epoch)
             val_acc_mean = -1
@@ -1286,7 +1286,9 @@ class Segmenter:
                         for i in range(min(len(config["class_names"]), len(val_acc))):  # accuracy per class
                             tb_writer.add_scalar("val_class/" + config["class_names"][i], val_acc[i], report_epoch)
                             if mlflow_is_imported:
-                                mlflow.log_metric("val_class/" + config["class_names"][i], val_acc[i], step=report_epoch)
+                                mlflow.log_metric(
+                                    "val_class/" + config["class_names"][i], val_acc[i], step=report_epoch
+                                )
 
                         if calc_val_loss:
                             tb_writer.add_scalar("val/loss", val_loss, report_epoch)
