@@ -231,7 +231,7 @@ class CustomProstateLesionSegOperator(Operator):
     """Performs Prostate Lesion segmentation with a 3D image converted from a mp-DICOM MRI series."""
 
     def __init__(self, model_name: Optional[str] = "", model_path: Optional[str] = ""):
-        
+
         self.logger = logging.getLogger("{}.{}".format(__name__, type(self).__name__))
         super().__init__()
 
