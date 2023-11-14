@@ -18,6 +18,8 @@ import time
 from datetime import datetime
 from typing import Optional, Sequence, Union
 
+import mlflow
+import mlflow.pytorch
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -36,7 +38,7 @@ from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
-from monai.utils import set_determinism
+from monai.utils import RankFilter, set_determinism
 
 try:
     from apex.contrib.clip_grad import clip_grad_norm_
@@ -51,7 +53,7 @@ CONFIG = {
     "loggers": {
         "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
-    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+    "filters": {"rank_filter": {"()": RankFilter}},
     "handlers": {
         "file": {
             "class": "logging.FileHandler",
@@ -102,11 +104,11 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     num_epochs = parser.get_parsed_content("searching#num_epochs")
     num_epochs_per_validation = parser.get_parsed_content("searching#num_epochs_per_validation")
     num_epochs_warmup = parser.get_parsed_content("searching#num_warmup_epochs")
-    num_patches_per_image = parser.get_parsed_content("searching#num_patches_per_image")
+    num_crops_per_image = parser.get_parsed_content("searching#num_crops_per_image")
     num_sw_batch_size = parser.get_parsed_content("searching#num_sw_batch_size")
     output_classes = parser.get_parsed_content("searching#output_classes")
     overlap_ratio = parser.get_parsed_content("searching#overlap_ratio")
-    patch_size_valid = parser.get_parsed_content("searching#patch_size_valid")
+    patch_size_valid = parser.get_parsed_content("searching#roi_size_valid")
     ram_cost_factor = parser.get_parsed_content("searching#ram_cost_factor")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
     softmax = parser.get_parsed_content("searching#softmax")
@@ -117,7 +119,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             "crop" in parser["transforms_train"]["transforms"][_i]["_target_"].lower()
             and "num_samples" in parser["transforms_train"]["transforms"][_i]
         ):
-            parser["transforms_train"]["transforms"][_i]["num_samples"] = num_patches_per_image
+            parser["transforms_train"]["transforms"][_i]["num_samples"] = num_crops_per_image
 
     train_transforms = parser.get_parsed_content("transforms_train")
     val_transforms = parser.get_parsed_content("transforms_validate")
@@ -291,6 +293,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(arch_path, "Events"))
+        mlflow.set_tracking_uri(os.path.join(arch_path, "mlruns"))
+
+        mlflow.start_run(run_name=f"dints - fold{fold} - search")
 
         with open(os.path.join(arch_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
@@ -355,6 +360,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                 logger.debug(f"[{str(datetime.now())[:19]}] " + f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
                 writer.add_scalar("Loss/train", loss.item(), epoch_len * epoch + step)
+                mlflow.log_metric("Loss/train", loss.item(), step=epoch_len * epoch + step)
 
             if epoch < num_epochs_warmup:
                 continue
@@ -437,6 +443,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     f"[{str(datetime.now())[:19]}] " + f"{step}/{epoch_len}, train_loss_arch: {loss.item():.4f}"
                 )
                 writer.add_scalar("train_loss_arch", loss.item(), epoch_len * epoch + step)
+                mlflow.log_metric("train_loss_arch", loss.item(), step=epoch_len * epoch + step)
 
         lr_scheduler.step()
 
@@ -544,6 +551,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     avg_metric = avg_metric / float(metric_dim)
                     logger.debug(f"avg_metric, {avg_metric}")
 
+                    writer.add_scalar("val/acc", avg_metric, epoch)
+                    mlflow.log_metric("val/acc", avg_metric, step=epoch)
+
                     if avg_metric > best_metric:
                         best_metric = avg_metric
                         best_metric_epoch = epoch + 1
@@ -614,6 +624,8 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer.flush()
         writer.close()
+
+        mlflow.end_run()
 
     if torch.cuda.device_count() > 1:
         dist.destroy_process_group()

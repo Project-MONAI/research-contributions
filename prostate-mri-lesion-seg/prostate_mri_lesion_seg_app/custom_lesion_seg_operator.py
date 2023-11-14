@@ -1,4 +1,4 @@
-'''
+"""
 Prostate-MRI_Lesion_Detection, v2.0 (Release date: August 2, 2023)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
@@ -52,31 +52,33 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE.'''
+each copy of the SOFTWARE."""
 
-import os
 import copy
 import logging
+import os
 from typing import Optional
+
+import nibabel as nib
 import numpy as np
-
-# MONAI Deploy App SDK imports
-import monai.deploy.core as md
-from monai.deploy.core import ExecutionContext, Image, InputContext, IOType, Operator, OutputContext
-
-# MONAI imports
-from monai.data import MetaTensor
-from monai.transforms import SaveImage
 
 # AI/CV imports
 import SimpleITK as sitk
-from skimage.transform import resize
-import nibabel as nib
 import torch
-from torch.utils.data import Dataset
 
 # Local imports
 from network import RRUNet3D
+from skimage.transform import resize
+from torch.utils.data import Dataset
+
+# MONAI Deploy App SDK imports
+import monai.deploy.core as md
+
+# MONAI imports
+from monai.data import MetaTensor
+from monai.deploy.core import ExecutionContext, Image, InputContext, IOType, Operator, OutputContext
+from monai.transforms import SaveImage
+
 
 def bbox2_3D(img):
     r = np.any(img, axis=(1, 2))
@@ -89,6 +91,7 @@ def bbox2_3D(img):
 
     return [rmin, rmax, cmin, cmax, zmin, zmax]
 
+
 def standard_normalization_multi_channel(nda):
     for _i in range(nda.shape[0]):
         if np.amax(np.abs(nda[_i, ...])) < 1e-7:
@@ -96,6 +99,7 @@ def standard_normalization_multi_channel(nda):
         nda[_i, ...] = (nda[_i, ...] - np.mean(nda[_i, ...])) / np.std(nda[_i, ...])
 
     return nda
+
 
 class SegmentationDataset(Dataset):
     def __init__(self, output_path, data_purpose):
@@ -227,7 +231,7 @@ class CustomProstateLesionSegOperator(Operator):
     """Performs Prostate Lesion segmentation with a 3D image converted from a mp-DICOM MRI series."""
 
     def __init__(self, model_name: Optional[str] = "", model_path: Optional[str] = ""):
-
+        
         self.logger = logging.getLogger("{}.{}".format(__name__, type(self).__name__))
         super().__init__()
 
@@ -237,7 +241,6 @@ class CustomProstateLesionSegOperator(Operator):
         self._model_path = model_path.strip() if isinstance(model_path, str) else "/opt/monai/app/models/"
 
     def compute(self, op_input: InputContext, op_output: OutputContext, context: ExecutionContext):
-
         output_path = context.output.get().path
 
         # Load inputs
@@ -403,7 +406,6 @@ class CustomProstateLesionSegOperator(Operator):
             for rx in ranges_x:
                 for ry in ranges_y:
                     for rz in ranges_z:
-
                         output_patch = net(inputs[..., rx[0] : rx[1], ry[0] : ry[1], rz[0] : rz[1]])
                         output_patch = output_patch.cpu().detach().numpy()
                         output_patch = np.squeeze(output_patch)

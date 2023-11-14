@@ -37,7 +37,7 @@ CONFIG = {
     "loggers": {
         "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
-    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+    "filters": {"rank_filter": {"()": monai.utils.RankFilter}},
     "handlers": {
         "file": {
             "class": "logging.FileHandler",
@@ -82,9 +82,14 @@ def pre_operation(config_file, **override):
 
                 if auto_scale_allowed:
                     output_classes = parser["training"]["output_classes"]
-                    mem = get_mem_from_visible_gpus()
-                    mem = min(mem) if isinstance(mem, list) else mem
-                    mem = float(mem) / (1024.0**3)
+
+                    try:
+                        mem = get_mem_from_visible_gpus()
+                        mem = min(mem) if isinstance(mem, list) else mem
+                        mem = float(mem) / (1024.0**3)
+                    except BaseException:
+                        mem = 16.0
+
                     mem = max(1.0, mem - 1.0)
                     mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
                     mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
@@ -93,9 +98,10 @@ def pre_operation(config_file, **override):
                     batch_size = max(batch_size, 1)
 
                     parser["training"].update({"num_patches_per_iter": batch_size})
-                    parser["training"].update({"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update({"num_crops_per_image": 2 * batch_size})
 
-                    # estimate data size based on number of images and image size
+                    # estimate data size based on number of images and image
+                    # size
                     _factor = 1.0
 
                     try:
@@ -107,12 +113,18 @@ def pre_operation(config_file, **override):
                     except BaseException:
                         pass
 
-                    _patch_size = parser["training"]["patch_size"]
+                    _patch_size = parser["training"]["roi_size"]
                     _factor *= 96.0 / float(_patch_size[0])
                     _factor *= 96.0 / float(_patch_size[1])
                     _factor *= 96.0 / float(_patch_size[2])
 
-                    _factor /= 6.0
+                    if "training#epoch_divided_factor" in override:
+                        epoch_divided_factor = override["training#epoch_divided_factor"]
+                    else:
+                        epoch_divided_factor = parser["training"]["epoch_divided_factor"]
+                    epoch_divided_factor = float(epoch_divided_factor)
+                    _factor /= epoch_divided_factor
+
                     _factor = max(1.0, _factor)
 
                     _estimated_epochs = 400.0
@@ -146,7 +158,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
     output_classes = parser.get_parsed_content("training#output_classes")
     overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
-    patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
+    patch_size_valid = parser.get_parsed_content("training#roi_size_valid")
     softmax = parser.get_parsed_content("training#softmax")
     sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
 

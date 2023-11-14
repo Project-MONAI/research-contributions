@@ -1,5 +1,6 @@
 bundle_root: null                           # root folder of the fold
 ckpt_path: $@bundle_root + '/model'         # location to save checkpoints and logs
+mlflow_tracking_uri: $@ckpt_path + '/mlruns/'
 
 data_file_base_dir: null                    # location of the dataset
 data_list_file_path: null                   # location of the file with a list of files image/label in the dataset

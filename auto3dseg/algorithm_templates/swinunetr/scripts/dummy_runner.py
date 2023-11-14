@@ -35,16 +35,16 @@ class DummyRunnerSwinUNETR(object):
         self.device = torch.device("cuda:{0:d}".format(device_id))
 
         self.input_channels = parser.get_parsed_content("input_channels")
-        self.patch_size = parser.get_parsed_content("patch_size")
-        self.patch_size_valid = parser.get_parsed_content("patch_size_valid")
+        self.roi_size = parser.get_parsed_content("roi_size")
+        self.roi_size_valid = parser.get_parsed_content("roi_size_valid")
         self.overlap_ratio = parser.get_parsed_content("overlap_ratio")
 
         self.output_classes = parser.get_parsed_content("output_classes")
         self.softmax = parser.get_parsed_content("softmax")
         self.label_channels = 1 if self.softmax else self.output_classes
 
-        print("patch_size", self.patch_size)
-        print("patch_size_valid", self.patch_size_valid)
+        print("roi_size", self.roi_size)
+        print("roi_size_valid", self.roi_size_valid)
         print("label_channels", self.label_channels)
 
         self.model = parser.get_parsed_content("network")
@@ -79,7 +79,7 @@ class DummyRunnerSwinUNETR(object):
         num_epochs = 2
         num_iterations = 6
         num_iterations_validation = 1
-        num_patches_per_image = 1
+        num_crops_per_image = 1
 
         validation_data_device = validation_data_device.lower()
         if validation_data_device != "cpu" and validation_data_device != "gpu":
@@ -100,20 +100,20 @@ class DummyRunnerSwinUNETR(object):
 
                 inputs = torch.rand(
                     (
-                        num_images_per_batch * num_patches_per_image,
+                        num_images_per_batch * num_crops_per_image,
                         self.input_channels,
-                        self.patch_size[0],
-                        self.patch_size[1],
-                        self.patch_size[2],
+                        self.roi_size[0],
+                        self.roi_size[1],
+                        self.roi_size[2],
                     )
                 )
                 labels = torch.randint(
                     size=(
-                        num_images_per_batch * num_patches_per_image,
+                        num_images_per_batch * num_crops_per_image,
                         self.label_channels,
-                        self.patch_size[0],
-                        self.patch_size[1],
-                        self.patch_size[2],
+                        self.roi_size[0],
+                        self.roi_size[1],
+                        self.roi_size[2],
                     ),
                     high=self.output_classes if self.softmax else 2,
                 ).type(torch.float32)
@@ -150,7 +150,7 @@ class DummyRunnerSwinUNETR(object):
                     with autocast():
                         val_outputs = sliding_window_inference(
                             val_images,
-                            self.patch_size_valid,
+                            self.roi_size_valid,
                             num_sw_batch_size,
                             self.model,
                             mode="gaussian",

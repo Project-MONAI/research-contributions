@@ -1,4 +1,4 @@
-'''
+"""
 Prostate-MRI_Lesion_Detection, v2.0 (Release date: August 2, 2023)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
@@ -52,20 +52,21 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE.'''
+each copy of the SOFTWARE."""
 
 import logging
 import os
+
+from custom_lesion_seg_operator import CustomProstateLesionSegOperator
+
+# Local imports
+from organ_seg_operator import ProstateSegOperator
 
 # MONAI Deploy SDK imports
 from monai.deploy.core import Application, resource
 from monai.deploy.operators.dicom_data_loader_operator import DICOMDataLoaderOperator
 from monai.deploy.operators.dicom_series_selector_operator import DICOMSeriesSelectorOperator
 from monai.deploy.operators.dicom_series_to_volume_operator import DICOMSeriesToVolumeOperator
-
-# Local imports
-from organ_seg_operator import ProstateSegOperator
-from custom_lesion_seg_operator import CustomProstateLesionSegOperator
 
 # This is a sample series selection rule in JSON, simply selecting MRI series.
 # Please see more details in DICOMSeriesSelectorOperator.
@@ -144,6 +145,7 @@ Rules_HIGHB = """
 }
 """
 
+
 @resource(cpu=1, gpu=1, memory="7Gi")
 class AIProstateLesionSegApp(Application):
     def __init__(self, *args, **kwargs):
@@ -190,9 +192,18 @@ class AIProstateLesionSegApp(Application):
         self.add_flow(study_loader_op, series_selector_T2_op, {"dicom_study_list": "dicom_study_list"})
         self.add_flow(study_loader_op, series_selector_ADC_op, {"dicom_study_list": "dicom_study_list"})
         self.add_flow(study_loader_op, series_selector_HIGHB_op, {"dicom_study_list": "dicom_study_list"})
-        self.add_flow(series_selector_T2_op, series_to_vol_T2_op, {"study_selected_series_list": "study_selected_series_list"})
-        self.add_flow(series_selector_ADC_op, series_to_vol_ADC_op, {"study_selected_series_list": "study_selected_series_list"})
-        self.add_flow(series_selector_HIGHB_op, series_to_vol_HIGHB_op, {"study_selected_series_list": "study_selected_series_list"})
+
+        self.add_flow(
+            series_selector_T2_op, series_to_vol_T2_op, {"study_selected_series_list": "study_selected_series_list"}
+        )
+        self.add_flow(
+            series_selector_ADC_op, series_to_vol_ADC_op, {"study_selected_series_list": "study_selected_series_list"}
+        )
+        self.add_flow(
+            series_selector_HIGHB_op,
+            series_to_vol_HIGHB_op,
+            {"study_selected_series_list": "study_selected_series_list"},
+        )
 
         # Organ inference
         self.add_flow(series_to_vol_T2_op, organ_seg_op, {"image": "image"})
@@ -205,6 +216,7 @@ class AIProstateLesionSegApp(Application):
         #################### Pipeline DAG ####################
 
         self._logger.debug(f"End {self.compose.__name__}")
+
 
 if __name__ == "__main__":
     # Creates the app and test it standalone. When running is this mode, please note the following:

@@ -35,7 +35,7 @@ CONFIG = {
     "loggers": {
         "monai.apps.auto3dseg.auto_runner": {"handlers": ["file", "console"], "level": "DEBUG", "propagate": False}
     },
-    "filters": {"rank_filter": {"{}": "__main__.RankFilter"}},
+    "filters": {"rank_filter": {"()": monai.utils.RankFilter}},
     "handlers": {
         "file": {
             "class": "logging.FileHandler",
@@ -80,9 +80,14 @@ def pre_operation(config_file, **override):
 
                 if auto_scale_allowed:
                     output_classes = parser["training"]["output_classes"]
-                    mem = get_mem_from_visible_gpus()
-                    mem = min(mem) if isinstance(mem, list) else mem
-                    mem = float(mem) / (1024.0**3)
+
+                    try:
+                        mem = get_mem_from_visible_gpus()
+                        mem = min(mem) if isinstance(mem, list) else mem
+                        mem = float(mem) / (1024.0**3)
+                    except BaseException:
+                        mem = 16.0
+
                     mem = max(1.0, mem - 1.0)
                     mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
                     mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
@@ -91,9 +96,10 @@ def pre_operation(config_file, **override):
                     batch_size = max(batch_size, 1)
 
                     parser["training"].update({"num_patches_per_iter": batch_size})
-                    parser["training"].update({"num_patches_per_image": 2 * batch_size})
+                    parser["training"].update({"num_crops_per_image": 2 * batch_size})
 
-                    # estimate data size based on number of images and image size
+                    # estimate data size based on number of images and image
+                    # size
                     _factor = 1.0
 
                     try:
@@ -105,12 +111,18 @@ def pre_operation(config_file, **override):
                     except BaseException:
                         pass
 
-                    _patch_size = parser["training"]["patch_size"]
+                    _patch_size = parser["training"]["roi_size"]
                     _factor *= 96.0 / float(_patch_size[0])
                     _factor *= 96.0 / float(_patch_size[1])
                     _factor *= 96.0 / float(_patch_size[2])
 
-                    _factor /= 6.0
+                    if "training#epoch_divided_factor" in override:
+                        epoch_divided_factor = override["training#epoch_divided_factor"]
+                    else:
+                        epoch_divided_factor = parser["training"]["epoch_divided_factor"]
+                    epoch_divided_factor = float(epoch_divided_factor)
+                    _factor /= epoch_divided_factor
+
                     _factor = max(1.0, _factor)
 
                     _estimated_epochs = 400.0
@@ -144,13 +156,14 @@ class InferClass:
         self.num_patches_per_iter = parser.get_parsed_content("training#num_patches_per_iter")
         self.num_sw_batch_size = parser.get_parsed_content("training#num_sw_batch_size")
         self.overlap_ratio = parser.get_parsed_content("training#overlap_ratio")
-        self.patch_size_valid = parser.get_parsed_content("training#patch_size_valid")
+        self.patch_size_valid = parser.get_parsed_content("training#roi_size_valid")
         softmax = parser.get_parsed_content("training#softmax")
         self.sw_input_on_cpu = parser.get_parsed_content("training#sw_input_on_cpu")
 
         ckpt_name = parser.get_parsed_content("infer")["ckpt_name"]
         data_list_key = parser.get_parsed_content("infer")["data_list_key"]
         output_path = parser.get_parsed_content("infer")["output_path"]
+        save_prob = parser.get_parsed_content("infer#save_prob")
 
         if not os.path.exists(output_path):
             os.makedirs(output_path, exist_ok=True)
@@ -198,6 +211,22 @@ class InferClass:
         ]
         self.post_transforms_prob = transforms.Compose(post_transforms)
 
+        if save_prob:
+            post_transforms += [
+                transforms.CopyItemsd(keys="pred", times=1, names="prob"),
+                transforms.Lambdad(keys="prob", func=lambda x: torch.floor(x * 255.0).type(torch.uint8)),
+                transforms.SaveImaged(
+                    keys="prob",
+                    meta_keys="pred_meta_dict",
+                    output_dir=os.path.join(output_path, "prob"),
+                    output_postfix="",
+                    resample=False,
+                    print_log=False,
+                    data_root_dir=data_file_base_dir,
+                    output_dtype=np.uint8,
+                ),
+            ]
+
         if softmax:
             post_transforms += [transforms.AsDiscreted(keys="pred", argmax=True)]
         else:
@@ -208,10 +237,11 @@ class InferClass:
                 keys="pred",
                 meta_keys="pred_meta_dict",
                 output_dir=output_path,
-                output_postfix="seg",
+                output_postfix="",
                 resample=False,
                 print_log=False,
                 data_root_dir=data_file_base_dir,
+                output_dtype=np.uint8,
             )
         ]
         self.post_transforms = transforms.Compose(post_transforms)

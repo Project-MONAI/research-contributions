@@ -21,7 +21,7 @@ import shutil
 import sys
 import time
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, Hashable, List, Mapping, Optional, Sequence, Tuple, Union
 
@@ -81,9 +81,10 @@ from monai.transforms import (
 from monai.transforms.transform import MapTransform
 from monai.utils import ImageMetaKey, convert_to_dst_type, optional_import, set_determinism
 
+mlflow, mlflow_is_imported = optional_import("mlflow")
+
+
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:2048"
-
-
 print = logger.debug
 tqdm, has_tqdm = optional_import("tqdm", name="tqdm")
 
@@ -1126,6 +1127,10 @@ class Segmenter:
             tb_writer = SummaryWriter(log_dir=ckpt_path)
             print(f"Writing Tensorboard logs to {tb_writer.log_dir}")
 
+            if mlflow_is_imported:
+                mlflow.set_tracking_uri(config["mlflow_tracking_uri"])
+                mlflow.start_run(run_name=f'segresnet - fold{config["fold"]} - train')
+
             csv_path = os.path.join(ckpt_path, "accuracy_history.csv")
             self.save_history_csv(
                 csv_path=csv_path,
@@ -1228,6 +1233,8 @@ class Segmenter:
                 if tb_writer is not None:
                     tb_writer.add_scalar("train/loss", train_loss, report_epoch)
                     tb_writer.add_scalar("train/acc", np.mean(train_acc), report_epoch)
+                    if mlflow_is_imported:
+                        mlflow.log_metric("train/loss", train_loss, step=report_epoch)
 
             # validate every num_epochs_per_validation epochs (defaults to 1, every epoch)
             val_acc_mean = -1
@@ -1273,8 +1280,16 @@ class Segmenter:
 
                     if tb_writer is not None:
                         tb_writer.add_scalar("val/acc", val_acc_mean, report_epoch)
+                        if mlflow_is_imported:
+                            mlflow.log_metric("val/acc", val_acc_mean, step=report_epoch)
+
                         for i in range(min(len(config["class_names"]), len(val_acc))):  # accuracy per class
                             tb_writer.add_scalar("val_class/" + config["class_names"][i], val_acc[i], report_epoch)
+                            if mlflow_is_imported:
+                                mlflow.log_metric(
+                                    "val_class/" + config["class_names"][i], val_acc[i], step=report_epoch
+                                )
+
                         if calc_val_loss:
                             tb_writer.add_scalar("val/loss", val_loss, report_epoch)
 
@@ -1399,6 +1414,9 @@ class Segmenter:
         if tb_writer is not None:
             tb_writer.flush()
             tb_writer.close()
+
+            if mlflow_is_imported:
+                mlflow.end_run()
 
         if self.global_rank == 0:
             print(
@@ -1820,7 +1838,7 @@ class Segmenter:
                 if global_rank == 0:
                     print(
                         f"Val {epoch}/{num_epochs} {idx}/{len(val_loader)}  loss: {avg_loss:.4f} "
-                        f"acc {avg_acc}  time {time.time() - start_time:.2f}s"
+                        f"acc {avg_acc}  time {time.time() - start_time:.2f}s {filename}"
                     )
 
             else:
@@ -1974,7 +1992,7 @@ def run_segmenter_worker(rank=0, config_file: Optional[Union[str, Sequence[str]]
         mgpu = override.get("mgpu", None)
         if mgpu is not None:
             logging.getLogger("torch.distributed.distributed_c10d").setLevel(logging.WARNING)
-            dist.init_process_group(backend="nccl", rank=rank, **mgpu)  # we spawn this process
+            dist.init_process_group(backend="nccl", rank=rank, timeout=timedelta(seconds=5400), **mgpu)
             mgpu.update({"rank": rank, "global_rank": rank})
             if rank == 0:
                 print(f"Distributed: initializing multi-gpu tcp:// process group {mgpu}")

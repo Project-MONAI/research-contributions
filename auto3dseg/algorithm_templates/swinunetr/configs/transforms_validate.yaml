@@ -14,7 +14,7 @@ transforms_validate:
     axcodes: RAS
   - _target_: Spacingd
     keys: ["@image_key", "@label_key"]
-    pixdim: "$@transforms#resample_to_spacing"
+    pixdim: "$@transforms#resample_resolution"
     mode: [bilinear, nearest]
     align_corners: [true, true]
   - _target_: CastToTyped
