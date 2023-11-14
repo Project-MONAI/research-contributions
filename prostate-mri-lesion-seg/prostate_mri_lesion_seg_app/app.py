@@ -55,6 +55,7 @@ redistributes the SOFTWARE, a copy of this Agreement must be included with
 each copy of the SOFTWARE."""
 
 import logging
+import os
 
 from custom_lesion_seg_operator import CustomProstateLesionSegOperator
 
@@ -69,6 +70,7 @@ from monai.deploy.operators.dicom_series_to_volume_operator import DICOMSeriesTo
 
 # This is a sample series selection rule in JSON, simply selecting MRI series.
 # Please see more details in DICOMSeriesSelectorOperator.
+#
 # Sample_Rules_Text = """
 # {
 #     "selections": [
@@ -104,6 +106,7 @@ Rules_T2 = """
     ]
 }
 """
+
 Rules_ADC = """
 {
     "selections": [
@@ -122,6 +125,7 @@ Rules_ADC = """
     ]
 }
 """
+
 Rules_HIGHB = """
 {
     "selections": [
@@ -171,15 +175,24 @@ class AIProstateLesionSegApp(Application):
         series_selector_HIGHB_op = DICOMSeriesSelectorOperator(rules=Rules_HIGHB)
         series_to_vol_HIGHB_op = DICOMSeriesToVolumeOperator()
 
+        # Get environment variable for model path
+        MONAI_MODELPATH = os.environ.get("MONAI_MODELPATH", None)
+
+        # Quick fix for running inside MAP
+        if MONAI_MODELPATH == "/opt/monai/models":
+            MONAI_MODELPATH = "/opt/monai/app/models/"
+        print("MONAI_MODELPATH: ", MONAI_MODELPATH)
+
         # Organ and lesion operators
         organ_seg_op = ProstateSegOperator(model_name="organ")
-        lesion_seg_op = CustomProstateLesionSegOperator()
+        lesion_seg_op = CustomProstateLesionSegOperator(model_path=MONAI_MODELPATH)
 
         #################### Pipeline DAG ####################
         # Data ingestion
         self.add_flow(study_loader_op, series_selector_T2_op, {"dicom_study_list": "dicom_study_list"})
         self.add_flow(study_loader_op, series_selector_ADC_op, {"dicom_study_list": "dicom_study_list"})
         self.add_flow(study_loader_op, series_selector_HIGHB_op, {"dicom_study_list": "dicom_study_list"})
+
         self.add_flow(
             series_selector_T2_op, series_to_vol_T2_op, {"study_selected_series_list": "study_selected_series_list"}
         )
@@ -195,7 +208,7 @@ class AIProstateLesionSegApp(Application):
         # Organ inference
         self.add_flow(series_to_vol_T2_op, organ_seg_op, {"image": "image"})
 
-        # Lesion Inference
+        # Lesion inference
         self.add_flow(series_to_vol_T2_op, lesion_seg_op, {"image": "image1"})
         self.add_flow(series_to_vol_ADC_op, lesion_seg_op, {"image": "image2"})
         self.add_flow(series_to_vol_HIGHB_op, lesion_seg_op, {"image": "image3"})
