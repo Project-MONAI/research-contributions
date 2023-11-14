@@ -107,7 +107,6 @@ class SegmentationDataset(Dataset):
 
     def __getitem__(self, idx):
         """Composes transforms for preprocessing input before predicting on a model."""
-        print("Pre-processing input image...")
 
         affine_orig, nda = [], []
 
@@ -123,7 +122,6 @@ class SegmentationDataset(Dataset):
         nda.append(img.get_fdata())
 
         # Resample ADC
-
         adc_name = str(self.output_path) + "/adc/adc.nii.gz"
         adc = sitk.ReadImage(adc_name)
         adc = sitk.Resample(
@@ -144,7 +142,6 @@ class SegmentationDataset(Dataset):
         nda.append(img.get_fdata())
 
         # Resample HighB
-
         highb_name = str(self.output_path) + "/highb/highb.nii.gz"
         highb = sitk.ReadImage(highb_name)
         highb = sitk.Resample(
@@ -170,7 +167,6 @@ class SegmentationDataset(Dataset):
         nda_shape = [nda.shape[1], nda.shape[2], nda.shape[3]]
 
         # Read in whole prostate segmentation
-
         img_wp_filename = str(self.output_path) + "/organ/organ.nii.gz"
         img_wp = nib.as_closest_canonical(nib.load(img_wp_filename))
         nda_wp = img_wp.get_fdata()
@@ -203,7 +199,6 @@ class SegmentationDataset(Dataset):
             bbox_new[2 * _s + 1] = min(shape_target[_s] - 1, bbox[2 * _s + 1] + margin)
 
         # Crop ROI and preprocess (normalize: 0-mean, 1-stddev)
-
         nda_resize_roi = nda_resize[:, bbox_new[0] : bbox_new[1], bbox_new[2] : bbox_new[3], bbox_new[4] : bbox_new[5]]
         nda_resize_roi = standard_normalization_multi_channel(nda_resize_roi)
 
@@ -231,12 +226,15 @@ class SegmentationDataset(Dataset):
 class CustomProstateLesionSegOperator(Operator):
     """Performs Prostate Lesion segmentation with a 3D image converted from a mp-DICOM MRI series."""
 
-    def __init__(self, model_name: Optional[str] = ""):
+    def __init__(self, model_name: Optional[str] = "", model_path: Optional[str] = ""):
 
         self.logger = logging.getLogger("{}.{}".format(__name__, type(self).__name__))
         super().__init__()
 
         self._model_name = model_name.strip() if isinstance(model_name, str) else ""
+
+        # Set model path to default MAP location if no path provided
+        self._model_path = model_path.strip() if isinstance(model_path, str) else "/opt/monai/app/models/"
 
     def compute(self, op_input: InputContext, op_output: OutputContext, context: ExecutionContext):
 
@@ -263,24 +261,16 @@ class CustomProstateLesionSegOperator(Operator):
         organ_mask._metadata["affine"] = organ_mask._metadata["nifti_affine_transform"]
         self.convert_and_save(image1, image2, image3, organ_mask, output_path)
 
-        # Create model and move to GPU
-        input_channels = 3
-        output_classes = 2
-        enc = "1,2,3,4"
-        dec = "3,2,1"
-        recurrent = False
-        residual = True
-        attention = False
-
+        # Instantiate network and send to GPU
         net = RRUNet3D(
-            in_channels=input_channels,
-            out_channels=output_classes,
-            blocks_down=enc,
-            blocks_up=dec,
+            in_channels=3,
+            out_channels=2,
+            blocks_down="1,2,3,4",
+            blocks_up="3,2,1",
             num_init_kernels=32,
-            recurrent=recurrent,
-            residual=residual,
-            attention=attention,
+            recurrent=False,
+            residual=True,
+            attention=False,
             debug=False,
         )
         net = net.to("cuda")
@@ -288,13 +278,12 @@ class CustomProstateLesionSegOperator(Operator):
 
         # Set model weights to models in container
         tags = ["fold0", "fold1", "fold2", "fold3", "fold4"]
-
         weight_files = [
-            "/opt/monai/app/models/" + tags[0] + "/model_best_fold0.pth.tar",
-            "/opt/monai/app/models/" + tags[1] + "/model_best_fold1.pth.tar",
-            "/opt/monai/app/models/" + tags[2] + "/model_best_fold2.pth.tar",
-            "/opt/monai/app/models/" + tags[3] + "/model_best_fold3.pth.tar",
-            "/opt/monai/app/models/" + tags[4] + "/model_best_fold4.pth.tar",
+            self._model_path + tags[0] + "/model_best_fold0.pth.tar",
+            self._model_path + tags[1] + "/model_best_fold1.pth.tar",
+            self._model_path + tags[2] + "/model_best_fold2.pth.tar",
+            self._model_path + tags[3] + "/model_best_fold3.pth.tar",
+            self._model_path + tags[4] + "/model_best_fold4.pth.tar",
         ]
 
         # Create DataLoader and preprocess image
@@ -352,10 +341,11 @@ class CustomProstateLesionSegOperator(Operator):
             tag=tags[4],
         )
 
-        lesion_mask = self.merge_volumes(output_path=output_path, tags=tags)
+        # Convert to Image and transpose back to DHW
+        lesion_mask = self.merge_volumes(output_path=output_path, data=data, tags=tags)
         lesion_mask = Image(
             data=lesion_mask.T, metadata=image1.metadata()
-        )  # Convert to Image and transpose back to DHW
+        )
 
         op_output.set(lesion_mask, "seg_image")
 
@@ -385,6 +375,8 @@ class CustomProstateLesionSegOperator(Operator):
         """Performs inference on the input image."""
 
         output_classes = 2
+
+        # Load model
         current_model_path = model_name
         current_model = torch.load(current_model_path)
         net.load_state_dict(current_model["state_dict"])
@@ -393,7 +385,7 @@ class CustomProstateLesionSegOperator(Operator):
         np_output_prob = np.zeros(shape=(output_classes,) + inputs_shape, dtype=np.float32)
         np_count = np.zeros(shape=(output_classes,) + inputs_shape, dtype=np.float32)
 
-        # Create input ranges that are multiple of 32
+        # Create input ranges that are multiples of 32
         multiple = 32
         output_len_x, output_len_y, output_len_z = inputs_shape[0], inputs_shape[1], inputs_shape[2]
         ranges_x = [(0, output_len_x // multiple * multiple)]
@@ -452,12 +444,6 @@ class CustomProstateLesionSegOperator(Operator):
             outputs_prob_orig[_s, ...] = resize(outputs_prob_resize[_s, ...], output_shape=nda_shape, order=1)
         outputs_prob_orig = outputs_prob_orig.astype(np.float32)
 
-        # Outlier rejection based on original prostate segmentation
-        nda_wp = data["pred_wp"].cpu().detach().numpy()
-        nda_wp = np.squeeze(nda_wp)
-        for _j in range(output_classes):
-            outputs_prob_orig[_j, ...] = np.multiply(outputs_prob_orig[_j, ...], nda_wp.astype(np.float32))
-
         # Create affine transformation matrix
         affine = data["affine"]
         affine = affine.detach().numpy()
@@ -482,7 +468,7 @@ class CustomProstateLesionSegOperator(Operator):
             reverted_nda_prob = nib.orientations.apply_orientation(outputs_prob_orig[_j, ...], codes)
             nib.save(nib.Nifti1Image(reverted_nda_prob, affine), os.path.join(output_path, output_filename))
 
-    def merge_volumes(self, tags, output_path):
+    def merge_volumes(self, data, tags, output_path):
         """Merges the probability maps and creates a lesion mask."""
 
         # Merge probability maps
@@ -496,6 +482,11 @@ class CustomProstateLesionSegOperator(Operator):
                 nda_prob += img_prob.get_fdata()
         nda_prob = nda_prob / (len(tags))
         nib.save(nib.Nifti1Image(nda_prob, affine), str(output_path) + "/lesion/" + "merged_lesion_prob.nii.gz")
+
+        # Outlier rejection based on original prostate segmentation
+        nda_wp = data["pred_wp"].cpu().detach().numpy()
+        nda_wp = np.squeeze(nda_wp)
+        nda_prob = np.multiply(nda_prob, nda_wp.astype(np.float32))
 
         # Create lesion mask
         threshold = 0.6344772701607316
