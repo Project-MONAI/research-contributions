@@ -231,7 +231,6 @@ class CustomProstateLesionSegOperator(Operator):
     """Performs Prostate Lesion segmentation with a 3D image converted from a mp-DICOM MRI series."""
 
     def __init__(self, model_name: Optional[str] = "", model_path: Optional[str] = ""):
-
         self.logger = logging.getLogger("{}.{}".format(__name__, type(self).__name__))
         super().__init__()
 
@@ -346,9 +345,7 @@ class CustomProstateLesionSegOperator(Operator):
 
         # Convert to Image and transpose back to DHW
         lesion_mask = self.merge_volumes(output_path=output_path, data=data, tags=tags)
-        lesion_mask = Image(
-            data=lesion_mask.T, metadata=image1.metadata()
-        )
+        lesion_mask = Image(data=lesion_mask.T, metadata=image1.metadata())
 
         op_output.set(lesion_mask, "seg_image")
 
