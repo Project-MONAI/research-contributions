@@ -1,6 +1,7 @@
 {
-    "version": "0.0.5",
+    "version": "0.0.6",
     "changelog": {
+        "0.0.6": "Move metadata.json under 'configs' to be consistent with bundles.",
         "0.0.5": "Enable support of mlflow in segresnet algorithm template for public server.",
         "0.0.4": "Enable support of mlflow in swinunetr algorithm template for public server.",
         "0.0.3": "update hyper-parameter naming and mlflow in swinunetr algorithm template.",
