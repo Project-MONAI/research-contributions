@@ -3,6 +3,9 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from monai.networks.blocks import Warp
+
+
 class RegistrationModule(nn.Module):
     r"""Base class for icon modules that perform registration.
 
@@ -33,27 +36,34 @@ class RegistrationModule(nn.Module):
     def __init__(self):
         super().__init__()
         self.downscale_factor = 1
+        self.warp = Warp()
+        self.identity_map = None
 
     def as_function(self, image):
-        """image is a tensor with shape self.input_shape.
+        """image is a (potentially vector valued) tensor with shape self.input_shape.
         Returns a python function that maps a tensor of coordinates [batch x N_dimensions x ...]
-        into a tensor of intensities.
+        into a tensor of the intensity of `image` at `coordinates`.
+
+        This allows translating the standard notation of registration papers more literally into code.
+
+        I \\circ \\Phi , the standard mathematical notation for a warped image, has the type 
+        "function from coordinates to intensities" and can be translated to the python code
+
+        warped_image = lambda coords: self.as_function(I)(phi(coords))
+
+        Often, this should actually be left as a function. If a tensor is needed, conversion is:
+
+        warped_image_tensor = warped_image(self.identity_map)
         """
 
-        return lambda coordinates: compute_warped_image_multiNC(
-            image, coordinates, self.spacing, 1
+        return lambda coordinates: self.warp(
+            image, coordinates - self.identity_map
         )
 
     def assign_identity_map(self, input_shape, parents_identity_map=None):
-        self.input_shape = np.array(input_shape)
-        self.input_shape[0] = 1
-        self.spacing = 1.0 / (self.input_shape[2::] - 1)
-
-        # if parents_identity_map is not None:
-        #    self.identity_map = parents_identity_map
-        # else:
-        _id = identity_map_multiN(self.input_shape, self.spacing)
-        self.register_buffer("identity_map", torch.from_numpy(_id), persistent=False)
+        self.input_shape = input_shape
+        _id = self.warp.get_reference_grid(input_shape)
+        self.register_buffer("identity_map", _id, persistent=False)
 
         if self.downscale_factor != 1:
             child_shape = np.concatenate(
@@ -74,15 +84,7 @@ class RegistrationModule(nn.Module):
         """Compute A deformation field compatible with monai's Warp 
         using an ICON transform. The assosciated ICON identity_map is also required
         """
-        field_0_1 = transform(identity_map) - self.identity_map
-        network_shape_list = list(self.identity_map.shape[2:])
-        scale = torch.Tensor(network_shape_list).to(self.identity_map.device)
-
-        for _ in network_shape_list:
-            scale = scale[:, None]
-        scale = scale[None, :]
-        field_spacing_1 = scale * field_0_1
-        return field_spacing_1
+        return transform(self.identity_map) - self.identity_map
     def make_ddf_using_icon_module(self, image_A, image_B):
         """Compute a deformation field compatible with monai's Warp 
         using an ICON RegistrationModule. If the RegistrationModule returns a transform, this function

@@ -144,7 +144,17 @@ class Downsample(RegistrationModule):
 
         image_A = self.avg_pool(image_A, 2, ceil_mode=True)
         image_B = self.avg_pool(image_B, 2, ceil_mode=True)
-        return self.net(image_A, image_B)
+        result = self.net(image_A, image_B)
+
+        # MONAI's ddf coordinate convention depends on resolution:
+
+        for key in ["phi_AB", "phi_BA"]:
+            if key in lowres_result:
+                highres_phi = lambda coords: 2 * result[key](coords / 2)
+                result[key] = highres_phi
+
+        return result
+                
 
 
 class InverseConsistentVelocityField(RegistrationModule):
@@ -213,11 +223,11 @@ class InverseConsistentAffine(RegistrationModule):
             coordinates_homogeneous = torch.cat(
                 [
                     tensor_of_coordinates,
-                    torch.ones(shape, device=tensor_of_coordinates.device),
+                    self.torch.ones(shape, device=tensor_of_coordinates.device),
                 ],
                 axis=1,
             )
-            return imultiply_matrix_vectorfield(
+            return multiply_matrix_vectorfield(
                 matrix_phi, coordinates_homogeneous
             )[:, :-1]
 
