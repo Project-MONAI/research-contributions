@@ -84,7 +84,7 @@ class Test2DRegistrationTrain(unittest.TestCase):
 
         lmbda = 1.0
 
-        print("GradientICON training")
+        print("GradICON training")
         net = icon_registration.GradICON(
             icon_registration.DisplacementField(networks.tallUNet2(dimension=2)),
             # Our image similarity metric. The last channel of x and y is whether the value is interpolated or extrapolated,

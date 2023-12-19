@@ -6,6 +6,7 @@ import torch.nn.functional as F
 
 from icon_registration import config, network_wrappers, registration_module
 
+
 def to_floats(result_dictionary):
     """
     Calling forward on the modules in this file returns a rich result dictionary of differentiable torch objects. This function
@@ -17,10 +18,8 @@ def to_floats(result_dictionary):
         if isinstance(value, float) or isinstance(value, int):
             out[key] = value
         elif isinstance(value, torch.Tensor) and value.shape == ():
-                out[key] = value.cpu().item()
+            out[key] = value.cpu().item()
     return out
-    
-
 
 
 class Loss(registration_module.RegistrationModule):

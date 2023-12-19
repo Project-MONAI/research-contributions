@@ -13,22 +13,22 @@ from ..similarity import SSD
 def OAI_knees_registration_model(pretrained=True):
     # The definition of our final 4 step registration network.
 
-    phi = icon_registration.FunctionFromVectorField(
+    phi = icon_registration.DisplacementField(
         networks.tallUNet(unet=networks.UNet2ChunkyMiddle, dimension=3)
     )
-    psi = icon_registration.FunctionFromVectorField(networks.tallUNet2(dimension=3))
+    psi = icon_registration.DisplacementField(networks.tallUNet2(dimension=3))
 
     pretrained_lowres_net = icon_registration.TwoStepRegistration(phi, psi)
 
     hires_net = icon_registration.TwoStepRegistration(
         icon_registration.DownsampleRegistration(pretrained_lowres_net, dimension=3),
-        icon_registration.FunctionFromVectorField(networks.tallUNet2(dimension=3)),
+        icon_registration.DisplacementField(networks.tallUNet2(dimension=3)),
     )
 
-    fourth_net = icon_registration.InverseConsistentNet(
+    fourth_net = icon_registration.ICON(
         icon_registration.TwoStepRegistration(
             hires_net,
-            icon_registration.FunctionFromVectorField(networks.tallUNet2(dimension=3)),
+            icon_registration.DisplacementField(networks.tallUNet2(dimension=3)),
         ),
         SSD(),
         3600,

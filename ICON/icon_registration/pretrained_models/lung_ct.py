@@ -8,27 +8,21 @@ from .. import losses, network_wrappers, networks
 
 def make_network():
     dimension = 3
-    inner_net = network_wrappers.FunctionFromVectorField(
+    inner_net = network_wrappers.DisplacementField(
         networks.tallUNet2(dimension=dimension)
     )
 
     for _ in range(2):
         inner_net = network_wrappers.TwoStepRegistration(
             network_wrappers.DownsampleRegistration(inner_net, dimension=dimension),
-            network_wrappers.FunctionFromVectorField(
-                networks.tallUNet2(dimension=dimension)
-            ),
+            network_wrappers.DisplacementField(networks.tallUNet2(dimension=dimension)),
         )
     inner_net = network_wrappers.TwoStepRegistration(
         inner_net,
-        network_wrappers.FunctionFromVectorField(
-            networks.tallUNet2(dimension=dimension)
-        ),
+        network_wrappers.DisplacementField(networks.tallUNet2(dimension=dimension)),
     )
 
-    net = losses.GradientICONSparse(
-        inner_net, similarity=losses.LNCC(sigma=5), lmbda=1.5
-    )
+    net = losses.GradICON(inner_net, similarity=losses.LNCC(sigma=5), lmbda=1.5)
 
     return net
 
