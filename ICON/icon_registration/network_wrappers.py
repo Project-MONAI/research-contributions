@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
+from icon_registration.registration_module import RegistrationModule
 
 
 class DisplacementField(RegistrationModule):
