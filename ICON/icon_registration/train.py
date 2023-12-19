@@ -6,6 +6,7 @@ import tqdm
 from .losses import ICONLoss, to_floats
 import icon_registration.config
 
+
 def write_stats(writer, stats: ICONLoss, ite):
     for k, v in to_floats(stats)._asdict().items():
         writer.add_scalar(k, v, ite)
@@ -62,7 +63,12 @@ def train_batchfunction(
             warped = []
             with torch.no_grad():
                 for i in range(4):
-                    print( unwrapped_net(visualization_moving[i:i + 1], visualization_fixed[i:i + 1]))
+                    print(
+                        unwrapped_net(
+                            visualization_moving[i : i + 1],
+                            visualization_fixed[i : i + 1],
+                        )
+                    )
                     warped.append(unwrapped_net.warped_image_A.cpu())
                 warped = torch.cat(warped)
             unwrapped_net.train()
@@ -77,10 +83,16 @@ def train_batchfunction(
                 return im[:4, [0, 0, 0]].detach().cpu()
 
             writer.add_images(
-                "moving_image", render(visualization_moving[:4]), iteration, dataformats="NCHW"
+                "moving_image",
+                render(visualization_moving[:4]),
+                iteration,
+                dataformats="NCHW",
             )
             writer.add_images(
-                "fixed_image", render(visualization_fixed[:4]), iteration, dataformats="NCHW"
+                "fixed_image",
+                render(visualization_fixed[:4]),
+                iteration,
+                dataformats="NCHW",
             )
             writer.add_images(
                 "warped_moving_image",
@@ -90,12 +102,14 @@ def train_batchfunction(
             )
             writer.add_images(
                 "difference",
-                render(torch.clip((warped[:4, :1] - visualization_fixed[:4, :1].cpu()) + 0.5, 0, 1)),
+                render(
+                    torch.clip(
+                        (warped[:4, :1] - visualization_fixed[:4, :1].cpu()) + 0.5, 0, 1
+                    )
+                ),
                 iteration,
                 dataformats="NCHW",
             )
-
-            
 
 
 def train_datasets(net, optimizer, d1, d2, epochs=400):

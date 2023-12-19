@@ -46,7 +46,7 @@ class RegistrationModule(nn.Module):
 
         This allows translating the standard notation of registration papers more literally into code.
 
-        I \\circ \\Phi , the standard mathematical notation for a warped image, has the type 
+        I \\circ \\Phi , the standard mathematical notation for a warped image, has the type
         "function from coordinates to intensities" and can be translated to the python code
 
         warped_image = lambda coords: self.as_function(I)(phi(coords))
@@ -56,9 +56,7 @@ class RegistrationModule(nn.Module):
         warped_image_tensor = warped_image(self.identity_map)
         """
 
-        return lambda coordinates: self.warp(
-            image, coordinates - self.identity_map
-        )
+        return lambda coordinates: self.warp(image, coordinates - self.identity_map)
 
     def assign_identity_map(self, input_shape, parents_identity_map=None):
         self.input_shape = input_shape
@@ -80,22 +78,24 @@ class RegistrationModule(nn.Module):
                     child_shape,
                     # None if self.downscale_factor != 1 else self.identity_map,
                 )
+
     def make_ddf_from_icon_transform(self, transform):
-        """Compute A deformation field compatible with monai's Warp 
+        """Compute A deformation field compatible with monai's Warp
         using an ICON transform. The assosciated ICON identity_map is also required
         """
         return transform(self.identity_map) - self.identity_map
+
     def make_ddf_using_icon_module(self, image_A, image_B):
-        """Compute a deformation field compatible with monai's Warp 
+        """Compute a deformation field compatible with monai's Warp
         using an ICON RegistrationModule. If the RegistrationModule returns a transform, this function
         returns the monai version of that transform. If the RegistrationModule returns a loss,
         this function returns a monai version of the internal transform as well as the loss.
         """
 
         res = self(image_A, image_B)
-        field = self.make_ddf_from_icon_transform(res["phi_AB"]
-                                                  )
+        field = self.make_ddf_from_icon_transform(res["phi_AB"])
         return field, res
+
     def forward(image_A, image_B):
         """Register a pair of images:
         return a python function phi_AB that warps a tensor of coordinates such that
@@ -112,5 +112,3 @@ class RegistrationModule(nn.Module):
         :return: :math:`\Phi^{AB}`
         """
         raise NotImplementedError()
-
-

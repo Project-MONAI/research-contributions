@@ -71,7 +71,9 @@ class TestItkRegistration(unittest.TestCase):
         plt.savefig(footsteps.output_dir + "warped.png")
         plt.clf()
 
-        reference = np.load(icon_registration.test_utils.TEST_DATA_DIR / "warped_itkfix.npy")
+        reference = np.load(
+            icon_registration.test_utils.TEST_DATA_DIR / "warped_itkfix.npy"
+        )
 
         np.save(
             footsteps.output_dir + "warped_knee.npy",
@@ -81,6 +83,7 @@ class TestItkRegistration(unittest.TestCase):
         self.assertLess(
             np.mean(np.abs(reference - itk.array_from_image(warped_image_A)[40])), 1e-6
         )
+
     def test_itk_consistency(self):
         import torch
 
@@ -111,7 +114,7 @@ class TestItkRegistration(unittest.TestCase):
         )
 
         interpolator = itk.LinearInterpolateImageFunction.New(itk_img)
-        
+
         warped_image_A = itk.resample_image_filter(
             itk_img,
             transform=phi,
@@ -123,4 +126,3 @@ class TestItkRegistration(unittest.TestCase):
         self.assertTrue(
             np.all(np.array(warped_image_A) == np.array(warped_image_torch))
         )
-

@@ -11,11 +11,10 @@ import icon_registration.itk_wrapper
 
 class TestItkRegistration(unittest.TestCase):
     def test_itk_registration(self):
-
         model = icon_registration.pretrained_models.LungCT_registration_model(
             pretrained=True
         )
-        
+
         icon_registration.test_utils.download_test_data()
 
         image_exp = itk.imread(
@@ -73,6 +72,7 @@ class TestItkRegistration(unittest.TestCase):
 
         # log some images to show the registration
         import os
+
         os.environ["FOOTSTEPS_NAME"] = "test"
         import footsteps
 
@@ -123,4 +123,3 @@ class TestItkRegistration(unittest.TestCase):
             dists.append(np.sqrt(np.sum((px - py) ** 2)))
         print(np.mean(dists))
         self.assertLess(np.mean(dists), 2.3)
-

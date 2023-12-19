@@ -107,7 +107,6 @@ def get_dataset_retina(
         import elasticdeform
         import hub
     except:
-
         raise Exception(
             """the retina dataset requires the dependencies hub and elasticdeform.
             Try pip install hub elasticdeform"""
@@ -120,7 +119,6 @@ def get_dataset_retina(
     if os.path.exists(ds_name):
         augmented_ds1_tensor, augmented_ds2_tensor = torch.load(ds_name)
     else:
-
         res = []
         for batch in hub.load("hub://activeloop/drive-train").pytorch(
             num_workers=0, batch_size=4, shuffle=False
@@ -257,103 +255,172 @@ def get_knees_dataset():
 
     return brains, medbrains
 
-def get_copdgene_dataset(data_folder, cache_folder="./data_cache", lung_only=True, downscale=2):
-    '''
+
+def get_copdgene_dataset(
+    data_folder, cache_folder="./data_cache", lung_only=True, downscale=2
+):
+    """
     This function load the preprocessed COPDGene train set.
-    '''
+    """
     import os
+
     def process(iA, downscale, clamp=[-1000, 0], isSeg=False):
         iA = iA[None, None, :, :, :]
-        #SI flip
+        # SI flip
         iA = torch.flip(iA, dims=(2,))
         if isSeg:
             iA = iA.float()
             iA = torch.nn.functional.max_pool3d(iA, downscale)
-            iA[iA>0] = 1
+            iA[iA > 0] = 1
         else:
             iA = torch.clip(iA, clamp[0], clamp[1]) + clamp[0]
-            #TODO: For compatibility to the processed dataset(ranges between -1 to 0) used in paper, we subtract -1 here.
+            # TODO: For compatibility to the processed dataset(ranges between -1 to 0) used in paper, we subtract -1 here.
             # Should remove -1 later.
-            iA = iA / torch.max(iA) - 1.
+            iA = iA / torch.max(iA) - 1.0
             iA = torch.nn.functional.avg_pool3d(iA, downscale)
         return iA
 
     cache_name = f"{cache_folder}/lungs_train_{downscale}xdown_scaled"
     if os.path.exists(cache_name):
-        imgs = torch.load(cache_name, map_location='cpu')
+        imgs = torch.load(cache_name, map_location="cpu")
         if lung_only:
             try:
-                masks = torch.load(f"{cache_folder}/lungs_seg_train_{downscale}xdown_scaled", map_location='cpu')
+                masks = torch.load(
+                    f"{cache_folder}/lungs_seg_train_{downscale}xdown_scaled",
+                    map_location="cpu",
+                )
             except FileNotFoundError:
                 print("Segmentation data not found.")
 
     else:
         import itk
         import glob
+
         with open(f"{data_folder}/splits/train.txt") as f:
             pair_paths = f.readlines()
         imgs = []
         masks = []
         for name in tqdm.tqdm(list(iter(pair_paths))[:]):
-            name = name[:-1] # remove newline
+            name = name[:-1]  # remove newline
 
-            image_insp = torch.tensor(np.asarray(itk.imread(glob.glob(f"{data_folder} /{name}/{name}_INSP_STD*_COPD_img.nii.gz")[0])))
-            image_exp= torch.tensor(np.asarray(itk.imread(glob.glob(f"{data_folder} /{name}/{name}_EXP_STD*_COPD_img.nii.gz")[0])))
+            image_insp = torch.tensor(
+                np.asarray(
+                    itk.imread(
+                        glob.glob(
+                            f"{data_folder} /{name}/{name}_INSP_STD*_COPD_img.nii.gz"
+                        )[0]
+                    )
+                )
+            )
+            image_exp = torch.tensor(
+                np.asarray(
+                    itk.imread(
+                        glob.glob(
+                            f"{data_folder} /{name}/{name}_EXP_STD*_COPD_img.nii.gz"
+                        )[0]
+                    )
+                )
+            )
             imgs.append((process(image_insp), process(image_exp)))
 
-            seg_insp = torch.tensor(np.asarray(itk.imread(glob.glob(f"{data_folder} /{name}/{name}_INSP_STD*_COPD_label.nii.gz")[0])))
-            seg_exp= torch.tensor(np.asarray(itk.imread(glob.glob(f"{data_folder} /{name}/{name}_EXP_STD*_COPD_label.nii.gz")[0])))
+            seg_insp = torch.tensor(
+                np.asarray(
+                    itk.imread(
+                        glob.glob(
+                            f"{data_folder} /{name}/{name}_INSP_STD*_COPD_label.nii.gz"
+                        )[0]
+                    )
+                )
+            )
+            seg_exp = torch.tensor(
+                np.asarray(
+                    itk.imread(
+                        glob.glob(
+                            f"{data_folder} /{name}/{name}_EXP_STD*_COPD_label.nii.gz"
+                        )[0]
+                    )
+                )
+            )
             masks.append((process(seg_insp, True), process(seg_exp, True)))
 
         torch.save(imgs, f"{cache_folder}/lungs_train_{downscale}xdown_scaled")
         torch.save(masks, f"{cache_folder}/lungs_seg_train_{downscale}xdown_scaled")
-    
+
     if lung_only:
-        imgs = torch.cat([(torch.cat(d, 1)+1)*torch.cat(m, 1) for d,m in zip(imgs, masks)], dim=0)
+        imgs = torch.cat(
+            [(torch.cat(d, 1) + 1) * torch.cat(m, 1) for d, m in zip(imgs, masks)],
+            dim=0,
+        )
     else:
-        imgs = torch.cat([torch.cat(d, 1)+1 for d in imgs], dim=0)
+        imgs = torch.cat([torch.cat(d, 1) + 1 for d in imgs], dim=0)
     return torch.utils.data.TensorDataset(imgs)
 
-def get_learn2reg_AbdomenCTCT_dataset(data_folder, cache_folder="./data_cache", clamp=[-1000,0], downscale=1):
-    '''
+
+def get_learn2reg_AbdomenCTCT_dataset(
+    data_folder, cache_folder="./data_cache", clamp=[-1000, 0], downscale=1
+):
+    """
     This function will return the training dataset of AbdomenCTCT registration task in learn2reg.
-    '''
+    """
 
     # Check whether we have cached the dataset
     import os
 
-    cache_name = f"{cache_folder}/learn2reg_abdomenctct_train_set_clamp{clamp}scale{downscale}"
+    cache_name = (
+        f"{cache_folder}/learn2reg_abdomenctct_train_set_clamp{clamp}scale{downscale}"
+    )
     if os.path.exists(cache_name):
         imgs = torch.load(cache_name)
     else:
         import json
         import itk
         import glob
-        with open(f"{data_folder}/AbdomenCTCT_dataset.json", 'r') as data_info:
+
+        with open(f"{data_folder}/AbdomenCTCT_dataset.json", "r") as data_info:
             data_info = json.loads(data_info.read())
-        train_cases = [c["image"].split('/')[-1].split('.')[0] for c in data_info["training"]]
-        imgs = [np.asarray(itk.imread(glob.glob(data_folder + "/imagesTr/" + i + ".nii.gz")[0])) for i in train_cases]
-        
+        train_cases = [
+            c["image"].split("/")[-1].split(".")[0] for c in data_info["training"]
+        ]
+        imgs = [
+            np.asarray(
+                itk.imread(glob.glob(data_folder + "/imagesTr/" + i + ".nii.gz")[0])
+            )
+            for i in train_cases
+        ]
+
         imgs = torch.Tensor(np.expand_dims(np.array(imgs), axis=1)).float()
-        imgs = (torch.clamp(imgs, clamp[0], clamp[1]) - clamp[0])/(clamp[1] - clamp[0])
+        imgs = (torch.clamp(imgs, clamp[0], clamp[1]) - clamp[0]) / (
+            clamp[1] - clamp[0]
+        )
 
         # Cache the data
         if not os.path.exists(cache_folder):
             os.makedirs(cache_folder)
         torch.save(imgs, cache_name)
-    
+
     # Scale down the image
     if downscale > 1:
         imgs = F.avg_pool3d(imgs, downscale)
     return torch.utils.data.TensorDataset(imgs)
 
-def get_learn2reg_lungCT_dataset(data_folder, cache_folder="./data_cache", lung_only=True, clamp=[-1000,0], downscale=1):
-    '''
+
+def get_learn2reg_lungCT_dataset(
+    data_folder,
+    cache_folder="./data_cache",
+    lung_only=True,
+    clamp=[-1000, 0],
+    downscale=1,
+):
+    """
     This function will return the training dataset of LungCT registration task in learn2reg.
-    '''
+    """
     import os
 
-    cache_name = f"{cache_folder}/learn2reg_lung_train_set_lung_only" if lung_only else f"{cache_folder}/learn2reg_lung_train_set"
+    cache_name = (
+        f"{cache_folder}/learn2reg_lung_train_set_lung_only"
+        if lung_only
+        else f"{cache_folder}/learn2reg_lung_train_set"
+    )
     cache_name += f"_clamp{clamp}scale{downscale}"
     if os.path.exists(cache_name):
         imgs = torch.load(cache_name)
@@ -361,25 +428,45 @@ def get_learn2reg_lungCT_dataset(data_folder, cache_folder="./data_cache", lung_
         import json
         import itk
         import glob
-        with open(f"{data_folder}/NLST_dataset.json", 'r') as data_info:
+
+        with open(f"{data_folder}/NLST_dataset.json", "r") as data_info:
             data_info = json.loads(data_info.read())
-        train_pairs = [[p['fixed'].split('/')[-1], p['moving'].split('/')[-1]] for p in data_info["training_paired_images"]]
+        train_pairs = [
+            [p["fixed"].split("/")[-1], p["moving"].split("/")[-1]]
+            for p in data_info["training_paired_images"]
+        ]
         imgs = []
         for p in train_pairs:
-            img = np.array([np.asarray(itk.imread(glob.glob(data_folder + "/imagesTr/" + i)[0])) for i in p])
+            img = np.array(
+                [
+                    np.asarray(itk.imread(glob.glob(data_folder + "/imagesTr/" + i)[0]))
+                    for i in p
+                ]
+            )
             if lung_only:
-                mask = np.array([np.asarray(itk.imread(glob.glob(data_folder + "/" + "/masksTr/" + i)[0])) for i in p])
+                mask = np.array(
+                    [
+                        np.asarray(
+                            itk.imread(
+                                glob.glob(data_folder + "/" + "/masksTr/" + i)[0]
+                            )
+                        )
+                        for i in p
+                    ]
+                )
                 img = img * mask + clamp[0] * (1 - mask)
             imgs.append(img)
-        
+
         imgs = torch.Tensor(np.array(imgs)).float()
-        imgs = (torch.clamp(imgs, clamp[0], clamp[1]) - clamp[0])/(clamp[1] - clamp[0])
+        imgs = (torch.clamp(imgs, clamp[0], clamp[1]) - clamp[0]) / (
+            clamp[1] - clamp[0]
+        )
 
         # Cache the data
         if not os.path.exists(cache_folder):
             os.makedirs(cache_folder)
         torch.save(imgs, cache_name)
-    
+
     # Scale down the image
     if downscale > 1:
         imgs = F.avg_pool3d(imgs, downscale)

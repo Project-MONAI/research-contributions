@@ -529,7 +529,7 @@ def tallerUNet2(dimension=2):
 def tallUNet2(dimension=2, input_channels=1):
     return UNet2(
         5,
-        [[input_channels*2, 16, 32, 64, 256, 512], [16, 32, 64, 128, 256]],
+        [[input_channels * 2, 16, 32, 64, 256, 512], [16, 32, 64, 128, 256]],
         dimension,
     )
 

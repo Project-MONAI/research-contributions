@@ -27,7 +27,6 @@ def finetune_execute(model, image_A, image_B, steps):
 def register_pair(
     model, image_A, image_B, finetune_steps=None, return_artifacts=False
 ) -> "(itk.CompositeTransform, itk.CompositeTransform)":
-
     assert isinstance(image_A, itk.Image)
     assert isinstance(image_B, itk.Image)
 
@@ -37,8 +36,8 @@ def register_pair(
     A_npy = np.array(image_A)
     B_npy = np.array(image_B)
 
-    assert(np.max(A_npy) != np.min(A_npy))
-    assert(np.max(B_npy) != np.min(B_npy))
+    assert np.max(A_npy) != np.min(A_npy)
+    assert np.max(B_npy) != np.min(B_npy)
     # turn images into torch Tensors: add feature and batch dimensions (each of length 1)
     A_trch = torch.Tensor(A_npy).to(config.device)[None, None]
     B_trch = torch.Tensor(B_npy).to(config.device)[None, None]
@@ -81,11 +80,13 @@ def register_pair(
     else:
         return itk_transforms + (to_floats(loss),)
 
+
 def register_pair_with_multimodalities(
     model, image_A: list, image_B: list, finetune_steps=None, return_artifacts=False
 ) -> "(itk.CompositeTransform, itk.CompositeTransform)":
-
-    assert len(image_A) == len(image_B), "image_A and image_B should have the same number of modalities."
+    assert len(image_A) == len(
+        image_B
+    ), "image_A and image_B should have the same number of modalities."
 
     # send model to cpu or gpu depending on config- auto detects capability
     model.to(config.device)
@@ -98,8 +99,8 @@ def register_pair_with_multimodalities(
         A_npy.append(np.array(image_a))
         B_npy.append(np.array(image_b))
 
-        assert(np.max(A_npy[-1]) != np.min(A_npy[-1]))
-        assert(np.max(B_npy[-1]) != np.min(B_npy[-1]))
+        assert np.max(A_npy[-1]) != np.min(A_npy[-1])
+        assert np.max(B_npy[-1]) != np.min(B_npy[-1])
 
     # turn images into torch Tensors: add batch dimensions (each of length 1)
     A_trch = torch.Tensor(np.array(A_npy)).to(config.device)[None]
@@ -146,7 +147,6 @@ def register_pair_with_multimodalities(
 
 
 def create_itk_transform(phi, ident, image_A, image_B) -> "itk.CompositeTransform":
-
     # itk.DeformationFieldTransform expects a displacement field, so we subtract off the identity map.
     disp = (phi - ident)[0].cpu()
 
@@ -194,7 +194,6 @@ def create_itk_transform(phi, ident, image_A, image_B) -> "itk.CompositeTransfor
 
 
 def resampling_transform(image, shape):
-
     imageType = itk.template(image)[0][itk.template(image)[1]]
 
     dummy_image = itk.image_from_array(
@@ -225,7 +224,6 @@ def resampling_transform(image, shape):
     input_shape = image.GetLargestPossibleRegion().GetSize()
 
     for i in range(len(shape)):
-
         m_a[i, i] = image.GetSpacing()[i] * (input_shape[i] / shape[i])
 
     m_a = itk.array_from_matrix(image.GetDirection()) @ m_a

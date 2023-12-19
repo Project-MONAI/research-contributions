@@ -1,4 +1,3 @@
-
 def normalize(image):
     dimension = len(image.shape) - 2
     if dimension == 2:
@@ -14,16 +13,20 @@ class SimilarityBase:
     def __init__(self, isInterpolated=False):
         self.isInterpolated = isInterpolated
 
+
 class NCC(SimilarityBase):
     def __init__(self):
         super().__init__(isInterpolated=False)
 
     def __call__(self, image_A, image_B):
-        assert image_A.shape == image_B.shape, "The shape of image_A and image_B sould be the same."
+        assert (
+            image_A.shape == image_B.shape
+        ), "The shape of image_A and image_B sould be the same."
         A = normalize(image_A)
         B = normalize(image_B)
         res = torch.mean(A * B)
         return 1 - res
+
 
 # torch removed this function from torchvision.functional_tensor, so we are vendoring it.
 def _get_gaussian_kernel1d(kernel_size, sigma):
@@ -33,6 +36,7 @@ def _get_gaussian_kernel1d(kernel_size, sigma):
     kernel1d = pdf / pdf.sum()
     return kernel1d
 
+
 def gaussian_blur(tensor, kernel_size, sigma, padding="same"):
     kernel1d = _get_gaussian_kernel1d(kernel_size=kernel_size, sigma=sigma).to(
         tensor.device, dtype=tensor.dtype
@@ -41,14 +45,44 @@ def gaussian_blur(tensor, kernel_size, sigma, padding="same"):
     group = tensor.shape[1]
 
     if len(tensor.shape) - 2 == 1:
-        out = torch.conv1d(out, kernel1d[None, None, :].expand(group,-1,-1), padding="same", groups=group)
+        out = torch.conv1d(
+            out,
+            kernel1d[None, None, :].expand(group, -1, -1),
+            padding="same",
+            groups=group,
+        )
     elif len(tensor.shape) - 2 == 2:
-        out = torch.conv2d(out, kernel1d[None, None, :, None].expand(group,-1,-1,-1), padding="same", groups=group)
-        out = torch.conv2d(out, kernel1d[None, None, None, :].expand(group,-1,-1,-1), padding="same", groups=group)
+        out = torch.conv2d(
+            out,
+            kernel1d[None, None, :, None].expand(group, -1, -1, -1),
+            padding="same",
+            groups=group,
+        )
+        out = torch.conv2d(
+            out,
+            kernel1d[None, None, None, :].expand(group, -1, -1, -1),
+            padding="same",
+            groups=group,
+        )
     elif len(tensor.shape) - 2 == 3:
-        out = torch.conv3d(out, kernel1d[None, None, :, None, None].expand(group,-1,-1,-1,-1), padding="same", groups=group)
-        out = torch.conv3d(out, kernel1d[None, None, None, :, None].expand(group,-1,-1,-1,-1), padding="same", groups=group)
-        out = torch.conv3d(out, kernel1d[None, None, None, None, :].expand(group,-1,-1,-1,-1), padding="same", groups=group)
+        out = torch.conv3d(
+            out,
+            kernel1d[None, None, :, None, None].expand(group, -1, -1, -1, -1),
+            padding="same",
+            groups=group,
+        )
+        out = torch.conv3d(
+            out,
+            kernel1d[None, None, None, :, None].expand(group, -1, -1, -1, -1),
+            padding="same",
+            groups=group,
+        )
+        out = torch.conv3d(
+            out,
+            kernel1d[None, None, None, None, :].expand(group, -1, -1, -1, -1),
+            padding="same",
+            groups=group,
+        )
 
     return out
 
@@ -85,7 +119,6 @@ class LNCCOnlyInterpolated(SimilarityBase):
         return gaussian_blur(tensor, self.sigma * 4 + 1, self.sigma)
 
     def __call__(self, image_A, image_B):
-
         I = image_A[:, :-1]
         J = image_B
 
@@ -125,7 +158,9 @@ class BlurredSSD(SimilarityBase):
         return gaussian_blur(tensor, self.sigma * 4 + 1, self.sigma)
 
     def __call__(self, image_A, image_B):
-        assert image_A.shape == image_B.shape, "The shape of image_A and image_B sould be the same."
+        assert (
+            image_A.shape == image_B.shape
+        ), "The shape of image_A and image_B sould be the same."
         return torch.mean((self.blur(image_A) - self.blur(image_B)) ** 2)
 
 
@@ -141,7 +176,10 @@ class AdaptiveNCC(SimilarityBase):
         return gaussian_blur(tensor, self.sigma * 2 + 1, self.sigma)
 
     def __call__(self, image_A, image_B):
-        assert image_A.shape == image_B.shape, "The shape of image_A and image_B sould be the same."
+        assert (
+            image_A.shape == image_B.shape
+        ), "The shape of image_A and image_B sould be the same."
+
         def _nccBeforeMean(image_A, image_B):
             A = normalize(image_A)
             B = normalize(image_B)
@@ -173,13 +211,17 @@ class AdaptiveNCC(SimilarityBase):
 
         return torch.mean(sim_loss)
 
+
 class SSD(SimilarityBase):
     def __init__(self):
         super().__init__(isInterpolated=False)
 
     def __call__(self, image_A, image_B):
-        assert image_A.shape == image_B.shape, "The shape of image_A and image_B sould be the same."
+        assert (
+            image_A.shape == image_B.shape
+        ), "The shape of image_A and image_B sould be the same."
         return torch.mean((image_A - image_B) ** 2)
+
 
 class SSDOnlyInterpolated(SimilarityBase):
     def __init__(self):
@@ -195,10 +237,14 @@ class SSDOnlyInterpolated(SimilarityBase):
 
         inbounds_mask = image_A[:, -1:]
         image_A = image_A[:, :-1]
-        assert image_A.shape == image_B.shape, "The shape of image_A and image_B sould be the same."
+        assert (
+            image_A.shape == image_B.shape
+        ), "The shape of image_A and image_B sould be the same."
 
         inbounds_squared_distance = inbounds_mask * (image_A - image_B) ** 2
-        sum_squared_distance = torch.sum(inbounds_squared_distance, dimensions_to_sum_over)
+        sum_squared_distance = torch.sum(
+            inbounds_squared_distance, dimensions_to_sum_over
+        )
         divisor = torch.sum(inbounds_mask, dimensions_to_sum_over)
         ssds = sum_squared_distance / divisor
         return torch.mean(ssds)
@@ -212,7 +258,7 @@ def flips(phi, in_percentage=False):
 
         dV = torch.sum(torch.cross(a, b, 1) * c, axis=1, keepdims=True)
         if in_percentage:
-            return torch.mean((dV < 0).float()) * 100.
+            return torch.mean((dV < 0).float()) * 100.0
         else:
             return torch.sum(dV < 0) / phi.shape[0]
     elif len(phi.size()) == 4:
@@ -220,15 +266,14 @@ def flips(phi, in_percentage=False):
         dv = (phi[:, :, :-1, 1:] - phi[:, :, :-1, :-1]).detach()
         dA = du[:, 0] * dv[:, 1] - du[:, 1] * dv[:, 0]
         if in_percentage:
-            return torch.mean((dA < 0).float()) * 100.
+            return torch.mean((dA < 0).float()) * 100.0
         else:
             return torch.sum(dA < 0) / phi.shape[0]
     elif len(phi.size()) == 3:
         du = (phi[:, :, 1:] - phi[:, :, :-1]).detach()
         if in_percentage:
-            return torch.mean((du < 0).float()) * 100.
+            return torch.mean((du < 0).float()) * 100.0
         else:
             return torch.sum(du < 0) / phi.shape[0]
     else:
         raise ValueError()
-

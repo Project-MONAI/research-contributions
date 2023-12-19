@@ -25,25 +25,31 @@ class DisplacementField(RegistrationModule):
             return coordinates + displacement_field(coordinates)
 
         return {"phi_AB": transform}
-    
+
+
 class VelocityField(RegistrationModule):
-   def __init__(self, net):
-       super().__init__()
-       self.net = net
-       self.n_steps = 256
+    def __init__(self, net):
+        super().__init__()
+        self.net = net
+        self.n_steps = 256
 
-   def forward(self, image_A, image_B):
-       concatenated_images = torch.cat([image_A, image_B], axis=1)
-       velocity_field = self.net(concatenated_images)
-       velocityfield_delta = velocity_field / self.n_steps
+    def forward(self, image_A, image_B):
+        concatenated_images = torch.cat([image_A, image_B], axis=1)
+        velocity_field = self.net(concatenated_images)
+        velocityfield_delta = velocity_field / self.n_steps
 
-       for _ in range(8):
-         velocityfield_delta = velocityfield_delta + self.as_function(
-             velocityfield_delta)(velocityfield_delta + self.identity_map)
-       def transform(coordinate_tensor):
-           coordinate_tensor = coordinate_tensor + self.as_function(velocityfield_delta)(coordinate_tensor)
-           return coordinate_tensor
-       return {"phi_AB": transform, "velocity_fields": [velocity_field]}
+        for _ in range(8):
+            velocityfield_delta = velocityfield_delta + self.as_function(
+                velocityfield_delta
+            )(velocityfield_delta + self.identity_map)
+
+        def transform(coordinate_tensor):
+            coordinate_tensor = coordinate_tensor + self.as_function(
+                velocityfield_delta
+            )(coordinate_tensor)
+            return coordinate_tensor
+
+        return {"phi_AB": transform, "velocity_fields": [velocity_field]}
 
 
 def multiply_matrix_vectorfield(matrix, vectorfield):
@@ -73,9 +79,15 @@ class Affine(RegistrationModule):
             shape = list(tensor_of_coordinates.shape)
             shape[1] = 1
             coordinates_homogeneous = torch.cat(
-                [tensor_of_coordinates, torch.ones(shape, device=tensor_of_coordinates.device)], axis=1
+                [
+                    tensor_of_coordinates,
+                    torch.ones(shape, device=tensor_of_coordinates.device),
+                ],
+                axis=1,
             )
-            return multiply_matrix_vectorfield(matrix_phi, coordinates_homogeneous)[:, :-1]
+            return multiply_matrix_vectorfield(matrix_phi, coordinates_homogeneous)[
+                :, :-1
+            ]
 
         return {"phi_AB": transform}
 
@@ -96,11 +108,14 @@ class TwoStep(RegistrationModule):
 
     def forward(self, image_A, image_B):
         phi = self.netPhi(image_A, image_B)
-        psi = self.netPsi(
-            self.as_function(image_A)(phi(self.identity_map)), 
-            image_B
-        )["phi_AB"]
-        result = {"phi_AB": lambda tensor_of_coordinates: phi["phi_AB"](psi["phi_AB"](tensor_of_coordinates))}
+        psi = self.netPsi(self.as_function(image_A)(phi(self.identity_map)), image_B)[
+            "phi_AB"
+        ]
+        result = {
+            "phi_AB": lambda tensor_of_coordinates: phi["phi_AB"](
+                psi["phi_AB"](tensor_of_coordinates)
+            )
+        }
 
         regularization_loss = 0
         if "regularization_loss" in phi:
@@ -118,6 +133,7 @@ class TwoStep(RegistrationModule):
         if "velocity_fields" in phi or "regularization_loss" in psi:
             result["velocity_fields"] = regularization_loss
         return result
+
 
 class Downsample(RegistrationModule):
     """
@@ -142,7 +158,6 @@ class Downsample(RegistrationModule):
         self.downscale_factor = 2
 
     def forward(self, image_A, image_B):
-
         image_A = self.avg_pool(image_A, 2, ceil_mode=True)
         image_B = self.avg_pool(image_B, 2, ceil_mode=True)
         result = self.net(image_A, image_B)
@@ -155,7 +170,6 @@ class Downsample(RegistrationModule):
                 result[key] = highres_phi
 
         return result
-                
 
 
 class InverseConsistentVelocityField(RegistrationModule):
@@ -167,7 +181,9 @@ class InverseConsistentVelocityField(RegistrationModule):
     def forward(self, image_A, image_B):
         concatenated_images_AB = torch.cat([image_A, image_B], axis=1)
         concatenated_images_BA = torch.cat([image_B, image_A], axis=1)
-        velocity_field = self.net(concatenated_images_AB) - self.net(concatenated_images_BA)
+        velocity_field = self.net(concatenated_images_AB) - self.net(
+            concatenated_images_BA
+        )
         velocityfield_delta_ab = velocity_field / 2**self.n_steps
         velocityfield_delta_ba = -velocityfield_delta_ab
 
@@ -193,8 +209,12 @@ class InverseConsistentVelocityField(RegistrationModule):
             )(coordinate_tensor)
             return coordinate_tensor
 
+        return {
+            "phi_AB": transform_AB,
+            "phi_BA": transform_BA,
+            "velocity_fields": [velocity_field],
+        }
 
-        return {"phi_AB": transform_AB, "phi_BA": transform_BA, "velocity_fields":[velocity_field]}
 
 class InverseConsistentAffine(RegistrationModule):
     """
@@ -212,8 +232,9 @@ class InverseConsistentAffine(RegistrationModule):
         concatenated_images_BA = torch.cat([image_B, image_A], axis=1)
         matrix_phi = self.net(concatenated_images_AB) - self.net(concatenated_images_BA)
 
-        matrix_phi = matrix_phi.reshape(image_A.shape[0], len(image_A.shape), len(image_A.shape) + 1)
-
+        matrix_phi = matrix_phi.reshape(
+            image_A.shape[0], len(image_A.shape), len(image_A.shape) + 1
+        )
 
         matrix_phi_AB = torch.linalg.matrix_exp(matrix_phi)
         matrix_phi_BA = torch.linalg.matrix_exp(-matrix_phi)
@@ -228,9 +249,9 @@ class InverseConsistentAffine(RegistrationModule):
                 ],
                 axis=1,
             )
-            return multiply_matrix_vectorfield(
-                matrix_phi, coordinates_homogeneous
-            )[:, :-1]
+            return multiply_matrix_vectorfield(matrix_phi, coordinates_homogeneous)[
+                :, :-1
+            ]
 
         def transform_BA(tensor_of_coordinates):
             shape = list(tensor_of_coordinates.shape)
@@ -242,8 +263,8 @@ class InverseConsistentAffine(RegistrationModule):
                 ],
                 axis=1,
             )
-            return multiply_matrix_vectorfield(
-                matrix_phi_BA, coordinates_homogeneous
-            )[:, :-1]
+            return multiply_matrix_vectorfield(matrix_phi_BA, coordinates_homogeneous)[
+                :, :-1
+            ]
 
         return {"phi_AB": transform_AB, "phi_BA": transform_BA}

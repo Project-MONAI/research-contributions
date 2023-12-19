@@ -31,12 +31,12 @@ class TestItkRegistration(unittest.TestCase):
             f"{icon_registration.test_utils.TEST_DATA_DIR}/brain_test_data/8_T1w_acpc_dc_restore_brain.nii.gz"
         )
 
-        image_A_processed = icon_registration.pretrained_models.brain_network_preprocess(
-            image_A
+        image_A_processed = (
+            icon_registration.pretrained_models.brain_network_preprocess(image_A)
         )
 
-        image_B_processed = icon_registration.pretrained_models.brain_network_preprocess(
-            image_B
+        image_B_processed = (
+            icon_registration.pretrained_models.brain_network_preprocess(image_B)
         )
 
         phi_AB, phi_BA = icon_registration.itk_wrapper.register_pair(
@@ -57,7 +57,9 @@ class TestItkRegistration(unittest.TestCase):
         )
 
         plt.imshow(
-            np.array(itk.checker_board_image_filter(warped_image_A, image_B_processed))[40]
+            np.array(itk.checker_board_image_filter(warped_image_A, image_B_processed))[
+                40
+            ]
         )
         plt.colorbar()
         plt.savefig(footsteps.output_dir + "grid.png")
@@ -66,8 +68,10 @@ class TestItkRegistration(unittest.TestCase):
         plt.savefig(footsteps.output_dir + "warped.png")
         plt.clf()
 
-
-        reference = np.load(icon_registration.test_utils.TEST_DATA_DIR / "brain_test_data/2_and_8_warped_itkfix.npy")       
+        reference = np.load(
+            icon_registration.test_utils.TEST_DATA_DIR
+            / "brain_test_data/2_and_8_warped_itkfix.npy"
+        )
 
         np.save(
             footsteps.output_dir + "warped_brain.npy",

@@ -16,7 +16,7 @@ def download_test_data():
             "61d3a99d4acac99f429277d7",
             str(TEST_DATA_DIR),
         ],
-        #stdout=sys.stdout,
+        # stdout=sys.stdout,
     )
 
 

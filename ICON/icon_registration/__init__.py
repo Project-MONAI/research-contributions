@@ -9,7 +9,7 @@ from icon_registration.losses import (
     ssd,
     SSDOnlyInterpolated,
     SSD,
-    NCC
+    NCC,
 )
 from icon_registration.network_wrappers import (
     DownsampleRegistration,
