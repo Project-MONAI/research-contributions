@@ -7,7 +7,7 @@ from icon_registration import config
 
 from .. import networks
 from .lung_ct import init_network
-from ..losses import SSD
+from ..similarity import SSD
 
 
 def OAI_knees_registration_model(pretrained=True):

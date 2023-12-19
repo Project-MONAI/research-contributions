@@ -31,8 +31,8 @@ class Test2DRegistrationTrain(unittest.TestCase):
         lmbda = 2048
 
         print("ICON training")
-        net = icon_registration.InverseConsistentNet(
-            icon_registration.FunctionFromVectorField(networks.tallUNet2(dimension=2)),
+        net = icon_registration.ICON(
+            icon_registration.DisplacementField(networks.tallUNet2(dimension=2)),
             # Our image similarity metric. The last channel of x and y is whether the value is interpolated or extrapolated,
             # which is used by some metrics but not this one
             SSD(),
@@ -85,8 +85,8 @@ class Test2DRegistrationTrain(unittest.TestCase):
         lmbda = 1.0
 
         print("GradientICON training")
-        net = icon_registration.GradientICON(
-            icon_registration.FunctionFromVectorField(networks.tallUNet2(dimension=2)),
+        net = icon_registration.GradICON(
+            icon_registration.DisplacementField(networks.tallUNet2(dimension=2)),
             # Our image similarity metric. The last channel of x and y is whether the value is interpolated or extrapolated,
             # which is used by some metrics but not this one
             SSD(),

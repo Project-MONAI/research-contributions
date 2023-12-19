@@ -4,9 +4,23 @@ import matplotlib
 import torch
 import torch.nn.functional as F
 
-from icon_registration import config, network_wrappers
+from icon_registration import config, network_wrappers, registration_module
 
-import registration_module
+def to_floats(result_dictionary):
+    """
+    Calling forward on the modules in this file returns a rich result dictionary of differentiable torch objects. This function
+    converts those to scalars suitable for logging in e.g. tensorboard
+    """
+
+    out = {}
+    for key, value in result_dictionary.items():
+        if isinstance(value, float) or isinstance(value, int):
+            out[key] = value
+        elif isinstance(value, torch.Tensor) and value.shape == ():
+                out[key] = value.cpu().item()
+    return out
+    
+
 
 
 class Loss(registration_module.RegistrationModule):

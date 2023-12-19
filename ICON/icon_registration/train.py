@@ -3,11 +3,11 @@ from datetime import datetime
 import torch
 import tqdm
 
-from .losses import ICONLoss, to_floats
+from .losses import to_floats
 import icon_registration.config
 
 
-def write_stats(writer, stats: ICONLoss, ite):
+def write_stats(writer, stats, ite):
     for k, v in to_floats(stats)._asdict().items():
         writer.add_scalar(k, v, ite)
 
