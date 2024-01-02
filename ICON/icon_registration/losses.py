@@ -6,6 +6,33 @@ import torch.nn.functional as F
 
 from icon_registration import config, network_wrappers, registration_module
 
+def flips(phi, in_percentage=False):
+    if len(phi.size()) == 5:
+        a = (phi[:, :, 1:, 1:, 1:] - phi[:, :, :-1, 1:, 1:]).detach()
+        b = (phi[:, :, 1:, 1:, 1:] - phi[:, :, 1:, :-1, 1:]).detach()
+        c = (phi[:, :, 1:, 1:, 1:] - phi[:, :, 1:, 1:, :-1]).detach()
+
+        dV = torch.sum(torch.cross(a, b, 1) * c, axis=1, keepdims=True)
+        if in_percentage:
+            return torch.mean((dV < 0).float()) * 100.
+        else:
+            return torch.sum(dV < 0) / phi.shape[0]
+    elif len(phi.size()) == 4:
+        du = (phi[:, :, 1:, :-1] - phi[:, :, :-1, :-1]).detach()
+        dv = (phi[:, :, :-1, 1:] - phi[:, :, :-1, :-1]).detach()
+        dA = du[:, 0] * dv[:, 1] - du[:, 1] * dv[:, 0]
+        if in_percentage:
+            return torch.mean((dA < 0).float()) * 100.
+        else:
+            return torch.sum(dA < 0) / phi.shape[0]
+    elif len(phi.size()) == 3:
+        du = (phi[:, :, 1:] - phi[:, :, :-1]).detach()
+        if in_percentage:
+            return torch.mean((du < 0).float()) * 100.
+        else:
+            return torch.sum(du < 0) / phi.shape[0]
+    else:
+        raise ValueError()
 
 def to_floats(result_dictionary):
     """
@@ -52,7 +79,7 @@ class Loss(registration_module.RegistrationModule):
             if inbounds_tag is not None
             else image_A
         )(
-            self.phi_AB_vectorfield,
+            phi_AB_vectorfield,
         )
         similarity_loss = self.similarity(warped_image_A, image_B)
         return {"similarity_loss": similarity_loss, "warped_image_A": warped_image_A}
@@ -79,20 +106,20 @@ class TwoWayRegularizer(Loss):
         similarity_loss = (
             similarity_AB["similarity_loss"] + similarity_BA["similarity_loss"]
         )
-        regularization_loss = compute_regularizer(self, phi_AB, phi_BA)
+        regularization_loss = self.compute_regularizer(phi_AB, phi_BA)
 
-        all_loss = self.lmbda * gradient_inverse_consistency_loss + similarity_loss
+        all_loss = self.lmbda * regularization_loss + similarity_loss
 
         negative_jacobian_voxels = flips(phi_BA_vectorfield)
 
         return {
             "all_loss": all_loss,
-            "regularization_loss": inverse_consistency_loss,
+            "regularization_loss": regularization_loss,
             "similarity_loss": similarity_loss,
             "phi_AB": phi_AB,
             "phi_BA": phi_BA,
             "warped_image_A": similarity_AB["warped_image_A"],
-            "warped_image_B": similiarity_BA["warped_image_A"],
+            "warped_image_B": similarity_BA["warped_image_A"],
             "negative_jacobian_voxels": negative_jacobian_voxels,
         }
 
@@ -100,12 +127,12 @@ class TwoWayRegularizer(Loss):
 class ICON(TwoWayRegularizer):
     def compute_regularizer(self, phi_AB, phi_BA):
         Iepsilon = self.identity_map + torch.randn(*self.identity_map.shape).to(
-            image_A.device
+            self.identity_map.device
         )
 
-        approximate_Iepsilon1 = self.phi_AB(self.phi_BA(Iepsilon))
+        approximate_Iepsilon1 = phi_AB(phi_BA(Iepsilon))
 
-        approximate_Iepsilon2 = self.phi_BA(self.phi_AB(Iepsilon))
+        approximate_Iepsilon2 = phi_BA(phi_AB(Iepsilon))
 
         inverse_consistency_loss = torch.mean(
             (Iepsilon - approximate_Iepsilon1) ** 2
@@ -185,7 +212,7 @@ class OneWayRegularizer(Loss):
         similarity_AB = self.compute_similarity(image_A, image_B, phi_AB_vectorfield)
 
         similarity_loss = 2 * similarity_AB["similarity_loss"]
-        regularization_loss = compute_regularizer(self, phi_AB_vectorfield)
+        regularization_loss = self.compute_regularizer(phi_AB_vectorfield)
 
         all_loss = self.lmbda * regularization_loss + similarity_loss
 

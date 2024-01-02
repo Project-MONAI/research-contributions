@@ -42,14 +42,15 @@ class Test2DRegistrationTrain(unittest.TestCase):
         input_shape = list(next(iter(d1))[0].size())
         input_shape[0] = 1
         net.assign_identity_map(input_shape)
+        print(net.identity_map)
         net.cuda()
         optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
         net.train()
 
-        y = icon_registration.train_datasets(net, optimizer, d1, d2, epochs=5)
+        y = icon_registration.train_datasets(net, optimizer, d1, d2, epochs=50)
 
         # Test that image similarity is good enough
-        self.assertLess(np.mean(np.array(y)[-5:, 1]), 0.1)
+        self.assertLess(np.mean(np.array([step["similarity_loss"] for step in y])[-5:]), 0.1)
 
         # Test that folds are rare enough
         self.assertLess(np.mean(np.exp(np.array(y)[-5:, 3] - 0.1)), 2)

@@ -125,10 +125,11 @@ def train_datasets(net, optimizer, d1, d2, epochs=400):
 
                 loss_object = net(image_A, image_B)
 
-                loss_object.all_loss.backward()
+                loss_object["all_loss"].backward()
                 optimizer.step()
 
             loss_history.append(to_floats(loss_object))
+            print(to_floats(loss_object))
     return loss_history
 
 

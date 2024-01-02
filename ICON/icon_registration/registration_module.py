@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from monai.networks.blocks import Warp
+from monai.networks.utils import meshgrid_ij
 
 
 class RegistrationModule(nn.Module):
@@ -39,6 +40,12 @@ class RegistrationModule(nn.Module):
         self.warp = Warp()
         self.identity_map = None
 
+    def _make_identity_map(self, shape):
+        mesh_points = [torch.arange(0, dim) for dim in shape[2:]]
+        grid = torch.stack(meshgrid_ij(*mesh_points), dim=0)  # (spatial_dims, ...)
+        grid = torch.stack([grid], dim=0).float()  # (batch, spatial_dims, ...)
+        return grid
+
     def as_function(self, image):
         """image is a (potentially vector valued) tensor with shape self.input_shape.
         Returns a python function that maps a tensor of coordinates [batch x N_dimensions x ...]
@@ -56,12 +63,19 @@ class RegistrationModule(nn.Module):
         warped_image_tensor = warped_image(self.identity_map)
         """
 
-        return lambda coordinates: self.warp(image, coordinates - self.identity_map)
+        def partially_applied_warp(coordinates):
+            coordinates_shape = list(coordinates.shape)
+            coordinates_shape[0] = image.shape[0]
+            coordinates = torch.broadcast_to(coordinates, coordinates_shape)
+            return self.warp(image, coordinates.clone())
+
+        return partially_applied_warp
 
     def assign_identity_map(self, input_shape, parents_identity_map=None):
         self.input_shape = input_shape
-        _id = self.warp.get_reference_grid(input_shape)
-        self.register_buffer("identity_map", _id, persistent=False)
+        grid = self._make_identity_map(input_shape)
+        del self.identity_map
+        self.register_buffer("identity_map", grid, persistent=False)
 
         if self.downscale_factor != 1:
             child_shape = np.concatenate(

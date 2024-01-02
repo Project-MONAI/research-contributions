@@ -1,3 +1,5 @@
+import torch
+
 def normalize(image):
     dimension = len(image.shape) - 2
     if dimension == 2:
