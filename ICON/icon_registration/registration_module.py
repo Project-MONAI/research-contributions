@@ -6,6 +6,39 @@ from torch import nn
 from monai.networks.blocks import Warp
 from monai.networks.utils import meshgrid_ij
 
+class CoordinateWarp(Warp):
+    def forward(self, image: torch.tensor, ddf: torch.tensor):
+        """
+        args:
+            image: tensor in shape (batch, num_channels, h, w[, d])
+            ddf: tensor in the same spatial size as image, in shape (batch, ``spatial_dims``, h, w[, d])
+
+        returns:
+            warped_image in the same shape as image (batch, num_channels, h, w[, d])
+        """
+        spatial_dims = len(image.shape) - 2
+        if spatial_dims not in (2, 3):
+            raise notimplementederror(f"got unsupported spatial_dims={spatial_dims}, currently support 2 or 3.")
+        ddf_shape = (image.shape[0], spatial_dims) + tuple(image.shape[2:])
+        if ddf.shape != ddf_shape:
+            raise valueerror(
+                f"given input {spatial_dims}-d image shape {image.shape}, the input ddf shape must be {ddf_shape}, "
+                f"got {ddf.shape} instead."
+            )
+        grid = ddf # assume 
+        grid = grid.permute([0] + list(range(2, 2 + spatial_dims)) + [1])  # (batch, ..., spatial_dims)
+
+        for i, dim in enumerate(grid.shape[1:-1]):
+            grid[..., i] = grid[..., i] * 2 / (dim - 1) - 1
+        index_ordering: list[int] = list(range(spatial_dims - 1, -1, -1))
+        grid = grid[..., index_ordering]  # z, y, x -> x, y, z
+        return F.grid_sample(
+            image, grid, mode=self._interp_mode, padding_mode=f"{self._padding_mode}", align_corners=True
+        )
+
+
+
+
 
 class RegistrationModule(nn.Module):
     r"""Base class for icon modules that perform registration.
@@ -37,7 +70,7 @@ class RegistrationModule(nn.Module):
     def __init__(self):
         super().__init__()
         self.downscale_factor = 1
-        self.warp = Warp()
+        self.warp = CoordinateWarp()
         self.identity_map = None
 
     def _make_identity_map(self, shape):

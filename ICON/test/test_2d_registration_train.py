@@ -2,12 +2,13 @@ import unittest
 
 
 class Test2DRegistrationTrain(unittest.TestCase):
-    def test_2d_registration_train(self):
+    def test_2d_registration_train_ICON(self):
         import icon_registration
 
         import icon_registration.data as data
         import icon_registration.networks as networks
         from icon_registration import SSD
+        import icon_registration.visualize
 
         import numpy as np
         import torch
@@ -52,6 +53,9 @@ class Test2DRegistrationTrain(unittest.TestCase):
         import footsteps
         plt.plot([step["similarity_loss"] for step in y])
         footsteps.plot("2d-icon-similarity")
+
+        test_A, test_B = [next(iter(d1))[0].cuda() for _ in range(2)]
+        icon_registration.visualize.plot_registration_result(test_A, test_B, net)
 
         # Test that image similarity is good enough
         self.assertLess(np.mean(np.array([step["similarity_loss"] for step in y])[-5:]), 0.1)
