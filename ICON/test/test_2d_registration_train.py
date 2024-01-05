@@ -47,7 +47,11 @@ class Test2DRegistrationTrain(unittest.TestCase):
         optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
         net.train()
 
-        y = icon_registration.train_datasets(net, optimizer, d1, d2, epochs=50)
+        y = icon_registration.train_datasets(net, optimizer, d1, d2, epochs=5)
+        import matplotlib.pyplot as plt
+        import footsteps
+        plt.plot([step["similarity_loss"] for step in y])
+        footsteps.plot("2d-icon-similarity")
 
         # Test that image similarity is good enough
         self.assertLess(np.mean(np.array([step["similarity_loss"] for step in y])[-5:]), 0.1)
