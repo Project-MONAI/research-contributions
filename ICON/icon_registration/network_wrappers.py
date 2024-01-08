@@ -108,9 +108,7 @@ class TwoStep(RegistrationModule):
 
     def forward(self, image_A, image_B):
         phi = self.netPhi(image_A, image_B)
-        psi = self.netPsi(self.as_function(image_A)(phi(self.identity_map)), image_B)[
-            "phi_AB"
-        ]
+        psi = self.netPsi(self.as_function(image_A)(phi["phi_AB"](self.identity_map)), image_B)
         result = {
             "phi_AB": lambda tensor_of_coordinates: phi["phi_AB"](
                 psi["phi_AB"](tensor_of_coordinates)

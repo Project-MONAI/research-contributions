@@ -138,7 +138,7 @@ class UNet2(nn.Module):
                 ]
             x = torch.cat([x, skips[depth]], 1)
         x = self.lastConv(x)
-        return x * 5
+        return x * 10
 
 
 class UNetDenseMiddle(nn.Module):

@@ -161,7 +161,7 @@ class GradICON(TwoWayRegularizer):
 
         inverse_consistency_error = Iepsilon - approximate_Iepsilon
 
-        delta = 0.001
+        delta = 0.5
 
         if len(self.identity_map.shape) == 4:
             dx = torch.Tensor([[[[delta]], [[0.0]]]]).to(self.identity_map.device)
