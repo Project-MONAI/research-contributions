@@ -223,3 +223,4 @@ def auto_adjust_network_settings(
         )
 
     return roi_size, levels, init_filters, batch_size
+

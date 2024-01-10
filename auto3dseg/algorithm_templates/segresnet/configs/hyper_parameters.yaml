@@ -34,6 +34,7 @@ log_output_file: null
 cache_class_indices: null
 early_stopping_fraction: 0.001
 determ: false
+orientation_ras: true
 
 learning_rate: 2.0e-4
 batch_size: '@num_images_per_batch'
