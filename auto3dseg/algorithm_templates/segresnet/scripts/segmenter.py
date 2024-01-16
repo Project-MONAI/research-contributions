@@ -270,6 +270,10 @@ class DataTransformBuilder:
 
     def get_normalize_transforms(self):
 
+        ts = self.get_custom("normalize_transforms")
+        if len(ts) > 0:
+            return ts
+        
         label_dtype = self.normalize_params.get("label_dtype", None)
         if label_dtype is not None:
             ts.append(CastToTyped(keys=self.label_key, dtype=label_dtype, allow_missing_keys=True))
@@ -278,11 +282,6 @@ class DataTransformBuilder:
             ts.append(CastToTyped(keys=self.image_key, dtype=image_dtype, allow_missing_keys=True)) #for caching
             ts.append(RandIdentity()) #indicate to stop caching after this point
             ts.append(CastToTyped(keys=self.image_key, dtype=torch.float, allow_missing_keys=True)) 
-
-
-        ts = self.get_custom("normalize_transforms")
-        if len(ts) > 0:
-            return ts
 
         modalities = {self.image_key: self.normalize_mode}
         modalities.update(self.extra_modalities)
