@@ -653,7 +653,7 @@ class Segmenter:
         self.loss_function = DeepSupervisionLoss(loss_function)
 
         dice_ignore_empty = config.get("dice_ignore_empty", True)
-        self.acc_function = DiceHelper(sigmoid=config["sigmoid"], dice_ignore_empty=dice_ignore_empty)
+        self.acc_function = DiceHelper(sigmoid=config["sigmoid"], ignore_empty=dice_ignore_empty)
         self.grad_scaler = GradScaler(enabled=config["amp"])
 
         if config.get("sliding_inferrer") is not None:
