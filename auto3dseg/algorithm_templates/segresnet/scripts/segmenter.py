@@ -303,6 +303,9 @@ class DataTransformBuilder:
                 ts.append(Lambdad(keys=key, func=lambda x: torch.sigmoid(x)))
             elif normalize_mode in ["meanstd", "mri"]:
                 ts.append(NormalizeIntensityd(keys=key, nonzero=True, channel_wise=True))
+            elif normalize_mode in ["meanstdtanh"]:
+                ts.append(NormalizeIntensityd(keys=key, nonzero=True, channel_wise=True))
+                ts.append(Lambdad(keys=key, func=lambda x: 3*torch.tanh(x/3)))
             elif normalize_mode in ["pet"]:
                 ts.append(Lambdad(keys=key, func=lambda x: torch.sigmoid((x - x.min()) / x.std())))
             else:
@@ -350,7 +353,8 @@ class DataTransformBuilder:
             else:
                 crop_classes = len(crop_ratios)
 
-            print(f"Cropping with classes {crop_classes} and crop_add_background {crop_add_background} ratios {crop_ratios}")
+            if self.debug:
+                print(f"Cropping with classes {crop_classes} and crop_add_background {crop_add_background} ratios {crop_ratios}")
 
             if cache_class_indices:
                 ts.append(
@@ -399,6 +403,9 @@ class DataTransformBuilder:
         augment_mode = self.augment_params.get("augment_mode", None) 
         augment_flips = self.augment_params.get("augment_flips", None) 
         augment_rots = self.augment_params.get("augment_rots", None) 
+
+        if self.debug:
+            print(f"Using augment_mode {augment_mode}, augment_flips {augment_flips}  augment_rots {augment_rots}")
 
 
         ts = []
