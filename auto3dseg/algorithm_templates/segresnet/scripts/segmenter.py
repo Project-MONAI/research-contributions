@@ -1755,8 +1755,15 @@ class Segmenter:
 
         data = None
 
-        logits = logits.float().contiguous()
-        pred = self.logits2pred(logits=logits, sigmoid=sigmoid, inplace=True)
+        try:
+            pred = self.logits2pred(logits, sigmoid=sigmoid)
+        except RuntimeError as e:
+            if not logits.is_cuda:
+                raise e
+            print(f"logits2pred failed on GPU pred retrying on CPU {logits.shape}")
+            logits = logits.cpu()
+            pred = self.logits2pred(logits, sigmoid=sigmoid)
+
         logits = None
 
         if not invert_on_gpu:
@@ -1917,10 +1924,21 @@ class Segmenter:
             data = None
 
             if post_transforms:
-                logits = logits.float().contiguous()
-                pred = self.logits2pred(logits, sigmoid=sigmoid, inplace=not calc_val_loss)
+
+                try:
+                    pred = self.logits2pred(logits, sigmoid=sigmoid)
+                except RuntimeError as e:
+                    if not logits.is_cuda:
+                        raise e
+                    print(f"logits2pred failed on GPU pred retrying on CPU {logits.shape} {filename}")
+                    logits = logits.cpu()
+                    pred = self.logits2pred(logits, sigmoid=sigmoid)
+
+
                 if not calc_val_loss:
                     logits = None
+
+
 
                 batch_data["pred"] = convert_to_dst_type(
                     pred, batch_data["image"], dtype=pred.dtype, device=pred.device
@@ -1941,7 +1959,7 @@ class Segmenter:
                 if logits is not None and pred.shape != logits.shape:
                     logits = None  # if shape has changed due to inverse resampling or un-cropping
             else:
-                pred = self.logits2pred(logits, sigmoid=sigmoid, inplace=not calc_val_loss, skip_softmax=True)
+                pred = self.logits2pred(logits, sigmoid=sigmoid, skip_softmax=True)
 
             if "label" in batch_data and loss_function is not None and acc_function is not None:
                 loss = acc = None
@@ -2002,14 +2020,14 @@ class Segmenter:
 
         return avg_loss, avg_acc
 
-    def logits2pred(self, logits, sigmoid=False, dim=1, skip_softmax=False, inplace=False):
+    def logits2pred(self, logits, sigmoid=False, dim=1, skip_softmax=False):
         if isinstance(logits, (list, tuple)):
             logits = logits[0]
 
         if sigmoid:
-            pred = torch.sigmoid(logits, out=logits if inplace else None)
+            pred = torch.sigmoid(logits)
         else:
-            pred = logits if skip_softmax else torch.softmax(logits, dim=dim, out=logits if inplace else None)
+            pred = logits if skip_softmax else torch.softmax(logits, dim=dim, dtype=torch.double).float()
 
         return pred
 
