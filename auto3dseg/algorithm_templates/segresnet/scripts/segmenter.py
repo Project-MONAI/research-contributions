@@ -273,7 +273,7 @@ class DataTransformBuilder:
         ts = self.get_custom("normalize_transforms")
         if len(ts) > 0:
             return ts
-        
+
         label_dtype = self.normalize_params.get("label_dtype", None)
         if label_dtype is not None:
             ts.append(CastToTyped(keys=self.label_key, dtype=label_dtype, allow_missing_keys=True))
@@ -281,7 +281,7 @@ class DataTransformBuilder:
         if image_dtype is not None:
             ts.append(CastToTyped(keys=self.image_key, dtype=image_dtype, allow_missing_keys=True)) #for caching
             ts.append(RandIdentity()) #indicate to stop caching after this point
-            ts.append(CastToTyped(keys=self.image_key, dtype=torch.float, allow_missing_keys=True)) 
+            ts.append(CastToTyped(keys=self.image_key, dtype=torch.float, allow_missing_keys=True))
 
         modalities = {self.image_key: self.normalize_mode}
         modalities.update(self.extra_modalities)
@@ -347,7 +347,7 @@ class DataTransformBuilder:
             crop_add_background = self.crop_params.get("crop_add_background", False)
 
             if crop_ratios is None:
-                crop_classes = output_classes 
+                crop_classes = output_classes
                 if sigmoid and crop_add_background and self.class_index is not None and len(self.class_index)>1:
                     crop_classes = crop_classes + 1
             else:
@@ -400,9 +400,9 @@ class DataTransformBuilder:
         if self.roi_size is None:
             raise ValueError("roi_size is not specified")
 
-        augment_mode = self.augment_params.get("augment_mode", None) 
-        augment_flips = self.augment_params.get("augment_flips", None) 
-        augment_rots = self.augment_params.get("augment_rots", None) 
+        augment_mode = self.augment_params.get("augment_mode", None)
+        augment_flips = self.augment_params.get("augment_flips", None)
+        augment_rots = self.augment_params.get("augment_rots", None)
 
         if self.debug:
             print(f"Using augment_mode {augment_mode}, augment_flips {augment_flips}  augment_rots {augment_rots}")
@@ -432,17 +432,17 @@ class DataTransformBuilder:
             ts.append(RandScaleIntensityd(keys=self.image_key, prob=0.5, factors=0.3))
             ts.append(RandShiftIntensityd(keys=self.image_key, prob=0.5, offsets=0.1))
             ts.append(RandGaussianNoised(keys=self.image_key, prob=0.2, mean=0.0, std=0.1))
-        
+
         elif augment_mode=='none':
 
             augment_flips=[]
             augment_rots=[]
 
         elif augment_mode=='ct_ax_1':
-            
+
             ts.append(RandHistogramShiftd(keys='image', prob=0.5, num_control_points=16))
             ts.append(RandAdjustContrastd(keys='image', prob=0.2, gamma=[0.5, 3.0]))
-            
+
             ts.append(
                 RandAffined(
                     keys=[self.image_key, self.label_key],
@@ -492,7 +492,7 @@ class DataTransformBuilder:
             augment_flips=[0,1,2]
         for sa in augment_flips:
             ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=sa))
-                
+
         # default to no rots
         if augment_rots is not None:
             for sa in augment_rots:
