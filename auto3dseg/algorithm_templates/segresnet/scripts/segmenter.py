@@ -77,6 +77,12 @@ from monai.transforms import (
     Spacingd,
     SpatialPadd,
     ToDeviced,
+    Orientationd,
+    RandIdentity,
+    RandRotate90d,
+    RandHistogramShiftd,
+    RandAdjustContrastd,
+    RandScaleIntensityFixedMeand
 )
 from monai.transforms.transform import MapTransform
 from monai.utils import ImageMetaKey, convert_to_dst_type, optional_import, set_determinism
@@ -161,9 +167,11 @@ class DataTransformBuilder:
         crop_mode: str = "ratio",
         crop_params: Optional[dict] = None,
         extra_modalities: Optional[dict] = None,
-        custom_transforms=None,
+        custom_transforms = None,
+        augment_params: Optional[dict] = None,
         debug: bool = False,
         rank: int = 0,
+        class_index = None,
         **kwargs,
     ) -> None:
         self.roi_size, self.image_key, self.label_key = roi_size, image_key, label_key
@@ -173,6 +181,7 @@ class DataTransformBuilder:
         self.normalize_params = normalize_params if normalize_params is not None else {}
         self.crop_mode = crop_mode
         self.crop_params = crop_params if crop_params is not None else {}
+        self.augment_params = augment_params if augment_params is not None else {}
 
         self.extra_modalities = extra_modalities if extra_modalities is not None else {}
         self.custom_transforms = custom_transforms if custom_transforms is not None else {}
@@ -180,6 +189,7 @@ class DataTransformBuilder:
         self.extra_options = kwargs
         self.debug = debug
         self.rank = rank
+        self.class_index = class_index
 
     def get_custom(self, name, **kwargs):
         tr = []
@@ -217,6 +227,9 @@ class DataTransformBuilder:
         keys = [self.image_key, self.label_key] if resample_label else [self.image_key]
         mode = ["bilinear", "nearest"] if resample_label else ["bilinear"]
         extra_keys = list(self.extra_modalities)
+
+        if self.extra_options.get("orientation_ras", False):
+            ts.append(Orientationd(keys=keys, axcodes="RAS"))
 
         if self.extra_options.get("crop_foreground", False) and len(extra_keys) == 0:
             ts.append(
@@ -256,9 +269,19 @@ class DataTransformBuilder:
         return ts
 
     def get_normalize_transforms(self):
+
         ts = self.get_custom("normalize_transforms")
         if len(ts) > 0:
             return ts
+
+        label_dtype = self.normalize_params.get("label_dtype", None)
+        if label_dtype is not None:
+            ts.append(CastToTyped(keys=self.label_key, dtype=label_dtype, allow_missing_keys=True))
+        image_dtype = self.normalize_params.get("image_dtype", None)
+        if image_dtype is not None:
+            ts.append(CastToTyped(keys=self.image_key, dtype=image_dtype, allow_missing_keys=True)) #for caching
+            ts.append(RandIdentity()) #indicate to stop caching after this point
+            ts.append(CastToTyped(keys=self.image_key, dtype=torch.float, allow_missing_keys=True))
 
         modalities = {self.image_key: self.normalize_mode}
         modalities.update(self.extra_modalities)
@@ -280,6 +303,9 @@ class DataTransformBuilder:
                 ts.append(Lambdad(keys=key, func=lambda x: torch.sigmoid(x)))
             elif normalize_mode in ["meanstd", "mri"]:
                 ts.append(NormalizeIntensityd(keys=key, nonzero=True, channel_wise=True))
+            elif normalize_mode in ["meanstdtanh"]:
+                ts.append(NormalizeIntensityd(keys=key, nonzero=True, channel_wise=True))
+                ts.append(Lambdad(keys=key, func=lambda x: 3*torch.tanh(x/3)))
             elif normalize_mode in ["pet"]:
                 ts.append(Lambdad(keys=key, func=lambda x: torch.sigmoid((x - x.min()) / x.std())))
             else:
@@ -289,9 +315,6 @@ class DataTransformBuilder:
             ts.append(ConcatItemsd(keys=list(modalities), name=self.image_key))  # concat
             ts.append(DeleteItemsd(keys=list(self.extra_modalities)))  # release memory
 
-        label_dtype = self.normalize_params.get("label_dtype", None)
-        if label_dtype is not None:
-            ts.append(CastToTyped(keys=self.label_key, dtype=label_dtype, allow_missing_keys=True))
 
         ts.extend(self.get_custom("after_normalize_transforms"))
         return ts
@@ -320,16 +343,28 @@ class DataTransformBuilder:
                 max_samples_per_class = None
             indices_key = None
 
+            sigmoid = self.extra_options.get("sigmoid", False)
+            crop_add_background = self.crop_params.get("crop_add_background", False)
+
+            if crop_ratios is None:
+                crop_classes = output_classes
+                if sigmoid and crop_add_background and self.class_index is not None and len(self.class_index)>1:
+                    crop_classes = crop_classes + 1
+            else:
+                crop_classes = len(crop_ratios)
+
+            if self.debug:
+                print(f"Cropping with classes {crop_classes} and crop_add_background {crop_add_background} ratios {crop_ratios}")
+
             if cache_class_indices:
                 ts.append(
                     ClassesToIndicesd(
                         keys=self.label_key,
-                        num_classes=output_classes,
+                        num_classes=crop_classes,
                         indices_postfix="_cls_indices",
                         max_samples_per_class=max_samples_per_class,
                     )
                 )
-
                 indices_key = self.label_key + "_cls_indices"
 
             num_crops_per_image = self.crop_params.get("num_crops_per_image", 1)
@@ -340,7 +375,7 @@ class DataTransformBuilder:
                 RandCropByLabelClassesd(
                     keys=keys,
                     label_key=self.label_key,
-                    num_classes=output_classes,
+                    num_classes=crop_classes,
                     spatial_size=self.roi_size,
                     num_samples=num_crops_per_image,
                     ratios=crop_ratios,
@@ -365,30 +400,103 @@ class DataTransformBuilder:
         if self.roi_size is None:
             raise ValueError("roi_size is not specified")
 
+        augment_mode = self.augment_params.get("augment_mode", None)
+        augment_flips = self.augment_params.get("augment_flips", None)
+        augment_rots = self.augment_params.get("augment_rots", None)
+
+        if self.debug:
+            print(f"Using augment_mode {augment_mode}, augment_flips {augment_flips}  augment_rots {augment_rots}")
+
+
         ts = []
-        ts.append(
-            RandAffined(
-                keys=[self.image_key, self.label_key],
-                prob=0.2,
-                rotate_range=[0.26, 0.26, 0.26],
-                scale_range=[0.2, 0.2, 0.2],
-                mode=["bilinear", "nearest"],
-                spatial_size=self.roi_size,
-                cache_grid=True,
-                padding_mode="border",
+
+        if augment_mode is None or augment_mode=='default':
+
+            ts.append(
+                RandAffined(
+                    keys=[self.image_key, self.label_key],
+                    prob=0.2,
+                    rotate_range=[0.26, 0.26, 0.26],
+                    scale_range=[0.2, 0.2, 0.2],
+                    mode=["bilinear", "nearest"],
+                    spatial_size=self.roi_size,
+                    cache_grid=True,
+                    padding_mode="border",
+                )
             )
-        )
-        ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=0))
-        ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=1))
-        ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=2))
-        ts.append(
-            RandGaussianSmoothd(
-                keys=self.image_key, prob=0.2, sigma_x=[0.5, 1.0], sigma_y=[0.5, 1.0], sigma_z=[0.5, 1.0]
+            ts.append(
+                RandGaussianSmoothd(
+                    keys=self.image_key, prob=0.2, sigma_x=[0.5, 1.0], sigma_y=[0.5, 1.0], sigma_z=[0.5, 1.0]
+                )
             )
-        )
-        ts.append(RandScaleIntensityd(keys=self.image_key, prob=0.5, factors=0.3))
-        ts.append(RandShiftIntensityd(keys=self.image_key, prob=0.5, offsets=0.1))
-        ts.append(RandGaussianNoised(keys=self.image_key, prob=0.2, mean=0.0, std=0.1))
+            ts.append(RandScaleIntensityd(keys=self.image_key, prob=0.5, factors=0.3))
+            ts.append(RandShiftIntensityd(keys=self.image_key, prob=0.5, offsets=0.1))
+            ts.append(RandGaussianNoised(keys=self.image_key, prob=0.2, mean=0.0, std=0.1))
+
+        elif augment_mode=='none':
+
+            augment_flips=[]
+            augment_rots=[]
+
+        elif augment_mode=='ct_ax_1':
+
+            ts.append(RandHistogramShiftd(keys='image', prob=0.5, num_control_points=16))
+            ts.append(RandAdjustContrastd(keys='image', prob=0.2, gamma=[0.5, 3.0]))
+
+            ts.append(
+                RandAffined(
+                    keys=[self.image_key, self.label_key],
+                    prob=0.5,
+                    rotate_range=[0, 0, 0.26],
+                    scale_range=[0.35, 0.35, 0],
+                    mode=["bilinear", "nearest"],
+                    spatial_size=self.roi_size,
+                    cache_grid=True,
+                    padding_mode="border",
+                )
+            )
+
+        elif augment_mode=='mri_1':
+
+            ts.append(
+                RandAffined(
+                    keys=[self.image_key, self.label_key],
+                    prob=0.2,
+                    rotate_range=[0.26, 0.26, 0.26],
+                    scale_range=[0.2, 0.2, 0.2],
+                    mode=["bilinear", "nearest"],
+                    spatial_size=self.roi_size,
+                    cache_grid=True,
+                    padding_mode="border",
+                )
+            )
+
+            ts.append(RandGaussianNoised(keys=self.image_key, prob=0.2, mean=0.0, std=0.1))
+
+            ts.append(
+                RandGaussianSmoothd(
+                    keys=self.image_key, prob=0.2, sigma_x=[0.5, 1.0], sigma_y=[0.5, 1.0], sigma_z=[0.5, 1.0]
+                )
+            )
+
+            ts.append(RandScaleIntensityFixedMeand(keys='image', prob=0.2, fixed_mean=True, factors=0.3))
+            ts.append(RandAdjustContrastd(keys='image', prob=0.2, gamma=[0.7, 1.5], retain_stats=True, invert_image=False))
+            ts.append(RandAdjustContrastd(keys='image', prob=0.2, gamma=[0.7, 1.5], retain_stats=True, invert_image=True))
+
+        else:
+            raise ValueError('Unsupported augment_mode: '+str(augment_mode))
+
+
+        # default to all flips
+        if augment_flips is None:
+            augment_flips=[0,1,2]
+        for sa in augment_flips:
+            ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=sa))
+
+        # default to no rots
+        if augment_rots is not None:
+            for sa in augment_rots:
+                ts.append(RandRotate90d(keys=[self.image_key, self.label_key], prob=0.5, spatial_axes=sa))
 
         ts.extend(self.get_custom("after_augment_transforms"))
 
@@ -408,6 +516,7 @@ class DataTransformBuilder:
         resample=False,
         data_root_dir="",
         output_dtype=np.uint8,
+        save_mask_mode = None
     ) -> Compose:
         ts = []
         if invert and transform is not None:
@@ -417,7 +526,10 @@ class DataTransformBuilder:
 
         if save_mask and output_path is not None:
             ts.append(CopyItemsd(keys="pred", times=1, names="seg"))
-            ts.append(AsDiscreted(keys="seg", argmax=True) if not sigmoid else AsDiscreted(keys="seg", threshold=0.5))
+            if save_mask_mode == "prob":
+                 output_dtype = np.float32
+            else:
+                ts.append(AsDiscreted(keys="seg", argmax=True) if not sigmoid else AsDiscreted(keys="seg", threshold=0.5))
             ts.append(
                 SaveImaged(
                     keys=["seg"],
@@ -513,6 +625,14 @@ class Segmenter:
         elif torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
 
+        if config["notf32"]:
+            torch.backends.cuda.matmul.allow_tf32 = False
+            torch.backends.cudnn.allow_tf32 = False
+            print(f"!!!disabling tf32")
+        if config.get('float32_precision', None) is not None:
+            torch.set_float32_matmul_precision(config['float32_precision'])
+            print(f"!!!setting matmul precession {config['float32_precision']}")
+
         # auto adjust network settings
         if config["auto_scale_allowed"]:
             if config["auto_scale_batch"] or config["auto_scale_roi"] or config["auto_scale_filters"]:
@@ -538,7 +658,8 @@ class Segmenter:
         loss_function = ConfigParser(config["loss"]).get_parsed_content(instantiate=True)
         self.loss_function = DeepSupervisionLoss(loss_function)
 
-        self.acc_function = DiceHelper(sigmoid=config["sigmoid"])
+        dice_ignore_empty = config.get("dice_ignore_empty", True)
+        self.acc_function = DiceHelper(sigmoid=config["sigmoid"], ignore_empty=dice_ignore_empty)
         self.grad_scaler = GradScaler(enabled=config["amp"])
 
         if config.get("sliding_inferrer") is not None:
@@ -598,18 +719,30 @@ class Segmenter:
                 normalize_params={
                     "intensity_bounds": config["intensity_bounds"],
                     "label_dtype": torch.uint8 if config["input_channels"] < 255 else torch.int16,
+                    "image_dtype": torch.int16 if config.get('cache_image_int16', False) else None,
                 },
                 crop_mode=config["crop_mode"],
                 crop_params={
                     "output_classes": config["output_classes"],
+                    "input_channels": config["input_channels"],
                     "crop_ratios": config["crop_ratios"],
                     "cache_class_indices": config["cache_class_indices"],
                     "num_crops_per_image": config["num_crops_per_image"],
                     "max_samples_per_class": config["max_samples_per_class"],
+                    "crop_add_background" : config["crop_add_background"],
+
+                },
+                augment_params={
+                    "augment_mode" : config.get("augment_mode", None),
+                    "augment_flips": config.get("augment_flips", None),
+                    "augment_rots" : config.get("augment_rots", None),
                 },
                 extra_modalities=config["extra_modalities"],
                 custom_transforms=custom_transforms,
                 crop_foreground=config.get("crop_foreground", True),
+                sigmoid = config["sigmoid"],
+                orientation_ras=config.get("orientation_ras", False),
+                class_index = config["class_index"],
                 debug=config["debug"],
             )
 
@@ -724,6 +857,8 @@ class Segmenter:
         config.setdefault("sigmoid", False)
         config.setdefault("cache_rate", None)
         config.setdefault("cache_class_indices", None)
+        config.setdefault("crop_add_background", True)
+        config.setdefault("orientation_ras", False)
 
         config.setdefault("channels_last", True)
         config.setdefault("fork", True)
@@ -754,6 +889,9 @@ class Segmenter:
         config.setdefault("extra_modalities", {})
         config.setdefault("intensity_bounds", [-250, 250])
         config.setdefault("stop_on_lowacc", True)
+
+        config.setdefault("float32_precision", None)
+        config.setdefault("notf32", False)
 
         config.setdefault("class_index", None)
         config.setdefault("class_names", [])
@@ -882,7 +1020,7 @@ class Segmenter:
             print(
                 f"=> loaded checkpoint {ckpt} (epoch {epoch}) (best_metric {best_metric}) setting start_epoch {self.config['start_epoch']}"
             )
-            # print(f"config after {self.config}")
+            self.config["start_epoch"] = int(self.config["start_epoch"]) + 1
 
     def get_shared_memory_list(self, length=0):
         mp.current_process().authkey = np.arange(32, dtype=np.uint8).tobytes()
@@ -1503,6 +1641,7 @@ class Segmenter:
                 resample=resample,
                 data_root_dir=self.config["data_file_base_dir"],
                 output_dtype=np.uint8 if self.config["output_classes"] < 255 else np.uint16,
+                save_mask_mode=self.config.get("save_mask_mode", None)
             )
 
         start_time = time.time()
@@ -1568,6 +1707,7 @@ class Segmenter:
             resample=self.config["resample"],
             data_root_dir=self.config["data_file_base_dir"],
             output_dtype=np.uint8 if self.config["output_classes"] < 255 else np.uint16,
+            save_mask_mode=self.config.get("save_mask_mode", None)
         )
 
         start_time = time.time()
@@ -1615,8 +1755,15 @@ class Segmenter:
 
         data = None
 
-        logits = logits.float().contiguous()
-        pred = self.logits2pred(logits=logits, sigmoid=sigmoid, inplace=True)
+        try:
+            pred = self.logits2pred(logits, sigmoid=sigmoid)
+        except RuntimeError as e:
+            if not logits.is_cuda:
+                raise e
+            print(f"logits2pred failed on GPU pred retrying on CPU {logits.shape}")
+            logits = logits.cpu()
+            pred = self.logits2pred(logits, sigmoid=sigmoid)
+
         logits = None
 
         if not invert_on_gpu:
@@ -1631,6 +1778,7 @@ class Segmenter:
             resample=resample,
             data_root_dir=self.config["data_file_base_dir"],
             output_dtype=np.uint8 if self.config["output_classes"] < 255 else np.uint16,
+            save_mask_mode=self.config.get("save_mask_mode", None)
         )
 
         batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[
@@ -1754,7 +1902,6 @@ class Segmenter:
         run_loss = CumulativeAverage()
         run_acc = CumulativeAverage()
         run_loss.append(torch.tensor(0, device=device), count=0)
-        run_acc.append(torch.tensor(0, device=device), count=0)
 
         avg_loss = avg_acc = 0
         start_time = time.time()
@@ -1777,10 +1924,21 @@ class Segmenter:
             data = None
 
             if post_transforms:
-                logits = logits.float().contiguous()
-                pred = self.logits2pred(logits, sigmoid=sigmoid, inplace=not calc_val_loss)
+
+                try:
+                    pred = self.logits2pred(logits, sigmoid=sigmoid)
+                except RuntimeError as e:
+                    if not logits.is_cuda:
+                        raise e
+                    print(f"logits2pred failed on GPU pred retrying on CPU {logits.shape} {filename}")
+                    logits = logits.cpu()
+                    pred = self.logits2pred(logits, sigmoid=sigmoid)
+
+
                 if not calc_val_loss:
                     logits = None
+
+
 
                 batch_data["pred"] = convert_to_dst_type(
                     pred, batch_data["image"], dtype=pred.dtype, device=pred.device
@@ -1801,35 +1959,36 @@ class Segmenter:
                 if logits is not None and pred.shape != logits.shape:
                     logits = None  # if shape has changed due to inverse resampling or un-cropping
             else:
-                pred = self.logits2pred(logits, sigmoid=sigmoid, inplace=not calc_val_loss, skip_softmax=True)
+                pred = self.logits2pred(logits, sigmoid=sigmoid, skip_softmax=True)
 
             if "label" in batch_data and loss_function is not None and acc_function is not None:
                 loss = acc = None
+                target = batch_data["label"].as_subclass(torch.Tensor)
+
+                if calc_val_loss:
+                    if logits is not None:
+                        loss = loss_function(logits, target.to(device=logits.device))
+                        run_loss.append(loss.to(device=device), count=batch_size)
+                        logits = None
+
+                with torch.no_grad():
+                    try:
+                        acc = acc_function(pred.to(device=device), target.to(device=device))  # try GPU
+                    except RuntimeError as e:
+                        if "OutOfMemoryError" not in str(type(e).__name__):
+                            raise e
+                        print(f"acc_function val failed on GPU pred: {pred.shape} on {pred.device}, target: {target.shape} on {target.device}. retrying on CPU")
+                        acc = acc_function(pred.cpu(), target.cpu())
+
+                    batch_size_adjusted = batch_size
+                    if isinstance(acc, (list, tuple)):
+                        acc, batch_size_adjusted = acc
+                    acc = acc.detach().clone()
+
                 if idx < nonrepeated_data_length:
-                    target = batch_data["label"].as_subclass(torch.Tensor)
-
-                    if calc_val_loss:
-                        if logits is not None:
-                            loss = loss_function(logits, target.to(device=logits.device))
-                            run_loss.append(loss.to(device=device), count=batch_size)
-                            logits = None
-
-                    with torch.no_grad():
-                        try:
-                            acc = acc_function(pred.to(device=device), target.to(device=device))  # try GPU
-                        except RuntimeError as e:
-                            if "OutOfMemoryError" not in str(type(e).__name__):
-                                raise e
-                            print(
-                                f"acc_function val failed on GPU pred: {pred.shape} on {pred.device}, target: {target.shape} on {target.device}. retrying on CPU"
-                            )
-                            acc = acc_function(pred.cpu(), target.cpu())
-
-                        batch_size_adjusted = batch_size
-                        if isinstance(acc, (list, tuple)):
-                            acc, batch_size_adjusted = acc
-                        acc = acc.detach().clone()
-                        run_acc.append(acc.to(device=device), count=batch_size_adjusted)
+                    run_acc.append(acc.to(device=device), count=batch_size_adjusted)
+                else:
+                    run_acc.append(torch.zeros_like(acc, device=device), count=torch.zeros_like(batch_size_adjusted))
 
                 avg_loss = loss.cpu() if loss is not None else 0
                 avg_acc = acc.cpu().numpy() if acc is not None else 0
@@ -1861,14 +2020,14 @@ class Segmenter:
 
         return avg_loss, avg_acc
 
-    def logits2pred(self, logits, sigmoid=False, dim=1, skip_softmax=False, inplace=False):
+    def logits2pred(self, logits, sigmoid=False, dim=1, skip_softmax=False):
         if isinstance(logits, (list, tuple)):
             logits = logits[0]
 
         if sigmoid:
-            pred = torch.sigmoid(logits, out=logits if inplace else None)
+            pred = torch.sigmoid(logits)
         else:
-            pred = logits if skip_softmax else torch.softmax(logits, dim=dim, out=logits if inplace else None)
+            pred = logits if skip_softmax else torch.softmax(logits, dim=dim, dtype=torch.double).float()
 
         return pred
 
