@@ -1,4 +1,5 @@
 """SwinUNETR with cross attention."""
+
 from typing import MutableMapping, Sequence, Tuple, Union
 
 import torch
@@ -118,11 +119,13 @@ class SwinUNETR(swin_unetr.SwinUNETR):
         """Layer counting helper, used by timm."""
         return dict(
             stem=r"^swinViT\.absolute_pos_embed|patch_embed",  # stem and embed
-            blocks=r"^swinViT\.layers(\d+)\.0"
-            if coarse
-            else [
-                (r"^swinViT\.layers(\d+)\.0.downsample", (0,)),
-                (r"^swinViT\.layers(\d+)\.0\.\w+\.(\d+)", None),
-                (r"^swinViT\.norm", (99999,)),
-            ],
+            blocks=(
+                r"^swinViT\.layers(\d+)\.0"
+                if coarse
+                else [
+                    (r"^swinViT\.layers(\d+)\.0.downsample", (0,)),
+                    (r"^swinViT\.layers(\d+)\.0\.\w+\.(\d+)", None),
+                    (r"^swinViT\.norm", (99999,)),
+                ]
+            ),
         )

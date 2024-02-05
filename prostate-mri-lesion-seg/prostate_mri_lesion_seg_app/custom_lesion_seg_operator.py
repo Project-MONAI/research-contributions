@@ -428,9 +428,9 @@ class CustomProstateLesionSegOperator(Operator):
         bbox_new = bbox_new.detach().numpy()
         bbox_new = np.squeeze(bbox_new)
         outputs_resize[bbox_new[0] : bbox_new[1], bbox_new[2] : bbox_new[3], bbox_new[4] : bbox_new[5]] = outputs
-        outputs_prob_resize[
-            :, bbox_new[0] : bbox_new[1], bbox_new[2] : bbox_new[3], bbox_new[4] : bbox_new[5]
-        ] = outputs_prob
+        outputs_prob_resize[:, bbox_new[0] : bbox_new[1], bbox_new[2] : bbox_new[3], bbox_new[4] : bbox_new[5]] = (
+            outputs_prob
+        )
 
         # Resample to original dimensions
         nda_shape = data["nda_shape"]
