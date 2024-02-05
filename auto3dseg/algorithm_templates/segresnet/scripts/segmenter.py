@@ -63,12 +63,18 @@ from monai.transforms import (
     Lambdad,
     LoadImaged,
     NormalizeIntensityd,
+    Orientationd,
+    RandAdjustContrastd,
     RandAffined,
     RandCropByLabelClassesd,
     RandFlipd,
     RandGaussianNoised,
     RandGaussianSmoothd,
+    RandHistogramShiftd,
+    RandIdentity,
+    RandRotate90d,
     RandScaleIntensityd,
+    RandScaleIntensityFixedMeand,
     RandShiftIntensityd,
     RandSpatialCropd,
     ResampleToMatchd,
@@ -77,12 +83,6 @@ from monai.transforms import (
     Spacingd,
     SpatialPadd,
     ToDeviced,
-    Orientationd,
-    RandIdentity,
-    RandRotate90d,
-    RandHistogramShiftd,
-    RandAdjustContrastd,
-    RandScaleIntensityFixedMeand
 )
 from monai.transforms.transform import MapTransform
 from monai.utils import ImageMetaKey, convert_to_dst_type, optional_import, set_determinism
@@ -167,11 +167,11 @@ class DataTransformBuilder:
         crop_mode: str = "ratio",
         crop_params: Optional[dict] = None,
         extra_modalities: Optional[dict] = None,
-        custom_transforms = None,
+        custom_transforms=None,
         augment_params: Optional[dict] = None,
         debug: bool = False,
         rank: int = 0,
-        class_index = None,
+        class_index=None,
         **kwargs,
     ) -> None:
         self.roi_size, self.image_key, self.label_key = roi_size, image_key, label_key
@@ -279,8 +279,8 @@ class DataTransformBuilder:
             ts.append(CastToTyped(keys=self.label_key, dtype=label_dtype, allow_missing_keys=True))
         image_dtype = self.normalize_params.get("image_dtype", None)
         if image_dtype is not None:
-            ts.append(CastToTyped(keys=self.image_key, dtype=image_dtype, allow_missing_keys=True)) #for caching
-            ts.append(RandIdentity()) #indicate to stop caching after this point
+            ts.append(CastToTyped(keys=self.image_key, dtype=image_dtype, allow_missing_keys=True))  # for caching
+            ts.append(RandIdentity())  # indicate to stop caching after this point
             ts.append(CastToTyped(keys=self.image_key, dtype=torch.float, allow_missing_keys=True))
 
         modalities = {self.image_key: self.normalize_mode}
@@ -305,7 +305,7 @@ class DataTransformBuilder:
                 ts.append(NormalizeIntensityd(keys=key, nonzero=True, channel_wise=True))
             elif normalize_mode in ["meanstdtanh"]:
                 ts.append(NormalizeIntensityd(keys=key, nonzero=True, channel_wise=True))
-                ts.append(Lambdad(keys=key, func=lambda x: 3*torch.tanh(x/3)))
+                ts.append(Lambdad(keys=key, func=lambda x: 3 * torch.tanh(x / 3)))
             elif normalize_mode in ["pet"]:
                 ts.append(Lambdad(keys=key, func=lambda x: torch.sigmoid((x - x.min()) / x.std())))
             else:
@@ -314,7 +314,6 @@ class DataTransformBuilder:
         if len(self.extra_modalities) > 0:
             ts.append(ConcatItemsd(keys=list(modalities), name=self.image_key))  # concat
             ts.append(DeleteItemsd(keys=list(self.extra_modalities)))  # release memory
-
 
         ts.extend(self.get_custom("after_normalize_transforms"))
         return ts
@@ -348,13 +347,15 @@ class DataTransformBuilder:
 
             if crop_ratios is None:
                 crop_classes = output_classes
-                if sigmoid and crop_add_background and self.class_index is not None and len(self.class_index)>1:
+                if sigmoid and crop_add_background and self.class_index is not None and len(self.class_index) > 1:
                     crop_classes = crop_classes + 1
             else:
                 crop_classes = len(crop_ratios)
 
             if self.debug:
-                print(f"Cropping with classes {crop_classes} and crop_add_background {crop_add_background} ratios {crop_ratios}")
+                print(
+                    f"Cropping with classes {crop_classes} and crop_add_background {crop_add_background} ratios {crop_ratios}"
+                )
 
             if cache_class_indices:
                 ts.append(
@@ -407,10 +408,9 @@ class DataTransformBuilder:
         if self.debug:
             print(f"Using augment_mode {augment_mode}, augment_flips {augment_flips}  augment_rots {augment_rots}")
 
-
         ts = []
 
-        if augment_mode is None or augment_mode=='default':
+        if augment_mode is None or augment_mode == "default":
 
             ts.append(
                 RandAffined(
@@ -433,15 +433,15 @@ class DataTransformBuilder:
             ts.append(RandShiftIntensityd(keys=self.image_key, prob=0.5, offsets=0.1))
             ts.append(RandGaussianNoised(keys=self.image_key, prob=0.2, mean=0.0, std=0.1))
 
-        elif augment_mode=='none':
+        elif augment_mode == "none":
 
-            augment_flips=[]
-            augment_rots=[]
+            augment_flips = []
+            augment_rots = []
 
-        elif augment_mode=='ct_ax_1':
+        elif augment_mode == "ct_ax_1":
 
-            ts.append(RandHistogramShiftd(keys='image', prob=0.5, num_control_points=16))
-            ts.append(RandAdjustContrastd(keys='image', prob=0.2, gamma=[0.5, 3.0]))
+            ts.append(RandHistogramShiftd(keys="image", prob=0.5, num_control_points=16))
+            ts.append(RandAdjustContrastd(keys="image", prob=0.2, gamma=[0.5, 3.0]))
 
             ts.append(
                 RandAffined(
@@ -456,7 +456,7 @@ class DataTransformBuilder:
                 )
             )
 
-        elif augment_mode=='mri_1':
+        elif augment_mode == "mri_1":
 
             ts.append(
                 RandAffined(
@@ -479,17 +479,20 @@ class DataTransformBuilder:
                 )
             )
 
-            ts.append(RandScaleIntensityFixedMeand(keys='image', prob=0.2, fixed_mean=True, factors=0.3))
-            ts.append(RandAdjustContrastd(keys='image', prob=0.2, gamma=[0.7, 1.5], retain_stats=True, invert_image=False))
-            ts.append(RandAdjustContrastd(keys='image', prob=0.2, gamma=[0.7, 1.5], retain_stats=True, invert_image=True))
+            ts.append(RandScaleIntensityFixedMeand(keys="image", prob=0.2, fixed_mean=True, factors=0.3))
+            ts.append(
+                RandAdjustContrastd(keys="image", prob=0.2, gamma=[0.7, 1.5], retain_stats=True, invert_image=False)
+            )
+            ts.append(
+                RandAdjustContrastd(keys="image", prob=0.2, gamma=[0.7, 1.5], retain_stats=True, invert_image=True)
+            )
 
         else:
-            raise ValueError('Unsupported augment_mode: '+str(augment_mode))
-
+            raise ValueError("Unsupported augment_mode: " + str(augment_mode))
 
         # default to all flips
         if augment_flips is None:
-            augment_flips=[0,1,2]
+            augment_flips = [0, 1, 2]
         for sa in augment_flips:
             ts.append(RandFlipd(keys=[self.image_key, self.label_key], prob=0.5, spatial_axis=sa))
 
@@ -516,7 +519,7 @@ class DataTransformBuilder:
         resample=False,
         data_root_dir="",
         output_dtype=np.uint8,
-        save_mask_mode = None
+        save_mask_mode=None,
     ) -> Compose:
         ts = []
         if invert and transform is not None:
@@ -527,9 +530,11 @@ class DataTransformBuilder:
         if save_mask and output_path is not None:
             ts.append(CopyItemsd(keys="pred", times=1, names="seg"))
             if save_mask_mode == "prob":
-                 output_dtype = np.float32
+                output_dtype = np.float32
             else:
-                ts.append(AsDiscreted(keys="seg", argmax=True) if not sigmoid else AsDiscreted(keys="seg", threshold=0.5))
+                ts.append(
+                    AsDiscreted(keys="seg", argmax=True) if not sigmoid else AsDiscreted(keys="seg", threshold=0.5)
+                )
             ts.append(
                 SaveImaged(
                     keys=["seg"],
@@ -629,8 +634,8 @@ class Segmenter:
             torch.backends.cuda.matmul.allow_tf32 = False
             torch.backends.cudnn.allow_tf32 = False
             print(f"!!!disabling tf32")
-        if config.get('float32_precision', None) is not None:
-            torch.set_float32_matmul_precision(config['float32_precision'])
+        if config.get("float32_precision", None) is not None:
+            torch.set_float32_matmul_precision(config["float32_precision"])
             print(f"!!!setting matmul precession {config['float32_precision']}")
 
         # auto adjust network settings
@@ -719,7 +724,7 @@ class Segmenter:
                 normalize_params={
                     "intensity_bounds": config["intensity_bounds"],
                     "label_dtype": torch.uint8 if config["input_channels"] < 255 else torch.int16,
-                    "image_dtype": torch.int16 if config.get('cache_image_int16', False) else None,
+                    "image_dtype": torch.int16 if config.get("cache_image_int16", False) else None,
                 },
                 crop_mode=config["crop_mode"],
                 crop_params={
@@ -729,20 +734,19 @@ class Segmenter:
                     "cache_class_indices": config["cache_class_indices"],
                     "num_crops_per_image": config["num_crops_per_image"],
                     "max_samples_per_class": config["max_samples_per_class"],
-                    "crop_add_background" : config["crop_add_background"],
-
+                    "crop_add_background": config["crop_add_background"],
                 },
                 augment_params={
-                    "augment_mode" : config.get("augment_mode", None),
+                    "augment_mode": config.get("augment_mode", None),
                     "augment_flips": config.get("augment_flips", None),
-                    "augment_rots" : config.get("augment_rots", None),
+                    "augment_rots": config.get("augment_rots", None),
                 },
                 extra_modalities=config["extra_modalities"],
                 custom_transforms=custom_transforms,
                 crop_foreground=config.get("crop_foreground", True),
-                sigmoid = config["sigmoid"],
+                sigmoid=config["sigmoid"],
                 orientation_ras=config.get("orientation_ras", False),
-                class_index = config["class_index"],
+                class_index=config["class_index"],
                 debug=config["debug"],
             )
 
@@ -1641,7 +1645,7 @@ class Segmenter:
                 resample=resample,
                 data_root_dir=self.config["data_file_base_dir"],
                 output_dtype=np.uint8 if self.config["output_classes"] < 255 else np.uint16,
-                save_mask_mode=self.config.get("save_mask_mode", None)
+                save_mask_mode=self.config.get("save_mask_mode", None),
             )
 
         start_time = time.time()
@@ -1707,7 +1711,7 @@ class Segmenter:
             resample=self.config["resample"],
             data_root_dir=self.config["data_file_base_dir"],
             output_dtype=np.uint8 if self.config["output_classes"] < 255 else np.uint16,
-            save_mask_mode=self.config.get("save_mask_mode", None)
+            save_mask_mode=self.config.get("save_mask_mode", None),
         )
 
         start_time = time.time()
@@ -1778,7 +1782,7 @@ class Segmenter:
             resample=resample,
             data_root_dir=self.config["data_file_base_dir"],
             output_dtype=np.uint8 if self.config["output_classes"] < 255 else np.uint16,
-            save_mask_mode=self.config.get("save_mask_mode", None)
+            save_mask_mode=self.config.get("save_mask_mode", None),
         )
 
         batch_data["pred"] = convert_to_dst_type(pred, batch_data["image"], dtype=pred.dtype, device=pred.device)[
@@ -1934,11 +1938,8 @@ class Segmenter:
                     logits = logits.cpu()
                     pred = self.logits2pred(logits, sigmoid=sigmoid)
 
-
                 if not calc_val_loss:
                     logits = None
-
-
 
                 batch_data["pred"] = convert_to_dst_type(
                     pred, batch_data["image"], dtype=pred.dtype, device=pred.device
@@ -1977,7 +1978,9 @@ class Segmenter:
                     except RuntimeError as e:
                         if "OutOfMemoryError" not in str(type(e).__name__):
                             raise e
-                        print(f"acc_function val failed on GPU pred: {pred.shape} on {pred.device}, target: {target.shape} on {target.device}. retrying on CPU")
+                        print(
+                            f"acc_function val failed on GPU pred: {pred.shape} on {pred.device}, target: {target.shape} on {target.device}. retrying on CPU"
+                        )
                         acc = acc_function(pred.cpu(), target.cpu())
 
                     batch_size_adjusted = batch_size

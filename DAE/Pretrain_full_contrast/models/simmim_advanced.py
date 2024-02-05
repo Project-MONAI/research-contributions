@@ -1218,7 +1218,7 @@ class SimMIMSkip2(nn.Module):
             kernel_size=3,
             upsample_kernel_size=2,
             norm_name=norm_name,
-            stride=1
+            stride=1,
             # res_block=True,
         )
 
