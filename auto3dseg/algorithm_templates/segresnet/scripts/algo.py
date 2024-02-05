@@ -265,6 +265,8 @@ class SegresnetAlgo(BundleAlgo):
             # mlflow
             if hasattr(self, "mlflow_tracking_uri") and self.mlflow_tracking_uri is not None:
                 config.update({"mlflow_tracking_uri": self.mlflow_tracking_uri})
+            if hasattr(self, "mlflow_experiment_name") and self.mlflow_experiment_name is not None:
+                config.update({"mlflow_experiment_name": self.mlflow_experiment_name})
 
             config.update(input_config)  # override if any additional inputs provided
             fill_records = {"hyper_parameters.yaml": config}
