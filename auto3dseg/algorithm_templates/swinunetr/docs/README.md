@@ -1,6 +1,6 @@
 # Description
 
-A 3D Swin Transformer-based algorithm for volumetric segmentation of medical images integrated with Auto3dSeg pipeline.
+A 3D Swin Transformer-based algorithm for volumetric segmentation of medical images integrated with Auto3DSeg pipeline.
 
 # Model Overview
 
