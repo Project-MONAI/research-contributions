@@ -1129,6 +1129,7 @@ class Segmenter:
 
             if mlflow_is_imported:
                 mlflow.set_tracking_uri(config["mlflow_tracking_uri"])
+                mlflow.set_experiment(config["mlflow_experiment_name"])
                 mlflow.start_run(run_name=f'segresnet - fold{config["fold"]} - train')
 
             csv_path = os.path.join(ckpt_path, "accuracy_history.csv")
