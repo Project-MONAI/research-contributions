@@ -1,6 +1,7 @@
 {
-    "version": "0.0.7",
+    "version": "0.0.8",
     "changelog": {
+        "0.0.8": "Update swin unetr pretrained weights link",
         "0.0.7": "Add support for MLFlow experiment name.",
         "0.0.6": "Move metadata.json under 'configs' to be consistent with bundles.",
         "0.0.5": "Enable support of mlflow in segresnet algorithm template for public server.",
