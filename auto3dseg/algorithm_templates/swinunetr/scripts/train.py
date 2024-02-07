@@ -312,7 +312,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if use_pretrain:
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
             download_url(
-                url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
+                url="https://api.ngc.nvidia.com/v2/models/nvidia/monaihosting/swin_unetr_pretrained/versions/1.0/files/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
                 filepath=pretrained_path,
                 progress=False,
             )
