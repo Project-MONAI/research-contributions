@@ -25,7 +25,7 @@ def plot_registration_result(image_A, image_B, net) :
 
 
 
-    
+
     plt.subplot(2, 2, 1)
     show(image_A)
     plt.subplot(2, 2, 2)

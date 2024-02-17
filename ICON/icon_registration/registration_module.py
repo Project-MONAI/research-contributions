@@ -20,7 +20,7 @@ class CoordinateWarp(Warp):
         if spatial_dims not in (2, 3):
             raise notimplementederror(f"got unsupported spatial_dims={spatial_dims}, currently support 2 or 3.")
         ddf_shape = (image.shape[0], spatial_dims) + tuple(image.shape[2:])
-        grid = ddf # assume 
+        grid = ddf # assume
         grid = grid.permute([0] + list(range(2, 2 + spatial_dims)) + [1])  # (batch, ..., spatial_dims)
 
         for i, dim in enumerate(grid.shape[1:-1]):

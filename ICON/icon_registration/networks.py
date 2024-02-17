@@ -378,5 +378,3 @@ class ConvolutionalMatrixNet(nn.Module):
         else:
             raise ArgumentError()
         return x
-
-
