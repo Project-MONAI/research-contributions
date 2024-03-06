@@ -16,9 +16,9 @@ def generate_hole_implants(data, cube_dim):
     z = int(z_ * (3 / 4))
     cube_masking = np.zeros(shape=(cube_dim, cube_dim, z_ - z))
     print(cube_masking.shape)
-    full_masking[
-        x - int(cube_dim / 2) : x + int(cube_dim / 2), y - int(cube_dim / 2) : y + int(cube_dim / 2), z:z_
-    ] = cube_masking
+    full_masking[x - int(cube_dim / 2) : x + int(cube_dim / 2), y - int(cube_dim / 2) : y + int(cube_dim / 2), z:z_] = (
+        cube_masking
+    )
     return full_masking
 
 

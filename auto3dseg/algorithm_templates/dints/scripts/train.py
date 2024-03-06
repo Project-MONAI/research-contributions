@@ -241,6 +241,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     fold = parser.get_parsed_content("fold")
     log_output_file = parser.get_parsed_content("training#log_output_file")
     mlflow_tracking_uri = parser.get_parsed_content("mlflow_tracking_uri")
+    mlflow_experiment_name = parser.get_parsed_content("mlflow_experiment_name")
     num_images_per_batch = parser.get_parsed_content("training#num_images_per_batch")
     num_epochs = parser.get_parsed_content("training#num_epochs")
     num_epochs_per_validation = parser.get_parsed_content("training#num_epochs_per_validation")
@@ -531,6 +532,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
 
         mlflow.set_tracking_uri(mlflow_tracking_uri)
+        mlflow.set_experiment(mlflow_experiment_name)
         mlflow.start_run(run_name=f"dints - fold{fold} - train")
 
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:

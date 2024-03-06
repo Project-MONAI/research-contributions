@@ -131,6 +131,8 @@ class SwinunetrAlgo(BundleAlgo):
 
             if hasattr(self, "mlflow_tracking_uri") and self.mlflow_tracking_uri is not None:
                 hyper_parameters.update({"mlflow_tracking_uri": self.mlflow_tracking_uri})
+            if hasattr(self, "mlflow_experiment_name") and self.mlflow_experiment_name is not None:
+                hyper_parameters.update({"mlflow_experiment_name": self.mlflow_experiment_name})
 
             modality = data_src_cfg.get("modality", "ct").lower()
             spacing = data_stats["stats_summary#image_stats#spacing#median"]

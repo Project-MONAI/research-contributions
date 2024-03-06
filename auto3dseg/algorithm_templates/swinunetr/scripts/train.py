@@ -159,6 +159,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     finetune = parser.get_parsed_content("finetune")
     fold = parser.get_parsed_content("fold")
     mlflow_tracking_uri = parser.get_parsed_content("mlflow_tracking_uri")
+    mlflow_experiment_name = parser.get_parsed_content("mlflow_experiment_name")
     num_images_per_batch = parser.get_parsed_content("num_images_per_batch")
     num_epochs = parser.get_parsed_content("num_epochs")
     num_epochs_per_validation = parser.get_parsed_content("num_epochs_per_validation")
@@ -311,7 +312,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if use_pretrain:
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
             download_url(
-                url="https://github.com/Project-MONAI/MONAI-extra-test-data/releases/download/0.8.1/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
+                url="https://api.ngc.nvidia.com/v2/models/nvidia/monaihosting/swin_unetr_pretrained/versions/1.0/files/swin_unetr.base_5000ep_f48_lr2e-4_pretrained.pt",
                 filepath=pretrained_path,
                 progress=False,
             )
@@ -403,6 +404,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
         writer = SummaryWriter(log_dir=os.path.join(ckpt_path, "Events"))
         mlflow.set_tracking_uri(mlflow_tracking_uri)
+        mlflow.set_experiment(mlflow_experiment_name)
         mlflow.start_run(run_name=f"swinunetr - fold{fold} - train")
         with open(os.path.join(ckpt_path, "accuracy_history.csv"), "a") as f:
             f.write("epoch\tmetric\tloss\tlr\ttime\titer\n")
