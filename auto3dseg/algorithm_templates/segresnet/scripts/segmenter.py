@@ -309,7 +309,7 @@ class DataTransformBuilder:
             elif normalize_mode in ["pet"]:
                 ts.append(Lambdad(keys=key, func=lambda x: torch.sigmoid((x - x.min()) / x.std())))
             else:
-                raise ValueError("Unsupported normalize_mode" + str(self.normalize_mode))
+                raise ValueError("Unsupported normalize_mode" + str(normalize_mode))
 
         if len(self.extra_modalities) > 0:
             ts.append(ConcatItemsd(keys=list(modalities), name=self.image_key))  # concat
