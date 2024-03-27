@@ -68,7 +68,7 @@ class DintsAlgo(BundleAlgo):
                 data_src_cfg.read_config(self.data_list_file)
 
             hyper_parameters = {"bundle_root": output_path}
-            hyper_parameters_search = {"bundle_root": output_path}
+            hyper_parameters_search = {}
             network = {}
             network_search = {}
             transforms_train = {}
