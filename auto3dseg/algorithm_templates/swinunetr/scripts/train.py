@@ -14,7 +14,6 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import io
-import time
 import logging
 import math
 import os
