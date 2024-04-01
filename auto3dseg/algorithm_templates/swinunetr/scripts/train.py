@@ -14,6 +14,7 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import io
+import time
 import logging
 import math
 import os
@@ -318,6 +319,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             )
         if torch.cuda.device_count() > 1:
             dist.barrier()
+        time.sleep(5)
         store_dict = model.state_dict()
         model_dict = torch.load(pretrained_path, map_location=device)["state_dict"]
         for key in model_dict.keys():
