@@ -138,6 +138,8 @@ def pre_operation(config_file, **override):
 class InferClass:
     def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         pre_operation(config_file, **override)
+        if dist.is_initialized():
+            dist.barrier()
 
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
