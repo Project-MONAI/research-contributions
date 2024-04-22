@@ -13,11 +13,11 @@ import logging
 import os
 import sys
 from typing import Optional, Sequence, Union
-from pathlib import Path
 
 import numpy as np
 import torch
 import torch.distributed as dist
+from pathlib import Path
 
 import monai
 from monai import transforms
@@ -66,94 +66,88 @@ def get_mem_from_visible_gpus():
 
 def pre_operation(config_file, **override):
     # update hyper-parameter configuration
-    rank = int(os.getenv("RANK", "0"))
-    if rank == 0:
-        if isinstance(config_file, str) and "," in config_file:
-            config_file = config_file.split(",")
+    if isinstance(config_file, str) and "," in config_file:
+        config_file = config_file.split(",")
 
-        for _file in config_file:
-            if _file.endswith("hyper_parameters.yaml"):
-                from filelock import FileLock
-                lock = FileLock(f"{_file}.lock")
-                with lock:
-                    parser = ConfigParser(globals=False)
-                    parser.read_config(_file)
+    for _file in config_file:
+        if _file.endswith("hyper_parameters.yaml"):
+            parser = ConfigParser(globals=False)
+            parser.read_config(_file)
 
-                    auto_scale_allowed = parser["training"]["auto_scale_allowed"]
-                    if "training#auto_scale_allowed" in override:
-                        auto_scale_allowed = override["training#auto_scale_allowed"]
+            auto_scale_allowed = parser["training"]["auto_scale_allowed"]
+            if "training#auto_scale_allowed" in override:
+                auto_scale_allowed = override["training#auto_scale_allowed"]
 
-                    if auto_scale_allowed:
-                        output_classes = parser["training"]["output_classes"]
+            if auto_scale_allowed:
+                output_classes = parser["training"]["output_classes"]
 
-                        try:
-                            mem = get_mem_from_visible_gpus()
-                            mem = min(mem) if isinstance(mem, list) else mem
-                            mem = float(mem) / (1024.0**3)
-                        except BaseException:
-                            mem = 16.0
+                try:
+                    mem = get_mem_from_visible_gpus()
+                    mem = min(mem) if isinstance(mem, list) else mem
+                    mem = float(mem) / (1024.0**3)
+                except BaseException:
+                    mem = 16.0
 
-                        mem = max(1.0, mem - 1.0)
-                        mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
-                        mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
-                        batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
-                        batch_size = int(batch_size)
-                        batch_size = max(batch_size, 1)
+                mem = max(1.0, mem - 1.0)
+                mem_bs2 = 6.0 + (20.0 - 6.0) * (output_classes - 2) / (105 - 2)
+                mem_bs9 = 24.0 + (74.0 - 24.0) * (output_classes - 2) / (105 - 2)
+                batch_size = 2 + (9 - 2) * (mem - mem_bs2) / (mem_bs9 - mem_bs2)
+                batch_size = int(batch_size)
+                batch_size = max(batch_size, 1)
 
-                        parser["training"].update({"num_patches_per_iter": batch_size})
-                        parser["training"].update({"num_crops_per_image": 2 * batch_size})
+                parser["training"].update({"num_patches_per_iter": batch_size})
+                parser["training"].update({"num_crops_per_image": 2 * batch_size})
 
-                        # estimate data size based on number of images and image
-                        # size
-                        _factor = 1.0
+                # estimate data size based on number of images and image
+                # size
+                _factor = 1.0
 
-                        try:
-                            _factor *= 1251.0 / float(parser["stats_summary"]["n_cases"])
-                            _mean_shape = parser["stats_summary"]["image_stats"]["shape"]["mean"]
-                            _factor *= float(_mean_shape[0]) / 240.0
-                            _factor *= float(_mean_shape[1]) / 240.0
-                            _factor *= float(_mean_shape[2]) / 155.0
-                        except BaseException:
-                            pass
+                try:
+                    _factor *= 1251.0 / float(parser["stats_summary"]["n_cases"])
+                    _mean_shape = parser["stats_summary"]["image_stats"]["shape"]["mean"]
+                    _factor *= float(_mean_shape[0]) / 240.0
+                    _factor *= float(_mean_shape[1]) / 240.0
+                    _factor *= float(_mean_shape[2]) / 155.0
+                except BaseException:
+                    pass
 
-                        _patch_size = parser["training"]["roi_size"]
-                        _factor *= 96.0 / float(_patch_size[0])
-                        _factor *= 96.0 / float(_patch_size[1])
-                        _factor *= 96.0 / float(_patch_size[2])
+                _patch_size = parser["training"]["roi_size"]
+                _factor *= 96.0 / float(_patch_size[0])
+                _factor *= 96.0 / float(_patch_size[1])
+                _factor *= 96.0 / float(_patch_size[2])
 
-                        if "training#epoch_divided_factor" in override:
-                            epoch_divided_factor = override["training#epoch_divided_factor"]
-                        else:
-                            epoch_divided_factor = parser["training"]["epoch_divided_factor"]
-                        epoch_divided_factor = float(epoch_divided_factor)
-                        _factor /= epoch_divided_factor
+                if "training#epoch_divided_factor" in override:
+                    epoch_divided_factor = override["training#epoch_divided_factor"]
+                else:
+                    epoch_divided_factor = parser["training"]["epoch_divided_factor"]
+                epoch_divided_factor = float(epoch_divided_factor)
+                _factor /= epoch_divided_factor
 
-                        _factor = max(1.0, _factor)
+                _factor = max(1.0, _factor)
 
-                        _estimated_epochs = 400.0
-                        _estimated_epochs *= _factor
+                _estimated_epochs = 400.0
+                _estimated_epochs *= _factor
 
-                        parser["training"].update({"num_epochs": int(_estimated_epochs / float(batch_size))})
+                parser["training"].update({"num_epochs": int(_estimated_epochs / float(batch_size))})
+                rank = int(os.getenv("RANK", "0"))
+                if rank == 0:
+                    ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
 
-                        ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
-
-    return
+    return parser
 
 
 class InferClass:
     def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, **override):
-        pre_operation(config_file, **override)
-        if dist.is_initialized():
-            dist.barrier()
-        config_file = [path for path in ensure_tuple(config_file) if not (Path(path).name.startswith('.') or path.endswith('.lock'))]
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
         _args = _update_args(config_file=config_file, **override)
         config_file_ = _pop_args(_args, "config_file")[0]
-
+        config_file_ = [path for path in ensure_tuple(config_file_) if not (path.endswith("hyper_parameters.yaml") or Path(path).name.startswith('.'))]
         parser = ConfigParser()
         parser.read_config(config_file_)
+        parser_hyper = pre_operation(config_file, **override)
         parser.update(pairs=_args)
+        parser.update(pairs=parser_hyper.config)
 
         self.amp = parser.get_parsed_content("training#amp")
         data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
