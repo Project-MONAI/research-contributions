@@ -323,7 +323,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         while not os.path.exists(pretrained_path):
             time.sleep(1)
             if time.time() - start_time > timeout:  # timeout limit reached
-                raise TimeoutError(f"Pretrained weights file could not be found at {pretrained_path} after waiting for {timeout} seconds")
+                raise TimeoutError(
+                    f"Pretrained weights file could not be found at {pretrained_path} after waiting for {timeout} seconds"
+                )
 
         store_dict = model.state_dict()
         model_dict = torch.load(pretrained_path, map_location=device)["state_dict"]
