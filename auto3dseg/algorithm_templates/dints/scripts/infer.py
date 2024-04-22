@@ -146,8 +146,8 @@ class InferClass:
         parser = ConfigParser()
         parser.read_config(config_file_)
         parser_hyper = pre_operation(config_file, **override)
-        parser.update(pairs=_args)
         parser.update(pairs=parser_hyper.config)
+        parser.update(pairs=_args)
 
         self.amp = parser.get_parsed_content("training#amp")
         data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
