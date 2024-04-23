@@ -72,8 +72,10 @@ def pre_operation(config_file, **override):
 
     for _file in config_file:
         if _file.endswith("hyper_parameters.yaml"):
-            parser = ConfigParser(globals=False)
-            parser.read_config(_file)
+            lock = FileLock(f"{_file}.lock")
+            with lock:
+                parser = ConfigParser(globals=False)
+                parser.read_config(_file)
 
             auto_scale_allowed = parser["training"]["auto_scale_allowed"]
             if "training#auto_scale_allowed" in override:
@@ -132,10 +134,10 @@ def pre_operation(config_file, **override):
                 parser["training"].update({"num_epochs": int(_estimated_epochs / float(batch_size))})
                 rank = int(os.getenv("RANK", "0"))
                 if rank == 0:
-                    lock = FileLock(f"{_file}.lock")
                     with lock:
                         ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
-                    os.remove(f"{_file}.lock")
+                if dist.is_initialized():
+                    dist.barrier()
 
     return parser
 
@@ -146,7 +148,7 @@ class InferClass:
 
         _args = _update_args(config_file=config_file, **override)
         config_file_ = _pop_args(_args, "config_file")[0]
-        config_file_ = [path for path in ensure_tuple(config_file_) if not (path.endswith("hyper_parameters.yaml") or Path(path).name.startswith('.'))]
+        config_file_ = [path for path in ensure_tuple(config_file_) if not (path.endswith("hyper_parameters.yaml") or Path(path).name.startswith('.') or path.endswith(".lock"))]
         parser = ConfigParser()
         parser.read_config(config_file_)
         parser_hyper = pre_operation(config_file, **override)
