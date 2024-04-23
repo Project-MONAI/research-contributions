@@ -18,6 +18,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 from pathlib import Path
+from filelock import FileLock
 
 import monai
 from monai import transforms
@@ -131,7 +132,10 @@ def pre_operation(config_file, **override):
                 parser["training"].update({"num_epochs": int(_estimated_epochs / float(batch_size))})
                 rank = int(os.getenv("RANK", "0"))
                 if rank == 0:
-                    ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
+                    lock = FileLock(f"{_file}.lock")
+                    with lock:
+                        ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
+                    os.remove(f"{_file}.lock")
 
     return parser
 
