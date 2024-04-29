@@ -12,12 +12,12 @@
 import logging
 import os
 import sys
+from pathlib import Path
 from typing import Optional, Sequence, Union
 
 import numpy as np
 import torch
 import torch.distributed as dist
-from pathlib import Path
 from filelock import FileLock
 
 import monai
@@ -148,7 +148,11 @@ class InferClass:
 
         _args = _update_args(config_file=config_file, **override)
         config_file_ = _pop_args(_args, "config_file")[0]
-        config_file_ = [path for path in ensure_tuple(config_file_) if not (path.endswith("hyper_parameters.yaml") or Path(path).name.startswith('.') or path.endswith(".lock"))]
+        config_file_ = [
+            path
+            for path in ensure_tuple(config_file_)
+            if not (path.endswith("hyper_parameters.yaml") or Path(path).name.startswith(".") or path.endswith(".lock"))
+        ]
         parser = ConfigParser()
         parser.read_config(config_file_)
         parser_hyper = pre_operation(config_file, **override)
