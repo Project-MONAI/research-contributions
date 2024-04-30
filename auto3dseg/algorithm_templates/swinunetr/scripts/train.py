@@ -20,6 +20,7 @@ import random
 import sys
 import time
 import warnings
+from pathlib import Path
 from datetime import datetime
 from typing import Optional, Sequence, Union
 
@@ -28,6 +29,7 @@ import mlflow.pytorch
 import numpy as np
 import torch
 import torch.distributed as dist
+from filelock import FileLock
 import yaml
 from torch.nn.parallel import DistributedDataParallel
 from torch.nn.utils import clip_grad_norm_
@@ -46,6 +48,7 @@ from monai.data import DataLoader, partition_dataset
 from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
 from monai.utils import RankFilter, set_determinism
+from monai.utils.misc import ensure_tuple
 
 if __package__ in (None, ""):
     from algo import auto_scale
@@ -105,26 +108,31 @@ class EarlyStopping:
 
 def pre_operation(config_file, **override):
     """Update the hyper_parameters.yaml based on GPU memory"""
-    rank = int(os.getenv("RANK", "0"))
-    if rank == 0:
-        if isinstance(config_file, str) and "," in config_file:
-            config_file = config_file.split(",")
+    if isinstance(config_file, str) and "," in config_file:
+        config_file = config_file.split(",")
 
-        for _file in config_file:
-            if "hyper_parameters.yaml" in _file:
+    for _file in config_file:
+        if _file.endswith("hyper_parameters.yaml"):
+            lock = FileLock(f"{_file}.lock")
+            with lock:
                 parser = ConfigParser(globals=False)
                 parser.read_config(_file)
-                auto_scale_allowed = override.get("auto_scale_allowed", parser["auto_scale_allowed"])
-                max_epoch = override.get("auto_scale_max_epochs", parser["auto_scale_max_epochs"])
-                if auto_scale_allowed:
-                    output_classes = parser["output_classes"]
-                    n_cases = parser["n_cases"]
-                    scaled = auto_scale(output_classes, n_cases, max_epoch)
-                    parser.update({"num_patches_per_iter": scaled["num_patches_per_iter"]})
-                    parser.update({"num_crops_per_image": scaled["num_crops_per_image"]})
-                    parser.update({"num_epochs": scaled["num_epochs"]})
-                    ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
-    return
+            auto_scale_allowed = override.get("auto_scale_allowed", parser["auto_scale_allowed"])
+            max_epoch = override.get("auto_scale_max_epochs", parser["auto_scale_max_epochs"])
+            if auto_scale_allowed:
+                output_classes = parser["output_classes"]
+                n_cases = parser["n_cases"]
+                scaled = auto_scale(output_classes, n_cases, max_epoch)
+                parser.update({"num_patches_per_iter": scaled["num_patches_per_iter"]})
+                parser.update({"num_crops_per_image": scaled["num_crops_per_image"]})
+                parser.update({"num_epochs": scaled["num_epochs"]})
+                rank = int(os.getenv("RANK", "0"))
+                if rank == 0:
+                    with lock:
+                        ConfigParser.export_config_file(parser.get(), _file, fmt="yaml", default_flow_style=None)
+                if dist.is_initialized():
+                    dist.barrier()
+    return parser
 
 
 def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
@@ -132,10 +140,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if torch.cuda.device_count() > 1:
         dist.init_process_group(backend="nccl", init_method="env://")
         world_size = dist.get_world_size()
-        pre_operation(config_file, **override)
-        dist.barrier()
     else:
-        pre_operation(config_file, **override)
         world_size = 1
 
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -145,9 +150,16 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
     _args = _update_args(config_file=config_file, **override)
     config_file_ = _pop_args(_args, "config_file")[0]
+    config_file_ = [
+        path
+        for path in ensure_tuple(config_file_)
+        if not (path.endswith("hyper_parameters.yaml") or Path(path).name.startswith(".") or path.endswith(".lock"))
+        ]
 
     parser = ConfigParser()
     parser.read_config(config_file_)
+    parser_hyper = pre_operation(config_file, **override)
+    parser.update(pairs=parser_hyper.config)
     parser.update(pairs=_args)
 
     amp = parser.get_parsed_content("amp")
