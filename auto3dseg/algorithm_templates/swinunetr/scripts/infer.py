@@ -12,6 +12,7 @@
 import logging
 import os
 import sys
+from pathlib import Path
 from typing import Optional, Sequence, Union
 
 import torch
@@ -25,6 +26,7 @@ from monai.bundle import ConfigParser
 from monai.bundle.scripts import _pop_args, _update_args
 from monai.data import ThreadDataLoader, decollate_batch, list_data_collate
 from monai.inferers import sliding_window_inference
+from monai.utils.misc import ensure_tuple
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 if __package__ in (None, ""):
@@ -35,14 +37,19 @@ else:
 
 class InferClass:
     def __init__(self, config_file: Optional[Union[str, Sequence[str]]] = None, **override):
-        pre_operation(config_file, **override)
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
         _args = _update_args(config_file=config_file, **override)
         config_file_ = _pop_args(_args, "config_file")[0]
-
+        config_file_ = [
+            path
+            for path in ensure_tuple(config_file_)
+            if not (path.endswith("hyper_parameters.yaml") or Path(path).name.startswith(".") or path.endswith(".lock"))
+        ]
         parser = ConfigParser()
         parser.read_config(config_file_)
+        parser_hyper = pre_operation(config_file, **override)
+        parser.update(pairs=parser_hyper.config)
         parser.update(pairs=_args)
 
         data_file_base_dir = parser.get_parsed_content("data_file_base_dir")
