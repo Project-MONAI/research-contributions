@@ -20,8 +20,8 @@ import random
 import sys
 import time
 import warnings
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Sequence, Union
 
 import mlflow
@@ -29,8 +29,8 @@ import mlflow.pytorch
 import numpy as np
 import torch
 import torch.distributed as dist
-from filelock import FileLock
 import yaml
+from filelock import FileLock
 from torch.nn.parallel import DistributedDataParallel
 from torch.nn.utils import clip_grad_norm_
 from torch.utils.tensorboard import SummaryWriter
@@ -154,7 +154,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         path
         for path in ensure_tuple(config_file_)
         if not (path.endswith("hyper_parameters.yaml") or Path(path).name.startswith(".") or path.endswith(".lock"))
-        ]
+    ]
 
     parser = ConfigParser()
     parser.read_config(config_file_)
