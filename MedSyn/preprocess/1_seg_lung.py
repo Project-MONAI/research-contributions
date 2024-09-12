@@ -9,10 +9,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     #assert args.batch_index != None
     #print("Batch index:", args.batch_index)
-    
+
     img_folder = args.img_folder
     result_folder = "./lung_mask_raw/"
-    
+
     moving_img_list = list(glob.glob(img_folder+"*.nii.gz"))
 
     for idx, line in enumerate(moving_img_list):

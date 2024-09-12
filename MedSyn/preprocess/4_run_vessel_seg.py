@@ -19,7 +19,7 @@ def main():
         #    continue
         if os.path.exists('./moved_img_nii_seg/'+sid+'/lung_trachea_bronchia.nii.gz'):
             continue
-        print(sid)    
+        print(sid)
         result = os.system('export CUDA_VISIBLE_DEVICES='+str(gpu_id)+'; TotalSegmentator -i moved_img_nii/'+sid+'.nii.gz -o moved_img_nii_seg/'+sid)
         if result == 0:
             os.system('export CUDA_VISIBLE_DEVICES='+str(gpu_id)+'; TotalSegmentator -i moved_img_nii/'+sid+'.nii.gz -o moved_img_nii_seg/'+sid+' -ta lung_vessels')

@@ -981,15 +981,15 @@ class Trainer(object):
                     frames_lobe = all_videos_list_lobe.squeeze().cpu().numpy()
                     save_mask_nii(frames_lobe, output_dir=self.save_folder, output_postfix=str(f'{file_name}_lobe'))
                     #input_saver.save(frames_lobe)
-    
+
                     frames_airway = all_videos_list_airway.squeeze().cpu().numpy()
                     save_mask_nii(frames_airway, output_dir=self.save_folder, output_postfix=str(f'{file_name}_airway'))
                     #input_saver.save(frames_airway)
-    
+
                     frames_vessel = all_videos_list_vessel.squeeze(dim=0).cpu().numpy()
                     save_mask_nii(frames_vessel, output_dir=self.save_folder, output_postfix=str(f'{file_name}_vessel'))
                     #input_saver.save(frames_vessel)
-    
+
                     #one_gif = rearrange(all_videos_list, '(i j) c f h w -> c f (i h) (j w)', i=self.num_sample_rows)
                     #video_path = os.path.join(self.results_folder, str(f'{file_name}.gif')).replace(".npy", "")
                     #video_tensor_to_gif(one_gif, video_path)
@@ -1000,7 +1000,7 @@ def save_nii(img, output_dir, output_postfix):
 
     img = np.flip(img, 1)
     img = img*(HIGH_THRESHOLD-LOW_THRESHOLD) + LOW_THRESHOLD
-    
+
     img = sitk.GetImageFromArray(img.astype(np.int16))
     sitk.WriteImage(img, os.path.join(output_dir, output_postfix+".nii.gz"))
 
@@ -1023,10 +1023,10 @@ def main(args):
         block_type='resnet',
         resnet_groups=8
     )
-    
+
     # total_params = sum(p.numel() for p in model.parameters())
     # print(f"Number of parameters: {total_params}")
-    
+
     diffusion_model = GaussianDiffusion(
         denoise_fn=model,
         image_size=256,
@@ -1040,7 +1040,7 @@ def main(args):
         volume_depth=256,
         ddim_timesteps=20,
     )
-    
+
     trainer = Trainer(diffusion_model=diffusion_model,
                       folder=args.low_res_folder,
                       ema_decay=0.995,
@@ -1057,7 +1057,7 @@ def main(args):
                       save_folder=args.save_path,
                       num_sample_rows=1,
                       max_grad_norm=1.0)
-    
+
     trainer.load(-1)
     trainer.train()
 

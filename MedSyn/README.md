@@ -100,8 +100,8 @@ We give the inference for our text conditional generation in "prompt.ipynb" and 
 ```
 @ARTICLE{medsyn2024,
   author={Xu, Yanwu and Sun, Li and Peng, Wei and Jia, Shuyue and Morrison, Katelyn and Perer, Adam and Zandifar, Afrooz and Visweswaran, Shyam and Eslami, Motahhare and Batmanghelich, Kayhan},
-  journal={IEEE Transactions on Medical Imaging}, 
-  title={MedSyn: Text-guided Anatomy-aware Synthesis of High-Fidelity 3D CT Images}, 
+  journal={IEEE Transactions on Medical Imaging},
+  title={MedSyn: Text-guided Anatomy-aware Synthesis of High-Fidelity 3D CT Images},
   year={2024},
   doi={10.1109/TMI.2024.3415032}}
 ```

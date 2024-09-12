@@ -18,12 +18,12 @@ def tokenize_function(example_text, tokenizer, max_seq_length):
         return_special_tokens_mask=True,
         return_tensors='pt'
     )
-    
+
 def main(args):
 
     base_model_name = 'microsoft/BiomedVLP-CXR-BERT-specialized'
     resume_model = args.text_model_path
-    
+
     max_seq_length = 2048
     hidden_size = 768
     save_seq_len = 192

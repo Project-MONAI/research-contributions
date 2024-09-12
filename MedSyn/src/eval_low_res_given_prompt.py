@@ -1015,7 +1015,7 @@ class Trainer(object):
                 #video_tensor_to_gif(one_gif, video_path)
 
 def main(args):
-    
+
     model = Unet3D(
         dim=160,
         cond_dim=768,
@@ -1030,10 +1030,10 @@ def main(args):
         block_type='resnet',
         resnet_groups=8
     )
-    
+
     # total_params = sum(p.numel() for p in model.parameters())
     # print(f"Number of parameters: {total_params}")
-    
+
     diffusion_model = GaussianDiffusion(
         denoise_fn=model,
         image_size=64,
@@ -1047,7 +1047,7 @@ def main(args):
         volume_depth=64,
         ddim_timesteps=50,
     )
-    
+
     trainer = Trainer(diffusion_model=diffusion_model,
                       folder=args.text_feature_folder,
                       ema_decay=0.995,
@@ -1065,7 +1065,7 @@ def main(args):
                       num_sample_rows=1,
                       num_sample=1,
                       max_grad_norm=1.0)
-    
+
     trainer.load(-1)
     trainer.train()
 

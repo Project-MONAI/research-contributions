@@ -62,12 +62,12 @@ class CXRBertModel(BertForMaskedLM):
         super().__init__(config)
 
         self.cls_projection_head = BertProjectionHead(config)
-        
+
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.projection_size, 2)
-        
+
         self.loss_fct = nn.CrossEntropyLoss()
-        
+
         self.init_weights()
 
     def forward(
@@ -105,9 +105,9 @@ class CXRBertModel(BertForMaskedLM):
         cls_projected_embedding = self.cls_projection_head(last_hidden_state[:, 0, :]) if output_cls_projected_embedding else None
         seq_relationship_scores = self.classifier(cls_projected_embedding)
         lm_loss = bert_for_masked_lm_output.loss
-        
+
         #print(class_labels)
-        if class_labels is not None:    
+        if class_labels is not None:
             next_sentence_loss = self.loss_fct(seq_relationship_scores.view(-1, 2), class_labels.view(-1))
         else:
             next_sentence_loss = 0.
@@ -142,7 +142,7 @@ class CXRBertModel(BertForMaskedLM):
         :return: (batch_size, projection_size)
         """
 
-        outputs = self.forward(input_ids=input_ids, attention_mask=attention_mask, 
+        outputs = self.forward(input_ids=input_ids, attention_mask=attention_mask,
                                output_cls_projected_embedding=True, return_dict=True)
         assert isinstance(outputs, CXRBertOutput)
 

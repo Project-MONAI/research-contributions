@@ -20,7 +20,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     #assert args.batch_index != None
     #print("Batch index:", args.batch_index)
-    
+
     # create output folders
     os.makedirs("./image_mask/", exist_ok = True)
     os.makedirs("./transform_mask/", exist_ok = True)
@@ -36,14 +36,14 @@ if __name__ == '__main__':
         #if idx % 8 != args.batch_index: # batch
         #    continue
         basename = line.split('/')[-1]
-        
+
         moving_img = "./clamped_mask/" + basename
         warped_img = basename[:-7]
         if os.path.exists("./transform_mask/"+warped_img+"_Reg_Atlas_Affine_0GenericAffine.mat"): # finished
             continue
 
         if not os.path.exists(moving_img):
-            clamp_img(line) # Clamp intensity        
+            clamp_img(line) # Clamp intensity
 
         # Main executive
         run_result = os.system("antsRegistration -d 3 -o [./transform_mask/"+warped_img+"_Reg_Atlas_Affine_,./image_mask/"+warped_img+"_Reg_Atlas_Affine.nii.gz] -r ["+fixed_img+", "+moving_img+",1] -t Affine[0.01] -m MI["+fixed_img+", "+moving_img+",1,32,Regular,0.5] -c [500x250x100] -s 2x1x0 -f 4x2x1")

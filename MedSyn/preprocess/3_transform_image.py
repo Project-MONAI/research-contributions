@@ -22,12 +22,12 @@ def sub_job(batch_index):
             continue
         subject_id = moving_img.split('/')[-1].split('.')[0]
         transform = "./transform_mask/"+subject_id+"_Reg_Atlas_Affine_0GenericAffine.mat"
-        
+
         if not (os.path.exists(transform)) or (not os.path.exists(moving_img)):
             print(transform)
             print(moving_img)
             continue
-            
+
         warped_img = OUTPUT_FOLDER + "/"+subject_id+"_Reg.nii.gz"
 
         run_result = os.system("antsApplyTransforms -d 3 -i "+moving_img+" -r "+fixed_img+\
@@ -42,13 +42,13 @@ def sub_job(batch_index):
             result_img = resize(result_img, (256, 256, 256), mode='constant', cval=LOW_THRESHOLD, preserve_range=True)
             result_img[result_img>HIGH_THRESHOLD] = HIGH_THRESHOLD
             result_img[result_img<LOW_THRESHOLD] = LOW_THRESHOLD
-            
+
             result_img = (result_img - LOW_THRESHOLD) / (HIGH_THRESHOLD-LOW_THRESHOLD) # [-1024, 600] -> [0,1]
             result_img = 2*result_img-1 # [0,1] -> [-1,1]
 
 
             np.save(warped_img[:-7]+".npy", result_img)
             os.unlink(warped_img)
-            
+
 if __name__ == '__main__':
     Parallel(n_jobs=NUM_JOB)(delayed(sub_job)(item) for item in range(NUM_JOB))
