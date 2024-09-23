@@ -1,5 +1,5 @@
 '''
-Prostate-MRI_Lesion_Detection, v2.0 (Release date: August 2, 2023)
+Prostate-MRI_Lesion_Detection, v3.0 (Release date: September 17, 2024)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
 PROVIDER: the National Cancer Institute (NCI), a participating institute of the
@@ -55,34 +55,20 @@ redistributes the SOFTWARE, a copy of this Agreement must be included with
 each copy of the SOFTWARE.'''
 
 import logging
+from pathlib import Path
 
 # MONAI Deploy SDK imports
-from monai.deploy.core import Application, resource
+from monai.deploy.conditions import CountCondition
+from monai.deploy.core import AppContext, Application
 from monai.deploy.operators.dicom_data_loader_operator import DICOMDataLoaderOperator
 from monai.deploy.operators.dicom_series_selector_operator import DICOMSeriesSelectorOperator
 from monai.deploy.operators.dicom_series_to_volume_operator import DICOMSeriesToVolumeOperator
 
 # Local imports
 from organ_seg_operator import ProstateSegOperator
-from custom_lesion_seg_operator import CustomProstateLesionSegOperator
+from custom_lesion_seg_operator import ProstateLesionSegOperator
+from custom_lesion_classifier_operator import ProstateLesionClassifierOperator
 
-# This is a sample series selection rule in JSON, simply selecting MRI series.
-# Please see more details in DICOMSeriesSelectorOperator.
-# Sample_Rules_Text = """
-# {
-#     "selections": [
-#         {
-#             "name": "MRI Series",
-#             "conditions": {
-#                 "StudyDescription": "(.*?)",
-#                 "Modality": "MR",
-#                 "SeriesDescription": "(.*?)",
-#                 "ImageType": ["PRIMARY", "ORIGINAL"],
-#             }
-#         }
-#     ]
-# }
-# """
 
 # Custom rules for T2, ADC, and HIGHB series selection in ProstateX
 Rules_T2 = """
@@ -103,6 +89,7 @@ Rules_T2 = """
     ]
 }
 """
+
 Rules_ADC = """
 {
     "selections": [
@@ -121,6 +108,7 @@ Rules_ADC = """
     ]
 }
 """
+
 Rules_HIGHB = """
 {
     "selections": [
@@ -140,17 +128,15 @@ Rules_HIGHB = """
 }
 """
 
-@resource(cpu=1, gpu=1, memory="7Gi")
 class AIProstateLesionSegApp(Application):
     def __init__(self, *args, **kwargs):
         """Creates an application instance."""
 
-        self._logger = logging.getLogger("{}.{}".format(__name__, type(self).__name__))
         super().__init__(*args, **kwargs)
+        self._logger = logging.getLogger("{}.{}".format(__name__, type(self).__name__))
 
     def run(self, *args, **kwargs):
         # This method calls the base class to run. Can be omitted if simply calling through.
-
         self._logger.debug(f"Begin {self.run.__name__}")
         super().run(*args, **kwargs)
         self._logger.debug(f"End {self.run.__name__}")
@@ -160,47 +146,60 @@ class AIProstateLesionSegApp(Application):
 
         self._logger.debug(f"Begin {self.compose.__name__}")
 
-        # Data pipeline
-        study_loader_op = DICOMDataLoaderOperator()
-        series_selector_T2_op = DICOMSeriesSelectorOperator(rules=Rules_T2)
-        series_to_vol_T2_op = DICOMSeriesToVolumeOperator()
-        series_selector_ADC_op = DICOMSeriesSelectorOperator(rules=Rules_ADC)
-        series_to_vol_ADC_op = DICOMSeriesToVolumeOperator()
-        series_selector_HIGHB_op = DICOMSeriesSelectorOperator(rules=Rules_HIGHB)
-        series_to_vol_HIGHB_op = DICOMSeriesToVolumeOperator()
+        # Use command line options over environment variables to init context.
+        app_context: AppContext = Application.init_app_context(self.argv)
+        app_input_path = Path(app_context.input_path)
+        app_output_path = Path(app_context.output_path)
+        model_path = Path(app_context.model_path)
 
-        # Organ and lesion operators
-        organ_seg_op = ProstateSegOperator(model_name="organ")
-        lesion_seg_op = CustomProstateLesionSegOperator()
+        self._logger.info(f"App input and output path: {app_input_path}, {app_output_path}")
+
+        # Data pipeline
+        study_loader_op = DICOMDataLoaderOperator(
+            self, CountCondition(self, 1), input_folder=app_input_path, name="dcm_loader_op"
+        )
+        series_selector_T2_op = DICOMSeriesSelectorOperator(self, rules=Rules_T2, name="series_selector_T2")
+        series_to_vol_T2_op = DICOMSeriesToVolumeOperator(self, name="series_to_vol_T2")
+        series_selector_ADC_op = DICOMSeriesSelectorOperator(self, rules=Rules_ADC, name="series_selector_ADC")
+        series_to_vol_ADC_op = DICOMSeriesToVolumeOperator(self, name="series_to_vol_ADC")
+        series_selector_HIGHB_op = DICOMSeriesSelectorOperator(self, rules=Rules_HIGHB, name="series_selector_HIGHB")
+        series_to_vol_HIGHB_op = DICOMSeriesToVolumeOperator(self, name="series_to_vol_HIGHB")
+
+        # AI operators
+        organ_seg_op = ProstateSegOperator(self, app_context=app_context, model_path=model_path/"organ", name="organ_seg_op")
+        lesion_seg_op = ProstateLesionSegOperator(self, app_context=app_context, model_path=model_path, name="lesion_seg_op")
+        lesion_classifier_op = ProstateLesionClassifierOperator(self, app_context=app_context, model_path=model_path, name="lesion_classifier_op")
 
         #################### Pipeline DAG ####################
         # Data ingestion
-        self.add_flow(study_loader_op, series_selector_T2_op, {"dicom_study_list": "dicom_study_list"})
-        self.add_flow(study_loader_op, series_selector_ADC_op, {"dicom_study_list": "dicom_study_list"})
-        self.add_flow(study_loader_op, series_selector_HIGHB_op, {"dicom_study_list": "dicom_study_list"})
-        self.add_flow(series_selector_T2_op, series_to_vol_T2_op, {"study_selected_series_list": "study_selected_series_list"})
-        self.add_flow(series_selector_ADC_op, series_to_vol_ADC_op, {"study_selected_series_list": "study_selected_series_list"})
-        self.add_flow(series_selector_HIGHB_op, series_to_vol_HIGHB_op, {"study_selected_series_list": "study_selected_series_list"})
-
+        self.add_flow(study_loader_op, series_selector_T2_op, {("dicom_study_list", "dicom_study_list")})
+        self.add_flow(study_loader_op, series_selector_ADC_op, {("dicom_study_list", "dicom_study_list")})
+        self.add_flow(study_loader_op, series_selector_HIGHB_op, {("dicom_study_list", "dicom_study_list")})
+        self.add_flow(series_selector_T2_op, series_to_vol_T2_op, {("study_selected_series_list", "study_selected_series_list")})
+        self.add_flow(series_selector_ADC_op, series_to_vol_ADC_op, {("study_selected_series_list", "study_selected_series_list")})
+        self.add_flow(series_selector_HIGHB_op, series_to_vol_HIGHB_op, {("study_selected_series_list", "study_selected_series_list")})
 
         # Organ inference
-        self.add_flow(series_to_vol_T2_op, organ_seg_op, {"image": "image"})
+        self.add_flow(series_to_vol_T2_op, organ_seg_op, {("image", "image")})
 
-        # Lesion Inference
-        self.add_flow(series_to_vol_T2_op, lesion_seg_op, {"image": "image1"})
-        self.add_flow(series_to_vol_ADC_op, lesion_seg_op, {"image": "image2"})
-        self.add_flow(series_to_vol_HIGHB_op, lesion_seg_op, {"image": "image3"})
-        self.add_flow(organ_seg_op, lesion_seg_op, {"seg_image": "organ_mask"})
-        #################### Pipeline DAG ####################
+        # Lesion inference
+        self.add_flow(series_to_vol_T2_op, lesion_seg_op, {("image", "image_t2")})
+        self.add_flow(series_to_vol_ADC_op, lesion_seg_op, {("image", "image_adc")})
+        self.add_flow(series_to_vol_HIGHB_op, lesion_seg_op, {("image", "image_highb")})
+        self.add_flow(organ_seg_op, lesion_seg_op, {("seg_image", "image_organ_seg")})
+
+        # Lesion classification
+        self.add_flow(series_to_vol_T2_op, lesion_classifier_op, {("image", "image_t2")})
+        self.add_flow(series_to_vol_ADC_op, lesion_classifier_op, {("image", "image_adc")})
+        self.add_flow(series_to_vol_HIGHB_op, lesion_classifier_op, {("image", "image_highb")})
+        self.add_flow(organ_seg_op, lesion_classifier_op, {("seg_image", "image_organ_seg")})
+        self.add_flow(lesion_seg_op, lesion_classifier_op, {("seg_image", "image_lesion_seg")})
 
         self._logger.debug(f"End {self.compose.__name__}")
+        #################### Pipeline DAG ####################
 
 if __name__ == "__main__":
-    # Creates the app and test it standalone. When running is this mode, please note the following:
-    #     -i <DICOM folder>, for input DICOM CT series folder
-    #     -o <output folder>, for the output folder, default $PWD/output
-    #     -m <model file>, for model file path
-    # e.g.
-    #     python3 app.py -i input -m model.ts
-
-    AIProstateLesionSegApp(do_run=True)
+    # Creates the app and test it standalone.
+    logging.info(f"Begin {__name__}")
+    AIProstateLesionSegApp().run()
+    logging.info(f"End {__name__}")

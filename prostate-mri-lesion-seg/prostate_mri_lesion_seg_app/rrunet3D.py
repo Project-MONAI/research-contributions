@@ -1,5 +1,5 @@
 '''
-Prostate-MRI_Lesion_Detection, v2.0 (Release date: August 2, 2023)
+Prostate-MRI_Lesion_Detection, v3.0 (Release date: September 17, 2024)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
 PROVIDER: the National Cancer Institute (NCI), a participating institute of the
