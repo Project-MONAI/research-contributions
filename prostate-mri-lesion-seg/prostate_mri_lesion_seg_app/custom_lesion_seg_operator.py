@@ -124,7 +124,7 @@ class SegmentationDataset(Dataset):
         adc_name = str(self.output_path) + '/adc/adc.nii.gz'
         adc = sitk.ReadImage(adc_name)
         adc = sitk.Resample(adc, t2.GetSize(),
-                                        sitk.Transform(), 
+                                        sitk.Transform(),
                                         sitk.sitkNearestNeighbor,
                                         t2.GetOrigin(),
                                         t2.GetSpacing(),
@@ -142,7 +142,7 @@ class SegmentationDataset(Dataset):
         highb_name = str(self.output_path) + '/highb/highb.nii.gz'
         highb = sitk.ReadImage(highb_name)
         highb = sitk.Resample(highb, t2.GetSize(),
-                                        sitk.Transform(), 
+                                        sitk.Transform(),
                                         sitk.sitkNearestNeighbor,
                                         t2.GetOrigin(),
                                         t2.GetSpacing(),
@@ -394,7 +394,7 @@ class ProstateLesionSegOperator(Operator):
         np_output_prob = np.zeros(shape=(output_classes,) + inputs_shape, dtype=np.float32)
         np_count = np.zeros(shape=(output_classes,) + inputs_shape, dtype=np.float32)
 
-        # Create input ranges that are multiples of 32        
+        # Create input ranges that are multiples of 32
         print("Inputs shape: ", inputs.size())
         multiple = 32
         output_len_x, output_len_y, output_len_z = inputs_shape[0], inputs_shape[1], inputs_shape[2]

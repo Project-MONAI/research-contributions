@@ -115,11 +115,11 @@ class ProstateSegOperator(Operator):
             ConditionType.NONE
         )  # Output not requiring a receiver
 
-    def compute(self, op_input, op_output, context): 
+    def compute(self, op_input, op_output, context):
         input_image = op_input.receive(self.input_name_image)
         if not input_image:
             raise ValueError("Input image (T2) is not found.")
-        
+
         # This operator gets an in-memory Image object, so a specialized ImageReader is needed.
         _reader = InMemImageReader(input_image)
         pre_transforms = self.pre_process(_reader, str(self.output_folder))
@@ -128,7 +128,7 @@ class ProstateSegOperator(Operator):
         # Delegates inference and saving output to the built-in operator.
         infer_operator = MonaiSegInferenceOperator(
             self.fragment,
-            roi_size=(128, 128, 16), 
+            roi_size=(128, 128, 16),
             pre_transforms=pre_transforms,
             post_transforms=post_transforms,
             overlap=0.6,
@@ -153,7 +153,7 @@ class ProstateSegOperator(Operator):
 
         Path(out_dir).mkdir(parents=True, exist_ok=True)
         my_key = self._input_dataset_key
-        
+
         return Compose(
             [
                 LoadImaged(keys=my_key, reader=img_reader),

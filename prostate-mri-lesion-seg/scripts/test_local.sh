@@ -28,7 +28,7 @@ extract_argument() {
 handle_options() {
     while [ $# -gt 0 ]; do
     case $1 in
-        -i | --input) 
+        -i | --input)
             if ! has_argument $@; then
                 echo "Error: No input data directory specified" && error
             fi
