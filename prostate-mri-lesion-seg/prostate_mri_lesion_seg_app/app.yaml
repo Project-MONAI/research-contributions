@@ -1,0 +1,13 @@
+%YAML 1.2
+---
+application:
+  title: MONAI Deploy App Package - Simple Imaging App
+  version: 1.0
+  inputFormats: ["file"]
+  outputFormats: ["file"]
+
+resources:
+  cpu: 8
+  gpu: 1
+  memory: 7Gi
+  gpuMemory: 7Gi

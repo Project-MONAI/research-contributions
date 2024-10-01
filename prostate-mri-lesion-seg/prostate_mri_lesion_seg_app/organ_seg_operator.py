@@ -1,5 +1,5 @@
-"""
-Prostate-MRI_Lesion_Detection, v2.0 (Release date: August 2, 2023)
+'''
+Prostate-MRI_Lesion_Detection, v3.0 (Release date: September 17, 2024)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
 PROVIDER: the National Cancer Institute (NCI), a participating institute of the
@@ -52,18 +52,15 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE."""
+each copy of the SOFTWARE.'''
 
 import logging
-from os import path
-from typing import Optional
-
+from pathlib import Path
 from numpy import uint8
 
 # MONAI Deploy App SDK imports
-import monai.deploy.core as md
-from monai.deploy.core import ExecutionContext, Image, InputContext, IOType, Operator, OutputContext
-from monai.deploy.operators.monai_seg_inference_operator import InMemImageReader, MonaiSegInferenceOperator
+from monai.deploy.core import AppContext, ConditionType, Fragment, Operator, OperatorSpec
+from monai.deploy.operators.monai_seg_inference_operator import InfererType, InMemImageReader, MonaiSegInferenceOperator
 
 # MONAI imports
 from monai.transforms import (
@@ -78,50 +75,85 @@ from monai.transforms import (
     NormalizeIntensityd,
     Orientationd,
     Spacingd,
+    SaveImaged,
 )
 
-
-@md.input("image", Image, IOType.IN_MEMORY)
-@md.output("seg_image", Image, IOType.IN_MEMORY)
-@md.env(pip_packages=["monai>=1.0.1", "torch>=1.12.1", "numpy>=1.21", "nibabel"])
 class ProstateSegOperator(Operator):
     """Performs Prostate segmentation with a 3D image converted from a DICOM MRI (T2) series."""
 
-    def __init__(self, model_name: Optional[str] = ""):
+    DEFAULT_OUTPUT_FOLDER = Path.cwd() / "output/saved_images_folder"
+
+    def __init__(
+        self,
+        fragment: Fragment,
+        *args,
+        app_context: AppContext,
+        model_path: Path,
+        output_folder: Path = DEFAULT_OUTPUT_FOLDER,
+        **kwargs,
+    ):
         self.logger = logging.getLogger("{}.{}".format(__name__, type(self).__name__))
-        super().__init__()
         self._input_dataset_key = "image"
-        self._pred_dataset_key = "label"
-        self._model_name = model_name.strip() if isinstance(model_name, str) else ""
+        self._pred_dataset_key = "pred"
 
-    def compute(self, op_input: InputContext, op_output: OutputContext, context: ExecutionContext):
-        input_image = op_input.get("image")
+        self.model_path = model_path
+        self.output_folder = output_folder
+        self.output_folder.mkdir(parents=True, exist_ok=True)
+        self.app_context = app_context
+        self.input_name_image = "image"
+        self.output_name_seg = "seg_image"
+        self.output_name_saved_images_folder = "saved_images_folder"
+
+        # Call the base class __init__() last.
+        # Also, the base class has an attribute called fragment for storing the fragment object
+        super().__init__(fragment, *args, **kwargs)
+
+    def setup(self, spec: OperatorSpec):
+        spec.input(self.input_name_image)
+        spec.output(self.output_name_seg)
+        spec.output(self.output_name_saved_images_folder).condition(
+            ConditionType.NONE
+        )  # Output not requiring a receiver
+
+    def compute(self, op_input, op_output, context): 
+        input_image = op_input.receive(self.input_name_image)
         if not input_image:
-            raise ValueError("Input image is not found.")
-
-        output_path = context.output.get().path
-
+            raise ValueError("Input image (T2) is not found.")
+        
         # This operator gets an in-memory Image object, so a specialized ImageReader is needed.
         _reader = InMemImageReader(input_image)
-        pre_transforms = self.pre_process(_reader)
-        post_transforms = self.post_process(pre_transforms, output_path)
+        pre_transforms = self.pre_process(_reader, str(self.output_folder))
+        post_transforms = self.post_process(pre_transforms, str(self.output_folder))
 
         # Delegates inference and saving output to the built-in operator.
         infer_operator = MonaiSegInferenceOperator(
-            (128, 128, 16), pre_transforms, post_transforms, model_name=self._model_name
+            self.fragment,
+            roi_size=(128, 128, 16), 
+            pre_transforms=pre_transforms,
+            post_transforms=post_transforms,
+            overlap=0.6,
+            app_context=self.app_context,
+            model_name="",
+            inferer=InfererType.SLIDING_WINDOW,
+            sw_batch_size=4,
+            model_path=self.model_path,
+            name="monai_seg_inference_op",
         )
 
         # Setting the keys used in the dictionary based transforms may change.
         infer_operator.input_dataset_key = self._input_dataset_key
         infer_operator.pred_dataset_key = self._pred_dataset_key
 
-        # Now let the built-in operator handles the work with the I/O spec and execution context.
-        infer_operator.compute(op_input, op_output, context)
+        # Now emit data to the output ports of this operator
+        op_output.emit(infer_operator.compute_impl(input_image, context), self.output_name_seg)
+        op_output.emit(self.output_folder, self.output_name_saved_images_folder)
 
-    def pre_process(self, img_reader) -> Compose:
+    def pre_process(self, img_reader, out_dir: str = "./input_images") -> Compose:
         """Composes transforms for preprocessing input before predicting on a model."""
 
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
         my_key = self._input_dataset_key
+        
         return Compose(
             [
                 LoadImaged(keys=my_key, reader=img_reader),
@@ -136,10 +168,12 @@ class ProstateSegOperator(Operator):
             ]
         )
 
-    def post_process(self, pre_transforms: Compose, out_dir: str = "./") -> Compose:
+    def post_process(self, pre_transforms: Compose, out_dir: str = "./prediction_output") -> Compose:
         """Composes transforms for postprocessing the prediction results."""
 
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
         pred_key = self._pred_dataset_key
+
         return Compose(
             [
                 Activationsd(keys=pred_key, softmax=True),
@@ -153,6 +187,6 @@ class ProstateSegOperator(Operator):
                 ),
                 DataStatsd(keys=pred_key, name="Inverted output"),
                 AsDiscreted(keys=pred_key, argmax=True, threshold=0.5),
-                DataStatsd(keys=pred_key, name="AsDiscrete output"),
+                DataStatsd(keys=pred_key, name="AsDiscrete output")
             ]
         )
