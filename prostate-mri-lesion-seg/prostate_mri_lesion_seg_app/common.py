@@ -54,7 +54,96 @@ with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
 each copy of the SOFTWARE.'''
 
-from app import AIProstateLesionSegApp
+import numpy as np
+import copy
+from skimage.measure import label
 
-if __name__ == "__main__":
-    AIProstateLesionSegApp().run()
+###############################################################################
+def bounding_box_3d(nda):
+
+    r = np.any(nda, axis=(1, 2))
+    c = np.any(nda, axis=(0, 2))
+    z = np.any(nda, axis=(0, 1))
+
+    rmin, rmax = np.where(r)[0][[0, -1]]
+    cmin, cmax = np.where(c)[0][[0, -1]]
+    zmin, zmax = np.where(z)[0][[0, -1]]
+
+    # values are the indices with non-zero entries
+    bbox = np.zeros(shape=(6,), dtype=np.int16)
+    bbox[0] = rmin
+    bbox[1] = rmax
+    bbox[2] = cmin
+    bbox[3] = cmax
+    bbox[4] = zmin
+    bbox[5] = zmax
+
+    return bbox
+
+def crop_pos_classification_multi_channel_3d(nda, nda_gt, crop_size):
+    if nda_gt.ndim == 4:
+        nda_ref = np.amax(nda_gt, axis=0)
+    elif nda_gt.ndim == 3:
+        nda_ref = copy.deepcopy(nda_gt)
+
+    if np.amax(nda_gt) < 1:
+        return nda, []
+
+    label_image = label(nda_gt)
+    num_crop = len(np.unique(label_image)) - 1
+
+    if num_crop == 1:
+        bbox = bounding_box_3d(label_image == 1)
+
+        indices = np.zeros(shape=(3,), dtype=np.int16)
+        for j in range(3):
+            indices[j] = 0.5 * (bbox[2 * j] + bbox[2 * j + 1])
+            indices[j] = indices[j] - int(float(crop_size[j]) / 2.0)
+            indices[j] = np.maximum(indices[j], 0)
+            indices[j] = np.minimum(indices[j], nda_ref.shape[j] - crop_size[j])
+
+        nda = nda[
+            ...,
+            indices[0]:indices[0] + crop_size[0],
+            indices[1]:indices[1] + crop_size[1],
+            indices[2]:indices[2] + crop_size[2]
+            ]
+
+        gt = np.unique(nda_gt[label_image==1])[0]
+    elif num_crop > 1:
+        images = []
+        labels = []
+        for k in range(num_crop):
+            bbox = bounding_box_3d(label_image == k + 1)
+
+            indices = np.zeros(shape=(3,), dtype=np.int16)
+            for j in range(3):
+                indices[j] = 0.5 * (bbox[2 * j] + bbox[2 * j + 1])
+                indices[j] = indices[j] - int(float(crop_size[j]) / 2.0)
+                indices[j] = np.maximum(indices[j], 0)
+                indices[j] = np.minimum(indices[j], nda_ref.shape[j] - crop_size[j])
+
+            nda_crop = nda[
+                ...,
+                indices[0]:indices[0] + crop_size[0],
+                indices[1]:indices[1] + crop_size[1],
+                indices[2]:indices[2] + crop_size[2]
+                ]
+
+            gt = np.unique(nda_gt[label_image == k + 1])[0]
+
+            images.append(nda_crop)
+            labels.append(gt)
+        images = np.stack(images, axis=0)
+        labels = np.stack(labels, axis=0)
+        return images, labels
+
+    return nda, gt
+
+def standard_normalization_multi_channel(nda):
+    for _i in range(nda.shape[0]):
+        if np.amax(np.abs(nda[_i, ...])) < 1e-7:
+            continue
+        nda[_i, ...] = (nda[_i, ...] - np.mean(nda[_i, ...])) / np.std(nda[_i, ...])
+
+    return nda
