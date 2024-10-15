@@ -373,7 +373,7 @@ class VelocityFieldDiffusion(Diffusion):
         velocity_fields = phi_AB["velocity_fields"]
         regularization_loss = 0
         for v in velocity_fields:
-            regularization_loss += compute_regularizer(self, phi_AB_vectorfield)
+            regularization_loss += self.compute_regularizer(self, v + self.identity_map)
 
         all_loss = self.lmbda * regularization_loss + similarity_loss
 
@@ -410,7 +410,7 @@ class VelocityFieldBendingEnergy(BendingEnergy):
         velocity_fields = phi_AB["velocity_fields"]
         regularization_loss = 0
         for v in velocity_fields:
-            regularization_loss += compute_regularizer(self, phi_AB_vectorfield)
+            regularization_loss += self.compute_regularizer(self, v)
 
         all_loss = self.lmbda * regularization_loss + similarity_loss
 
