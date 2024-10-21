@@ -1,4 +1,4 @@
-'''
+"""
 Prostate-MRI_Lesion_Detection, v3.0 (Release date: September 17, 2024)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
@@ -52,10 +52,11 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE.'''
+each copy of the SOFTWARE."""
 
 import logging
 from pathlib import Path
+
 from numpy import uint8
 
 # MONAI Deploy App SDK imports
@@ -74,9 +75,10 @@ from monai.transforms import (
     LoadImaged,
     NormalizeIntensityd,
     Orientationd,
-    Spacingd,
     SaveImaged,
+    Spacingd,
 )
+
 
 class ProstateSegOperator(Operator):
     """Performs Prostate segmentation with a 3D image converted from a DICOM MRI (T2) series."""
@@ -187,6 +189,6 @@ class ProstateSegOperator(Operator):
                 ),
                 DataStatsd(keys=pred_key, name="Inverted output"),
                 AsDiscreted(keys=pred_key, argmax=True, threshold=0.5),
-                DataStatsd(keys=pred_key, name="AsDiscrete output")
+                DataStatsd(keys=pred_key, name="AsDiscrete output"),
             ]
         )
