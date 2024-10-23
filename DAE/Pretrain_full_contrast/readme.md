@@ -109,7 +109,11 @@ Below is a list of datasets that have been used. We have included a list of json
 
 ## Model Weights
 
-All json files and model weights can be downloaded from this ([Link](https://drive.google.com/drive/folders/1_EFLbOWn8E6fVUnFVfT4BNNFMlz7RCpM?usp=sharing))
+All json files and pre-trained model weights can be downloaded from the below
+([DAE_SSL_Weights](https://developer.download.nvidia.com/assets/Clara/monai/tutorials/dae_weights_midl_2024/DAE_SSL_WEIGHTS.zip))
+([Feta Json](https://developer.download.nvidia.com/assets/Clara/monai/tutorials/dae_weights_midl_2024/data_folds_feta_json.zip))
+([BTCV Json](https://developer.download.nvidia.com/assets/Clara/monai/tutorials/dae_weights_midl_2024/json_data_folds_btcv.zip))
+([Pretraining Json](https://developer.download.nvidia.com/assets/Clara/monai/tutorials/dae_weights_midl_2024/pretrain_jsons.zip))
 
 Bibtex:
 ```commandline
