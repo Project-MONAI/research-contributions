@@ -10,7 +10,7 @@ pip install -r requirements.txt
 
 The main fineuning exps are based on Swin UNETR architecture.
 
-All json files and pre-trained model weights can be downloaded from the below 
+All json files and pre-trained model weights can be downloaded from the below
 ([DAE_SSL_Weights](https://developer.download.nvidia.com/assets/Clara/monai/tutorials/dae_weights_midl_2024/DAE_SSL_WEIGHTS.zip))
 ([Feta Json](https://developer.download.nvidia.com/assets/Clara/monai/tutorials/dae_weights_midl_2024/data_folds_feta_json.zip))
 ([BTCV Json](https://developer.download.nvidia.com/assets/Clara/monai/tutorials/dae_weights_midl_2024/json_data_folds_btcv.zip))
