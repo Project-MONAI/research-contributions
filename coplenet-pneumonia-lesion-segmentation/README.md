@@ -27,7 +27,7 @@ pip install "monai[nibabel]==0.2.0"
 ```
 The rest of the steps assume that this repo is cloned to your local file system and the current directory is the folder of this README file.
 - download the input examples from [google drive folder](https://drive.google.com/drive/folders/1pIoSSc4Iq8R9_xXo0NzaOhIHZ3-PqqDC) to `./images`.
-- download the adapted pretrained model from [google drive folder](https://drive.google.com/drive/folders/1HXlYJGvTF3gNGOL0UFBeHVoA6Vh_GqEw) to `./model`.
+- download the adapted pretrained model from this [link](https://developer.download.nvidia.com/assets/Clara/monai/research/coplenet_pretrained_monai_dict.pt) to `./model`.
 - run `python run_inference.py` and segmentation results will be saved at `./output`.
 
 _(To segment COVID-19 pneumonia lesions from your own images, make sure that the images have been cropped into the lung region,

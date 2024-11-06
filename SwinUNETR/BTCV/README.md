@@ -75,7 +75,7 @@ The training data is from the [BTCV challenge dataset](https://www.synapse.org/#
 
 Please download the json file from this link.
 
-We provide the json file that is used to train our models in the following <a href="https://drive.google.com/file/d/1t4fIQQkONv7ArTSZe4Nucwkk1KfdUDvW/view?usp=sharing"> link</a>.
+We provide the json file that is used to train our models in the following <a href="https://developer.download.nvidia.com/assets/Clara/monai/tutorials/swin_unetr_btcv_dataset_0.json"> link</a>.
 
 Once the json file is downloaded, please place it in the same folder as the dataset. Note that you need to provide the location of your dataset directory by using ```--data_dir```.
 
