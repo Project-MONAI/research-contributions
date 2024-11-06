@@ -28,7 +28,7 @@ Challenge: RSNA-ASNR-MICCAI Brain Tumor Segmentation (BraTS) Challenge
   "TrainingData/BraTS2021_01146/BraTS2021_01146_flair.nii.gz"
 
 
-- Download the json file from this [link](https://drive.google.com/file/d/1i-BXYe-wZ8R9Vp3GXoajGyqaJ65Jybg1/view?usp=sharing) and placed in the same folder as the dataset.
+- Download the json file from this [link](https://developer.download.nvidia.com/assets/Clara/monai/tutorials/brats21_folds.json) and placed in the same folder as the dataset.
 
 
 The sub-regions considered for evaluation in BraTS 21 challenge are the "enhancing tumor" (ET), the "tumor core" (TC), and the "whole tumor" (WT). The ET is described by areas that show hyper-intensity in T1Gd when compared to T1, but also when compared to “healthy” white matter in T1Gd. The TC describes the bulk of the tumor, which is what is typically resected. The TC entails the ET, as well as the necrotic (NCR) parts of the tumor. The appearance of NCR is typically hypo-intense in T1-Gd when compared to T1. The WT describes the complete extent of the disease, as it entails the TC and the peritumoral edematous/invaded tissue (ED), which is typically depicted by hyper-intense signal in FLAIR [[BraTS 21]](http://braintumorsegmentation.org/).
@@ -41,7 +41,7 @@ Figure from [Baid et al.](https://arxiv.org/pdf/2107.02314v1.pdf) [3]
 
 # Models
 We provide Swin UNETR models which are pre-trained on BraTS21 dataset as in the following. The folds
-correspond to the data split in the [json file](https://drive.google.com/file/d/1i-BXYe-wZ8R9Vp3GXoajGyqaJ65Jybg1/view?usp=sharing).
+correspond to the data split in the [json file](https://developer.download.nvidia.com/assets/Clara/monai/tutorials/brats21_folds.json).
 
 <table>
   <tr>

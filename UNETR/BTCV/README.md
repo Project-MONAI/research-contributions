@@ -62,7 +62,7 @@ We provide state-of-the-art pre-trained checkpoints and TorchScript models of UN
 
 For using the pre-trained checkpoint, please download the weights from the following directory:
 
-https://drive.google.com/file/d/1kR5QuRAuooYcTNLMnMj80Z9IgSs8jtLO/view?usp=sharing
+https://developer.download.nvidia.com/assets/Clara/monai/research/UNETR_model_best_acc.pth
 
 Once downloaded, please place the checkpoint in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
 
@@ -86,7 +86,7 @@ python main.py
 
 For using the pre-trained TorchScript model, please download the model from the following directory:
 
-https://drive.google.com/file/d/1_YbUE0abQFJUR4Luwict6BB8S77yUaWN/view?usp=sharing
+https://developer.download.nvidia.com/assets/Clara/monai/research/UNETR_model_best_acc.pt
 
 Once downloaded, please place the TorchScript model in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
 
@@ -155,7 +155,7 @@ Under Institutional Review Board (IRB) supervision, 50 abdomen CT scans of were 
 
 We provide the json file that is used to train our models in the following link:
 
-https://drive.google.com/file/d/1t4fIQQkONv7ArTSZe4Nucwkk1KfdUDvW/view?usp=sharing
+https://developer.download.nvidia.com/assets/Clara/monai/tutorials/swin_unetr_btcv_dataset_0.json
 
 Once the json file is downloaded, please place it in the same folder as the dataset.
 
