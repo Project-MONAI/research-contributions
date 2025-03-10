@@ -1,4 +1,4 @@
-"""
+'''
 Prostate-MRI_Lesion_Detection, v3.0 (Release date: September 17, 2024)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
@@ -52,46 +52,34 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE."""
+each copy of the SOFTWARE.'''
 
+import os
 import copy
 import logging
-import os
-
-# Parallel processing imports
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-
-import nibabel as nib
 import numpy as np
 
-# AI/CV imports
-import SimpleITK as sitk
-import torch
-from common import standard_normalization_multi_channel
+import logging
+from pathlib import Path
 
-# Local imports
-from rrunet3D import RRUNet3D
-from skimage.transform import resize
-from torch.utils.data import Dataset
+# MONAI Deploy App SDK imports
+from monai.deploy.core import ExecutionContext, Image, InputContext, Operator, OutputContext
+from monai.deploy.core import AppContext, ConditionType, Fragment, Operator, OperatorSpec
 
 # MONAI imports
 from monai.data import MetaTensor
-
-# MONAI Deploy App SDK imports
-from monai.deploy.core import (
-    AppContext,
-    ConditionType,
-    ExecutionContext,
-    Fragment,
-    Image,
-    InputContext,
-    Operator,
-    OperatorSpec,
-    OutputContext,
-)
 from monai.transforms import SaveImage
 
+# AI/CV imports
+import SimpleITK as sitk
+from skimage.transform import resize
+import nibabel as nib
+import torch
+from torch.utils.data import Dataset
+
+# Local imports
+from rrunet3D import RRUNet3D
+from common import standard_normalization_multi_channel
 
 def bbox2_3D(img):
     r = np.any(img, axis=(1, 2))
@@ -104,7 +92,6 @@ def bbox2_3D(img):
 
     return [rmin, rmax, cmin, cmax, zmin, zmax]
 
-
 class SegmentationDataset(Dataset):
     def __init__(self, output_path, data_purpose):
         self.data_purpose = data_purpose
@@ -114,128 +101,95 @@ class SegmentationDataset(Dataset):
         return 1
 
     def __getitem__(self, idx):
-        """Composes transforms for preprocessing input before predicting on a model."""
+        """Preprocesses input data for model prediction"""
+        # Load T2 as reference image
+        t2_path = f"{self.output_path}/t2/t2.nii.gz"
+        t2_sitk = sitk.ReadImage(t2_path)
+        t2_nib = nib.load(t2_path)
+        affine_orig = t2_nib.affine
+        spacing_orig = t2_nib.header.get_zooms()
 
-        affine_orig, nda = [], []
-        # Load T2 in ITK format
+        # Initialize data arrays
+        nda = []
 
-        t2_name = str(self.output_path) + "/t2/t2.nii.gz"
-        t2 = sitk.ReadImage(t2_name)
+        # Load T2 data
+        t2_canonical = nib.as_closest_canonical(t2_nib)
+        nda.append(t2_canonical.get_fdata())
 
-        # Load T2 in Nibabel format
-        img = nib.load(t2_name)
-        affine_orig = img.affine
-        header_orig = img.header
-        spacing_orig = header_orig.get_zooms()
-        img = nib.as_closest_canonical(img)
-        nda.append(img.get_fdata())
+        # Process ADC and HighB images
+        for modality in ['adc', 'highb']:
+            img_path = f"{self.output_path}/{modality}/{modality}.nii.gz"
+            img_sitk = sitk.ReadImage(img_path)
 
-        # Resample ADC
-        adc_name = str(self.output_path) + "/adc/adc.nii.gz"
-        adc = sitk.ReadImage(adc_name)
-        adc = sitk.Resample(
-            adc,
-            t2.GetSize(),
-            sitk.Transform(),
-            sitk.sitkNearestNeighbor,
-            t2.GetOrigin(),
-            t2.GetSpacing(),
-            t2.GetDirection(),
-            0,
-            t2.GetPixelID(),
-        )
-        sitk.WriteImage(adc, adc_name)
+            # Resample to match T2 dimensions
+            img_resampled = sitk.Resample(
+                img_sitk, t2_sitk.GetSize(),
+                sitk.Transform(),
+                sitk.sitkNearestNeighbor,
+                t2_sitk.GetOrigin(),
+                t2_sitk.GetSpacing(),
+                t2_sitk.GetDirection(),
+                0,
+                t2_sitk.GetPixelID()
+            )
+            sitk.WriteImage(img_resampled, img_path)
 
-        # Load ADC
-        img = nib.load(adc_name)
-        img = nib.as_closest_canonical(img)
-        nda.append(img.get_fdata())
-
-        # Resample HighB
-        highb_name = str(self.output_path) + "/highb/highb.nii.gz"
-        highb = sitk.ReadImage(highb_name)
-        highb = sitk.Resample(
-            highb,
-            t2.GetSize(),
-            sitk.Transform(),
-            sitk.sitkNearestNeighbor,
-            t2.GetOrigin(),
-            t2.GetSpacing(),
-            t2.GetDirection(),
-            0,
-            t2.GetPixelID(),
-        )
-        sitk.WriteImage(highb, highb_name)
-
-        # Load HighB
-        img = nib.load(highb_name)
-        img = nib.as_closest_canonical(img)
-        nda.append(img.get_fdata())
+            # Load resampled data
+            img_nib = nib.as_closest_canonical(nib.load(img_path))
+            nda.append(img_nib.get_fdata())
 
         # Stack input modalities
-        nda = np.stack(nda, axis=0)
-        nda = nda.astype(np.float32)
-        nda_shape = [nda.shape[1], nda.shape[2], nda.shape[3]]
+        nda = np.stack(nda, axis=0).astype(np.float32)
+        nda_shape = nda.shape[1:]
 
-        # Read in whole prostate segmentation
-        img_wp_filename = str(self.output_path) + "/organ/organ.nii.gz"
-        img_wp = nib.load(img_wp_filename)
-        img_wp = nib.as_closest_canonical(img_wp)
-        nda_wp = img_wp.get_fdata()
-        nda_wp = (nda_wp > 0.0).astype(np.float32)
+        # Load prostate segmentation
+        wp_path = f"{self.output_path}/organ/organ.nii.gz"
+        wp_nib = nib.as_closest_canonical(nib.load(wp_path))
+        nda_wp = (wp_nib.get_fdata() > 0.0).astype(np.float32)
+
         if nda_wp.shape != tuple(nda_shape):
             print("[error] nda_wp.shape != tuple(nda_shape)")
             input()
 
-        # Compute resampling target shape
+        # Calculate target shape for resampling
         spacing_target = (0.5, 0.5, 0.5)
-        shape_target = []
-        for _s in range(3):
-            shape_target_s = float(nda_shape[_s]) * spacing_orig[_s] / spacing_target[_s]
-            shape_target_s = np.round(shape_target_s).astype(np.int16)
-            shape_target.append(shape_target_s)
+        shape_target = [int(round(nda_shape[i] * spacing_orig[i] / spacing_target[i])) for i in range(3)]
+
+        # Resample input volumes and segmentation
         nda_resize = np.zeros(shape=[3] + shape_target, dtype=np.float32)
-        nda_resize_shape = [nda_resize.shape[1], nda_resize.shape[2], nda_resize.shape[3]]
+        for s in range(3):
+            nda_resize[s] = resize(nda[s], output_shape=shape_target, order=1)
 
-        # Resample input volume
-        for _s in range(3):
-            nda_resize[_s, ...] = resize(nda[_s, ...], output_shape=shape_target, order=1)
+        nda_wp_resize = (resize(nda_wp, output_shape=shape_target, order=0) > 0.0).astype(np.uint8)
 
-        # Resample whole prostate segmentation
-        nda_wp_resize = resize(nda_wp, output_shape=shape_target, order=0)
-        nda_wp_resize = (nda_wp_resize > 0.0).astype(np.uint8)
-
-        # Calculate ROI for whole prostate
+        # Calculate ROI with margin
         margin = 32
         bbox = bbox2_3D(nda_wp_resize)
         bbox_new = np.array(bbox)
-        for _s in range(3):
-            bbox_new[2 * _s] = max(0, bbox[2 * _s] - margin)
-            bbox_new[2 * _s + 1] = min(shape_target[_s] - 1, bbox[2 * _s + 1] + margin)
-        print("bbox_new:", bbox_new)
+        for i in range(3):
+            bbox_new[2*i] = max(0, bbox[2*i] - margin)
+            bbox_new[2*i + 1] = min(shape_target[i] - 1, bbox[2*i + 1] + margin)
 
         # Crop ROI and normalize
-        nda_resize_roi = nda_resize[:, bbox_new[0] : bbox_new[1], bbox_new[2] : bbox_new[3], bbox_new[4] : bbox_new[5]]
+        nda_resize_roi = nda_resize[:, bbox_new[0]:bbox_new[1], bbox_new[2]:bbox_new[3], bbox_new[4]:bbox_new[5]]
         nda_resize_roi = standard_normalization_multi_channel(nda_resize_roi)
         print("nda_resize_roi shape:", nda_resize_roi.shape)
 
-        sample = {
+        return {
             "affine": affine_orig,
             "bbox_new": bbox_new,
             "image": nda_resize_roi,
             "image_filename": "/input/t2.nii.gz",
             "nda_shape": np.array(nda_shape),
-            "nda_resize_shape": np.array(nda_resize_shape),
+            "nda_resize_shape": np.array([nda_resize.shape[1], nda_resize.shape[2], nda_resize.shape[3]]),
             "pred_wp": nda_wp,
         }
-
-        return sample
 
 
 class ProstateLesionSegOperator(Operator):
     """Performs Prostate Lesion segmentation with a 3D image converted from a mp-DICOM MRI series."""
 
-    DEFAULT_OUTPUT_FOLDER = Path.cwd() / "output/saved_images_folder"
+    DEFAULT_OUTPUT_FOLDER = Path.cwd() / "output"
 
     def __init__(
         self,
@@ -260,7 +214,7 @@ class ProstateLesionSegOperator(Operator):
         self.input_name_image_highb = "image_highb"
         self.input_name_image_organ_seg = "image_organ_seg"
         self.output_name_seg = "seg_image"
-        self.output_name_saved_images_folder = "saved_images_folder"
+        self.output_name_saved_images_folder = ""
 
         # The base class has an attribute called fragment to hold the reference to the fragment object
         super().__init__(fragment, *args, **kwargs)
@@ -297,18 +251,20 @@ class ProstateLesionSegOperator(Operator):
         image_organ_seg._metadata["affine"] = image_organ_seg._metadata["nifti_affine_transform"]
         self.convert_and_save(input_image_t2, input_image_adc, input_image_highb, image_organ_seg, self.output_folder)
 
+        print("\nBeginning lesion segmentation...")
+
         # Instantiate network and send to GPU
         nets = [
             RRUNet3D(
-                in_channels=3,
-                out_channels=2,
-                blocks_down="1,2,3,4",
-                blocks_up="3,2,1",
-                num_init_kernels=32,
-                recurrent=False,
-                residual=True,
-                attention=False,
-                debug=False,
+            in_channels=3,
+            out_channels=2,
+            blocks_down="1,2,3,4",
+            blocks_up="3,2,1",
+            num_init_kernels=32,
+            recurrent=False,
+            residual=True,
+            attention=False,
+            debug=False,
             )
             for _ in range(5)
         ]
@@ -336,32 +292,31 @@ class ProstateLesionSegOperator(Operator):
             inputs = data["image"].to("cuda")
         else:
             inputs = data["image"]
-        inputs_shape = (inputs.size()[-3], inputs.size()[-2], inputs.size()[-1])
+        inputs_shape = ( inputs.size()[-3], inputs.size()[-2], inputs.size()[-1])
 
         def run_inference(tag, model_name, net):
             self.custom_inference(
-                data=data,
-                inputs=inputs,
-                inputs_shape=inputs_shape,
-                net=net,
-                output_path=self.output_folder,
-                model_name=model_name,
-                tag=tag,
+            data=data,
+            inputs=inputs,
+            inputs_shape=inputs_shape,
+            net=net,
+            output_path=self.output_folder,
+            model_name=model_name,
+            tag=tag,
             )
 
+        import concurrent.futures
+
         # Perform inference in parallel
-        print("Performing inference...")
-        with ThreadPoolExecutor(max_workers=len(tags)) as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = [executor.submit(run_inference, tags[i], weight_files[i], nets[i]) for i in range(len(tags))]
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as exc:
-                    print(f"Inference generated an exception: {exc}")
+            concurrent.futures.wait(futures)
 
         # Convert to Image and transpose back to DHW
         lesion_mask = self.merge_volumes(output_path=self.output_folder, data=data, tags=tags)
-        lesion_mask = Image(data=lesion_mask.T, metadata=input_image_t2.metadata())
+        lesion_mask = Image(
+            data=lesion_mask.T, metadata=input_image_t2.metadata()
+        )
 
         # Now emit data to the output ports of this operator
         op_output.emit(lesion_mask, self.output_name_seg)
@@ -370,35 +325,30 @@ class ProstateLesionSegOperator(Operator):
     def convert_and_save(self, image1, image2, image3, organ_mask, output_path):
         """Converts and saves the input Images on disk in nii.gz format."""
 
-        save_op_t2 = SaveImage(output_dir=output_path, output_postfix="", output_dtype=np.float32, resample=False)
-        t2_image = MetaTensor(np.expand_dims(image1.asnumpy().T, axis=0), meta=image1.metadata())
-        t2_image.meta["filename_or_obj"] = "t2"
-        save_op_t2(t2_image)
-        save_op_adc = SaveImage(output_dir=output_path, output_postfix="", output_dtype=np.float32, resample=False)
-        adc_image = MetaTensor(np.expand_dims(image2.asnumpy().T, axis=0), meta=image2.metadata())
-        adc_image.meta["filename_or_obj"] = "adc"
-        save_op_adc(adc_image)
-        save_op_highb = SaveImage(output_dir=output_path, output_postfix="", output_dtype=np.float32, resample=False)
-        highb_image = MetaTensor(np.expand_dims(image3.asnumpy().T, axis=0), meta=image3.metadata())
-        highb_image.meta["filename_or_obj"] = "highb"
-        save_op_highb(highb_image)
-        save_op_organ_mask = SaveImage(
-            output_dir=output_path, output_postfix="", output_dtype=np.float32, resample=False
-        )
-        organ_mask_image = MetaTensor(np.expand_dims(organ_mask.asnumpy().T, axis=0), meta=organ_mask.metadata())
-        organ_mask_image.meta["filename_or_obj"] = "organ"
-        save_op_organ_mask(organ_mask_image)
+        # Create a single SaveImage operator
+        save_op = SaveImage(output_dir=output_path, output_postfix="", output_dtype=np.float32, resample=False)
+
+        # Define the images and their output names
+        images = [
+            (image1, "t2"),
+            (image2, "adc"),
+            (image3, "highb"),
+            (organ_mask, "organ")
+        ]
+
+        # Process each image
+        for img, name in images:
+            meta_tensor = MetaTensor(np.expand_dims(img.asnumpy().T, axis=0), meta=img.metadata())
+            meta_tensor.meta["filename_or_obj"] = name
+            save_op(meta_tensor)
 
     def custom_inference(self, data, inputs, inputs_shape, net, output_path, tag, model_name: str = "") -> np.ndarray:
         """Performs inference on the input image."""
 
-        # Load model
-        current_model_path = model_name
-        if torch.cuda.is_available():
-            current_model = torch.load(current_model_path)
-        else:
-            current_model = torch.load(current_model_path, map_location=torch.device("cpu"))
-        net.load_state_dict(current_model["state_dict"])
+        # Load model weights
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        checkpoint = torch.load(model_name, map_location=device, weights_only=False)
+        net.load_state_dict(checkpoint["state_dict"])
 
         # Initialize variables
         output_classes = 2
@@ -450,9 +400,9 @@ class ProstateLesionSegOperator(Operator):
         # bbox_new = bbox_new.detach().numpy()
         bbox_new = np.squeeze(bbox_new)
         outputs_resize[bbox_new[0] : bbox_new[1], bbox_new[2] : bbox_new[3], bbox_new[4] : bbox_new[5]] = outputs
-        outputs_prob_resize[:, bbox_new[0] : bbox_new[1], bbox_new[2] : bbox_new[3], bbox_new[4] : bbox_new[5]] = (
-            outputs_prob
-        )
+        outputs_prob_resize[
+            :, bbox_new[0] : bbox_new[1], bbox_new[2] : bbox_new[3], bbox_new[4] : bbox_new[5]
+        ] = outputs_prob
 
         # Resample to original dimensions
         nda_shape = data["nda_shape"]
@@ -470,7 +420,7 @@ class ProstateLesionSegOperator(Operator):
             os.makedirs(str(output_path) + "/lesion")
 
         # Write image to disk
-        output_filename = str(output_path) + "/lesion/" + tag + "_lesion_prob.nii.gz"
+        output_filename = (str(output_path) + "/lesion/" + tag + "_lesion_prob.nii.gz")
         print("Created file:", output_filename)
 
         # Create affine transformation matrix
@@ -499,7 +449,7 @@ class ProstateLesionSegOperator(Operator):
         nib.save(nib.Nifti1Image(nda_prob, affine), str(output_path) + "/lesion/" + "merged_lesion_prob.nii.gz")
 
         # Outlier rejection based on original prostate segmentation
-        nda_wp = data["pred_wp"].cpu().detach().numpy()
+        nda_wp = nib.load(str(output_path) + "/organ/organ.nii.gz").get_fdata()
         nda_wp = np.squeeze(nda_wp)
         nda_prob = np.multiply(nda_prob, nda_wp.astype(np.float32))
 
