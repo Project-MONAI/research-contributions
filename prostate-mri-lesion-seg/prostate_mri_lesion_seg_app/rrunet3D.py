@@ -1,4 +1,4 @@
-"""
+'''
 Prostate-MRI_Lesion_Detection, v3.0 (Release date: September 17, 2024)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
@@ -52,24 +52,26 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE."""
+each copy of the SOFTWARE.'''
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-__all__ = ["RRUNet3D"]
+__all__ = [
+    "RRUNet3D"
+]
 
 
 class RecurrentBlock(nn.Module):
     def __init__(self, out_channels, t=2):
-        super(RecurrentBlock, self).__init__()
+        super(RecurrentBlock,self).__init__()
         self.t = t
         self.conv = nn.Sequential(
-            nn.Conv3d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=True),
-            nn.BatchNorm3d(out_channels),
-            nn.ReLU(inplace=True),
+            nn.Conv3d(out_channels, out_channels,kernel_size=3,stride=1,padding=1,bias=True),
+		    nn.BatchNorm3d(out_channels),
+			nn.ReLU(inplace=True)
         )
 
     def forward(self, x):
@@ -220,6 +222,7 @@ class RRUNet3D(nn.Module):
         self.input_conv = nn.Conv3d(in_channels, num_init_kernels, 3, stride=2, padding=1)
         self.output_conv = nn.Conv3d(num_init_kernels, out_channels, 1, stride=1, padding=0, bias=False)
         self.output_activation = nn.Softmax(dim=1)
+
 
         self.blocks_down = list(map(int, blocks_down.split(",")))
         self.blocks_up = list(map(int, blocks_up.split(",")))

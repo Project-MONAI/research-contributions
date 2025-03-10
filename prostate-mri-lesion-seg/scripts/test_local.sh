@@ -28,25 +28,33 @@ extract_argument() {
 handle_options() {
     while [ $# -gt 0 ]; do
     case $1 in
-        -i | --input)
+        -i | --input) 
             if ! has_argument $@; then
                 echo "Error: No input data directory specified" && error
             fi
             DATA_DIR=$(extract_argument $@)
             shift
             ;;
-        -o | --output) OUTPUT_DIR=$OPTARG ;;
-        -m | --model) MODEL_DIR=$OPTARG ;;
+        -o | --output)
+            if ! has_argument $@; then
+                echo "Error: No output directory specified" && error
+            fi
+            OUTPUT_DIR=$(extract_argument $@)
+            shift
+            ;;
+        -m | --model)
+            if ! has_argument $@; then
+                echo "Error: No model directory specified" && error
+            fi
+            MODEL_DIR=$(extract_argument $@)
+            shift
+            ;;
         -c | --cpu) CPU_ARG=1 ;;
       *) echo "Invalid option: $1" >&2 && error ;;
     esac
     shift
   done
 }
-handle_options "$@"
-
-OUTPUT_DIR=$SCRIPT_DIR/../output
-MODEL_DIR=$APP_DIR/models/
 handle_options "$@"
 
 # Check if data dir exists

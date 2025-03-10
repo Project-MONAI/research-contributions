@@ -1,4 +1,4 @@
-"""
+'''
 Prostate-MRI_Lesion_Detection, v3.0 (Release date: September 17, 2024)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
@@ -52,16 +52,10 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE."""
+each copy of the SOFTWARE.'''
 
 import logging
 from pathlib import Path
-
-from custom_lesion_classifier_operator import ProstateLesionClassifierOperator
-from custom_lesion_seg_operator import ProstateLesionSegOperator
-
-# Local imports
-from organ_seg_operator import ProstateSegOperator
 
 # MONAI Deploy SDK imports
 from monai.deploy.conditions import CountCondition
@@ -69,6 +63,12 @@ from monai.deploy.core import AppContext, Application
 from monai.deploy.operators.dicom_data_loader_operator import DICOMDataLoaderOperator
 from monai.deploy.operators.dicom_series_selector_operator import DICOMSeriesSelectorOperator
 from monai.deploy.operators.dicom_series_to_volume_operator import DICOMSeriesToVolumeOperator
+
+# Local imports
+from organ_seg_operator import ProstateSegOperator
+from custom_lesion_seg_operator import ProstateLesionSegOperator
+from custom_lesion_classifier_operator import ProstateLesionClassifierOperator
+
 
 # Custom rules for T2, ADC, and HIGHB series selection in ProstateX
 Rules_T2 = """
@@ -128,7 +128,6 @@ Rules_HIGHB = """
 }
 """
 
-
 class AIProstateLesionSegApp(Application):
     def __init__(self, *args, **kwargs):
         """Creates an application instance."""
@@ -167,32 +166,18 @@ class AIProstateLesionSegApp(Application):
         series_to_vol_HIGHB_op = DICOMSeriesToVolumeOperator(self, name="series_to_vol_HIGHB")
 
         # AI operators
-        organ_seg_op = ProstateSegOperator(
-            self, app_context=app_context, model_path=model_path / "organ", name="organ_seg_op"
-        )
-        lesion_seg_op = ProstateLesionSegOperator(
-            self, app_context=app_context, model_path=model_path, name="lesion_seg_op"
-        )
-        lesion_classifier_op = ProstateLesionClassifierOperator(
-            self, app_context=app_context, model_path=model_path, name="lesion_classifier_op"
-        )
+        organ_seg_op = ProstateSegOperator(self, app_context=app_context, model_path=model_path/"organ", name="organ_seg_op")
+        lesion_seg_op = ProstateLesionSegOperator(self, app_context=app_context, model_path=model_path, name="lesion_seg_op")
+        lesion_classifier_op = ProstateLesionClassifierOperator(self, app_context=app_context, model_path=model_path, name="lesion_classifier_op")
 
         #################### Pipeline DAG ####################
         # Data ingestion
         self.add_flow(study_loader_op, series_selector_T2_op, {("dicom_study_list", "dicom_study_list")})
         self.add_flow(study_loader_op, series_selector_ADC_op, {("dicom_study_list", "dicom_study_list")})
         self.add_flow(study_loader_op, series_selector_HIGHB_op, {("dicom_study_list", "dicom_study_list")})
-        self.add_flow(
-            series_selector_T2_op, series_to_vol_T2_op, {("study_selected_series_list", "study_selected_series_list")}
-        )
-        self.add_flow(
-            series_selector_ADC_op, series_to_vol_ADC_op, {("study_selected_series_list", "study_selected_series_list")}
-        )
-        self.add_flow(
-            series_selector_HIGHB_op,
-            series_to_vol_HIGHB_op,
-            {("study_selected_series_list", "study_selected_series_list")},
-        )
+        self.add_flow(series_selector_T2_op, series_to_vol_T2_op, {("study_selected_series_list", "study_selected_series_list")})
+        self.add_flow(series_selector_ADC_op, series_to_vol_ADC_op, {("study_selected_series_list", "study_selected_series_list")})
+        self.add_flow(series_selector_HIGHB_op, series_to_vol_HIGHB_op, {("study_selected_series_list", "study_selected_series_list")})
 
         # Organ inference
         self.add_flow(series_to_vol_T2_op, organ_seg_op, {("image", "image")})
@@ -212,7 +197,6 @@ class AIProstateLesionSegApp(Application):
 
         self._logger.debug(f"End {self.compose.__name__}")
         #################### Pipeline DAG ####################
-
 
 if __name__ == "__main__":
     # Creates the app and test it standalone.

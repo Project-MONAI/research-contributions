@@ -1,4 +1,4 @@
-"""
+'''
 Prostate-MRI_Lesion_Detection, v3.0 (Release date: September 17, 2024)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
@@ -52,12 +52,10 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE."""
+each copy of the SOFTWARE.'''
 
 import logging
 from pathlib import Path
-
-from numpy import uint8
 
 # MONAI Deploy App SDK imports
 from monai.deploy.core import AppContext, ConditionType, Fragment, Operator, OperatorSpec
@@ -75,15 +73,13 @@ from monai.transforms import (
     LoadImaged,
     NormalizeIntensityd,
     Orientationd,
-    SaveImaged,
     Spacingd,
 )
-
 
 class ProstateSegOperator(Operator):
     """Performs Prostate segmentation with a 3D image converted from a DICOM MRI (T2) series."""
 
-    DEFAULT_OUTPUT_FOLDER = Path.cwd() / "output/saved_images_folder"
+    DEFAULT_OUTPUT_FOLDER = Path.cwd() / "output"
 
     def __init__(
         self,
@@ -104,7 +100,7 @@ class ProstateSegOperator(Operator):
         self.app_context = app_context
         self.input_name_image = "image"
         self.output_name_seg = "seg_image"
-        self.output_name_saved_images_folder = "saved_images_folder"
+        self.output_name_saved_images_folder = ""
 
         # Call the base class __init__() last.
         # Also, the base class has an attribute called fragment for storing the fragment object
@@ -117,11 +113,11 @@ class ProstateSegOperator(Operator):
             ConditionType.NONE
         )  # Output not requiring a receiver
 
-    def compute(self, op_input, op_output, context):
+    def compute(self, op_input, op_output, context): 
         input_image = op_input.receive(self.input_name_image)
         if not input_image:
             raise ValueError("Input image (T2) is not found.")
-
+        
         # This operator gets an in-memory Image object, so a specialized ImageReader is needed.
         _reader = InMemImageReader(input_image)
         pre_transforms = self.pre_process(_reader, str(self.output_folder))
@@ -130,10 +126,10 @@ class ProstateSegOperator(Operator):
         # Delegates inference and saving output to the built-in operator.
         infer_operator = MonaiSegInferenceOperator(
             self.fragment,
-            roi_size=(128, 128, 16),
+            roi_size=(128, 128, 16), 
             pre_transforms=pre_transforms,
             post_transforms=post_transforms,
-            overlap=0.6,
+            overlap=0.5,
             app_context=self.app_context,
             model_name="",
             inferer=InfererType.SLIDING_WINDOW,
@@ -155,7 +151,8 @@ class ProstateSegOperator(Operator):
 
         Path(out_dir).mkdir(parents=True, exist_ok=True)
         my_key = self._input_dataset_key
-
+        print("\nBeginning organ segmentation...")
+        
         return Compose(
             [
                 LoadImaged(keys=my_key, reader=img_reader),
@@ -189,6 +186,6 @@ class ProstateSegOperator(Operator):
                 ),
                 DataStatsd(keys=pred_key, name="Inverted output"),
                 AsDiscreted(keys=pred_key, argmax=True, threshold=0.5),
-                DataStatsd(keys=pred_key, name="AsDiscrete output"),
+                DataStatsd(keys=pred_key, name="AsDiscrete output")
             ]
         )

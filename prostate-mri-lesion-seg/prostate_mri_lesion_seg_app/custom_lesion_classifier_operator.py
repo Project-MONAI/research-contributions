@@ -1,4 +1,4 @@
-"""
+'''
 Prostate-MRI_Lesion_Detection, v3.0 (Release date: September 17, 2024)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
@@ -52,49 +52,42 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE."""
+each copy of the SOFTWARE.'''
 
-import copy
 import logging
 from pathlib import Path
-
-import nibabel as nib
-
-# AI/CV imports
-import numpy as np
-import torch
 import yaml
-from common import crop_pos_classification_multi_channel_3d, standard_normalization_multi_channel
-
-# Local imports
-from resnet import BasicBlock, ResNet
-from skimage.measure import label, regionprops
+import copy
 
 # MONAI Deploy App SDK imports
 import monai.deploy.core as md
+from monai.deploy.core import ExecutionContext, InputContext, Operator, OutputContext
+from monai.deploy.core import AppContext, ConditionType, Fragment, Operator, OperatorSpec
+from monai.deploy.operators.monai_seg_inference_operator import InMemImageReader
 
 # MONAI imports
 from monai.data import MetaTensor
-from monai.deploy.core import (
-    AppContext,
-    ConditionType,
-    ExecutionContext,
-    Fragment,
-    InputContext,
-    Operator,
-    OperatorSpec,
-    OutputContext,
+from monai.transforms import (
+    ResampleToMatch,
+    Spacing
 )
-from monai.deploy.operators.monai_seg_inference_operator import InMemImageReader
-from monai.transforms import ResampleToMatch, Spacing
+
+# AI/CV imports
+import numpy as np
+from skimage.measure import label, regionprops
+import nibabel as nib
+import torch
+
+# Local imports
+from resnet import ResNet, BasicBlock
+from common import standard_normalization_multi_channel
+from common import crop_pos_classification_multi_channel_3d
 
 ###############################################################################
-
-
 class ProstateLesionClassifierOperator(Operator):
     """Performs Prostate Lesion segmentation with a 3D image converted from a mp-DICOM MRI series."""
 
-    DEFAULT_OUTPUT_FOLDER = Path.cwd() / "output/saved_images_folder"
+    DEFAULT_OUTPUT_FOLDER = Path.cwd() / "output"
 
     def __init__(
         self,
@@ -119,7 +112,7 @@ class ProstateLesionClassifierOperator(Operator):
         self.input_name_image_highb = "image_highb"
         self.input_name_image_organ_seg = "image_organ_seg"
         self.input_name_image_lesion_seg = "image_lesion_seg"
-        self.output_name_saved_images_folder = "saved_images_folder"
+        self.output_name_saved_images_folder = ""
 
         # The base class has an attribute called fragment to hold the reference to the fragment object
         super().__init__(fragment, *args, **kwargs)
@@ -151,17 +144,22 @@ class ProstateLesionClassifierOperator(Operator):
         image_lesion_seg = op_input.receive(self.input_name_image_lesion_seg)
         if not image_lesion_seg:
             raise ValueError("Input image (Lesion segmentation) is not found.")
+        
+        print("\nBeginning lesion classification...")
 
         # Instantiate network and send to GPU
-        net = ResNet(block=BasicBlock, layers=[1, 1, 1, 1], block_inplanes=[32, 64, 128, 256], n_classes=4)
+        net = ResNet(block=BasicBlock,
+                            layers=[1,1,1,1],
+                            block_inplanes=[32,64,128,256],
+                            n_classes=4)
         if torch.cuda.is_available():
             net = net.to("cuda")
         net.eval()
 
         # Load model weights
-        checkpoint = torch.load(self.model_path / "classifier/model_best.pth.tar")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        checkpoint = torch.load(self.model_path / "classifier/model_best.pth.tar", map_location=device, weights_only=False)
         net.load_state_dict(checkpoint["state_dict"])
-        best_avg_dice_score = checkpoint["best_acc"]
 
         # Load images and preprocess
         data = self.preprocess(input_image_t2, input_image_adc, input_image_highb, image_organ_seg, image_lesion_seg)
@@ -169,7 +167,7 @@ class ProstateLesionClassifierOperator(Operator):
             inputs = data["image"].to("cuda")
         else:
             inputs = data["image"]
-        inputs_shape = (inputs.size()[-3], inputs.size()[-2], inputs.size()[-1])
+        inputs_shape = ( inputs.size()[-3], inputs.size()[-2], inputs.size()[-1])
         print("Inputs shape: ", inputs_shape)
 
         # Create affine transformation
@@ -184,34 +182,32 @@ class ProstateLesionClassifierOperator(Operator):
         nda_shape = np.squeeze(nda_shape)
 
         # Prepare cropped patches
-        nda_resize_crops, _ = crop_pos_classification_multi_channel_3d(
-            data["image"], data["nda_pred_resize"], crop_size=[64, 64, 64]
-        )
+        nda_resize_crops, _ = crop_pos_classification_multi_channel_3d(data["image"], data["nda_pred_resize"], crop_size=[64, 64, 64])
         print("nda_resize_crops shape: ", nda_resize_crops.shape)
         nda_resize_crops = np.expand_dims(nda_resize_crops, axis=0)
         if torch.cuda.is_available():
             nda_resize_crops = torch.tensor(nda_resize_crops).to("cuda")
         else:
             nda_resize_crops = torch.tensor(nda_resize_crops)
-
+        
         # Run inference
         inputs = nda_resize_crops
-        if len(list(inputs.size())) == 6:
+        if len(list(inputs.size())) == 6:           
             inputs = torch.squeeze(inputs, dim=0)
         with torch.set_grad_enabled(False):
             outputs = net(inputs)
         _, predicted = torch.max(outputs.data, 1)
         predicted = predicted.cpu().numpy().squeeze()
 
-        # Write prostate organ information
+         # Write prostate organ information
         nda_wp = data["pred_wp"]
         nda_wp = nda_wp.squeeze()
         nda_regions = label(nda_wp)
         regions = np.unique(nda_regions)
-        nda_region = (nda_regions == regions[0]).astype(np.uint8)
+        nda_region = (nda_regions==regions[0]).astype(np.uint8)
         props = regionprops(nda_region)
 
-        info = {}
+        info = {}    
         info_file = []
         info["Organ"] = "Prostate"
         info["Major_Axis_Length"] = props[0].major_axis_length * 0.5
@@ -225,9 +221,9 @@ class ProstateLesionClassifierOperator(Operator):
         for _i in range(len(regions)):
             if regions[_i] == 0:
                 continue
-            nda_region = (nda_regions == regions[_i]).astype(np.uint8)
+            nda_region = (nda_regions==regions[_i]).astype(np.uint8)
 
-            predicted_value = int(predicted) if predicted.ndim == 0 else int(predicted[_i - 1])
+            predicted_value = int(predicted) if predicted.ndim == 0 else int(predicted[_i-1])
             print("predicted_value:", predicted_value)
 
             props = regionprops(nda_region)
@@ -242,17 +238,15 @@ class ProstateLesionClassifierOperator(Operator):
             print(info)
             info_file.append(info)
 
-        with open(self.output_folder / "lesions.txt", "w") as out_file:
-            _ = yaml.dump(info_file, stream=out_file)
-
-        ##################################
+        with open(self.output_folder / "lesions.txt" , "w") as out_file:
+            _ = yaml.dump(info_file, stream=out_file) 
 
         # Now emit data to the output ports of this operator
         op_output.emit(self.output_folder, self.output_name_saved_images_folder)
 
     def preprocess(self, image_t2, image_adc, image_highb, image_organ_seg, image_lesion_seg):
         """Composes transforms for preprocessing input before predicting on a model."""
-
+        
         affine_orig, nda = [], []
 
         # Load images and create Metatensors
@@ -273,9 +267,7 @@ class ProstateLesionClassifierOperator(Operator):
         print("Resampling ADC/HIGHB to match T2...")
         adc_metatensor = ResampleToMatch()(adc_metatensor, t2_metatensor)  # NOTE: metadata may be incorrect
         highb_metatensor = ResampleToMatch()(highb_metatensor, t2_metatensor)  # NOTE: metadata may be incorrect
-        nda_shape = torch.tensor(
-            [t2_metatensor.array.shape[1], t2_metatensor.array.shape[2], t2_metatensor.array.shape[3]]
-        )
+        nda_shape = torch.tensor([t2_metatensor.array.shape[1], t2_metatensor.array.shape[2], t2_metatensor.array.shape[3]])
 
         # Resample to isotropic spacing
         print("Resampling all channels to (0.5, 0.5, 0.5)...")
@@ -284,15 +276,13 @@ class ProstateLesionClassifierOperator(Operator):
         highb_resampled = Spacing(pixdim=(0.5, 0.5, 0.5), mode=("bilinear"))(highb_metatensor)
         organ_resampled = Spacing(pixdim=(0.5, 0.5, 0.5), mode=("nearest"))(organ_metatensor)
         lesion_resampled = Spacing(pixdim=(0.5, 0.5, 0.5), mode=("nearest"))(lesion_metatensor)
-        nda_resize_shape = torch.tensor(
-            [t2_resampled.array.shape[1], t2_resampled.array.shape[2], t2_resampled.array.shape[3]]
-        )
+        nda_resize_shape = torch.tensor([t2_resampled.array.shape[1], t2_resampled.array.shape[2], t2_resampled.array.shape[3]])
         lesion_resampled = np.squeeze(lesion_resampled, axis=0)
 
         # Combine volumes into 4D tensor
         combined_volume = np.concatenate([t2_resampled, adc_resampled, highb_resampled, organ_resampled], axis=0)
         combined_volume = MetaTensor(combined_volume, meta=t2_metadata)
-        print(f"Combined volume shape: {combined_volume.shape}\n")
+        print(f"Combined volume shape: {combined_volume.shape}")
 
         # Normalize
         nda_resize = standard_normalization_multi_channel(combined_volume[0:3])

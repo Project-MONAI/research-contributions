@@ -1,4 +1,4 @@
-"""
+'''
 Prostate-MRI_Lesion_Detection, v3.0 (Release date: September 17, 2024)
 DEFINITIONS: AUTHOR(S) NVIDIA Corp. and National Cancer Institute, NIH
 
@@ -52,16 +52,13 @@ sublicenses of modifications or derivative works of the SOFTWARE provided that
 RECIPIENT’s use, reproduction, and distribution of the SOFTWARE otherwise complies
 with the conditions stated in this Agreement. Whenever Recipient distributes or
 redistributes the SOFTWARE, a copy of this Agreement must be included with
-each copy of the SOFTWARE."""
-
-import copy
+each copy of the SOFTWARE.'''
 
 import numpy as np
+import copy
 from skimage.measure import label
 
 ###############################################################################
-
-
 def bounding_box_3d(nda):
 
     r = np.any(nda, axis=(1, 2))
@@ -82,7 +79,6 @@ def bounding_box_3d(nda):
     bbox[5] = zmax
 
     return bbox
-
 
 def crop_pos_classification_multi_channel_3d(nda, nda_gt, crop_size):
     if nda_gt.ndim == 4:
@@ -108,12 +104,12 @@ def crop_pos_classification_multi_channel_3d(nda, nda_gt, crop_size):
 
         nda = nda[
             ...,
-            indices[0] : indices[0] + crop_size[0],
-            indices[1] : indices[1] + crop_size[1],
-            indices[2] : indices[2] + crop_size[2],
-        ]
+            indices[0]:indices[0] + crop_size[0],
+            indices[1]:indices[1] + crop_size[1],
+            indices[2]:indices[2] + crop_size[2]
+            ]
 
-        gt = np.unique(nda_gt[label_image == 1])[0]
+        gt = np.unique(nda_gt[label_image==1])[0]
     elif num_crop > 1:
         images = []
         labels = []
@@ -129,10 +125,10 @@ def crop_pos_classification_multi_channel_3d(nda, nda_gt, crop_size):
 
             nda_crop = nda[
                 ...,
-                indices[0] : indices[0] + crop_size[0],
-                indices[1] : indices[1] + crop_size[1],
-                indices[2] : indices[2] + crop_size[2],
-            ]
+                indices[0]:indices[0] + crop_size[0],
+                indices[1]:indices[1] + crop_size[1],
+                indices[2]:indices[2] + crop_size[2]
+                ]
 
             gt = np.unique(nda_gt[label_image == k + 1])[0]
 
@@ -143,7 +139,6 @@ def crop_pos_classification_multi_channel_3d(nda, nda_gt, crop_size):
         return images, labels
 
     return nda, gt
-
 
 def standard_normalization_multi_channel(nda):
     for _i in range(nda.shape[0]):
