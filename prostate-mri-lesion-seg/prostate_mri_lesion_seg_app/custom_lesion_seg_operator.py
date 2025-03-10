@@ -108,23 +108,23 @@ class SegmentationDataset(Dataset):
         t2_nib = nib.load(t2_path)
         affine_orig = t2_nib.affine
         spacing_orig = t2_nib.header.get_zooms()
-        
+
         # Initialize data arrays
         nda = []
-        
+
         # Load T2 data
         t2_canonical = nib.as_closest_canonical(t2_nib)
         nda.append(t2_canonical.get_fdata())
-        
+
         # Process ADC and HighB images
         for modality in ['adc', 'highb']:
             img_path = f"{self.output_path}/{modality}/{modality}.nii.gz"
             img_sitk = sitk.ReadImage(img_path)
-            
+
             # Resample to match T2 dimensions
             img_resampled = sitk.Resample(
                 img_sitk, t2_sitk.GetSize(),
-                sitk.Transform(), 
+                sitk.Transform(),
                 sitk.sitkNearestNeighbor,
                 t2_sitk.GetOrigin(),
                 t2_sitk.GetSpacing(),
@@ -133,35 +133,35 @@ class SegmentationDataset(Dataset):
                 t2_sitk.GetPixelID()
             )
             sitk.WriteImage(img_resampled, img_path)
-            
+
             # Load resampled data
             img_nib = nib.as_closest_canonical(nib.load(img_path))
             nda.append(img_nib.get_fdata())
-        
+
         # Stack input modalities
         nda = np.stack(nda, axis=0).astype(np.float32)
         nda_shape = nda.shape[1:]
-        
+
         # Load prostate segmentation
         wp_path = f"{self.output_path}/organ/organ.nii.gz"
         wp_nib = nib.as_closest_canonical(nib.load(wp_path))
         nda_wp = (wp_nib.get_fdata() > 0.0).astype(np.float32)
-        
+
         if nda_wp.shape != tuple(nda_shape):
             print("[error] nda_wp.shape != tuple(nda_shape)")
             input()
-        
+
         # Calculate target shape for resampling
         spacing_target = (0.5, 0.5, 0.5)
         shape_target = [int(round(nda_shape[i] * spacing_orig[i] / spacing_target[i])) for i in range(3)]
-        
+
         # Resample input volumes and segmentation
         nda_resize = np.zeros(shape=[3] + shape_target, dtype=np.float32)
         for s in range(3):
             nda_resize[s] = resize(nda[s], output_shape=shape_target, order=1)
-            
+
         nda_wp_resize = (resize(nda_wp, output_shape=shape_target, order=0) > 0.0).astype(np.uint8)
-        
+
         # Calculate ROI with margin
         margin = 32
         bbox = bbox2_3D(nda_wp_resize)
@@ -169,12 +169,12 @@ class SegmentationDataset(Dataset):
         for i in range(3):
             bbox_new[2*i] = max(0, bbox[2*i] - margin)
             bbox_new[2*i + 1] = min(shape_target[i] - 1, bbox[2*i + 1] + margin)
-        
+
         # Crop ROI and normalize
         nda_resize_roi = nda_resize[:, bbox_new[0]:bbox_new[1], bbox_new[2]:bbox_new[3], bbox_new[4]:bbox_new[5]]
         nda_resize_roi = standard_normalization_multi_channel(nda_resize_roi)
         print("nda_resize_roi shape:", nda_resize_roi.shape)
-        
+
         return {
             "affine": affine_orig,
             "bbox_new": bbox_new,
@@ -355,7 +355,7 @@ class ProstateLesionSegOperator(Operator):
         np_output_prob = np.zeros(shape=(output_classes,) + inputs_shape, dtype=np.float32)
         np_count = np.zeros(shape=(output_classes,) + inputs_shape, dtype=np.float32)
 
-        # Create input ranges that are multiples of 32        
+        # Create input ranges that are multiples of 32
         print("Inputs shape: ", inputs.size())
         multiple = 32
         output_len_x, output_len_y, output_len_z = inputs_shape[0], inputs_shape[1], inputs_shape[2]

@@ -144,7 +144,7 @@ class ProstateLesionClassifierOperator(Operator):
         image_lesion_seg = op_input.receive(self.input_name_image_lesion_seg)
         if not image_lesion_seg:
             raise ValueError("Input image (Lesion segmentation) is not found.")
-        
+
         print("\nBeginning lesion classification...")
 
         # Instantiate network and send to GPU
@@ -189,10 +189,10 @@ class ProstateLesionClassifierOperator(Operator):
             nda_resize_crops = torch.tensor(nda_resize_crops).to("cuda")
         else:
             nda_resize_crops = torch.tensor(nda_resize_crops)
-        
+
         # Run inference
         inputs = nda_resize_crops
-        if len(list(inputs.size())) == 6:           
+        if len(list(inputs.size())) == 6:
             inputs = torch.squeeze(inputs, dim=0)
         with torch.set_grad_enabled(False):
             outputs = net(inputs)
@@ -207,7 +207,7 @@ class ProstateLesionClassifierOperator(Operator):
         nda_region = (nda_regions==regions[0]).astype(np.uint8)
         props = regionprops(nda_region)
 
-        info = {}    
+        info = {}
         info_file = []
         info["Organ"] = "Prostate"
         info["Major_Axis_Length"] = props[0].major_axis_length * 0.5
@@ -239,14 +239,14 @@ class ProstateLesionClassifierOperator(Operator):
             info_file.append(info)
 
         with open(self.output_folder / "lesions.txt" , "w") as out_file:
-            _ = yaml.dump(info_file, stream=out_file) 
+            _ = yaml.dump(info_file, stream=out_file)
 
         # Now emit data to the output ports of this operator
         op_output.emit(self.output_folder, self.output_name_saved_images_folder)
 
     def preprocess(self, image_t2, image_adc, image_highb, image_organ_seg, image_lesion_seg):
         """Composes transforms for preprocessing input before predicting on a model."""
-        
+
         affine_orig, nda = [], []
 
         # Load images and create Metatensors
