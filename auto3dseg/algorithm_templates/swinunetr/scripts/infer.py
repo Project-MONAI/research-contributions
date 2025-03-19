@@ -91,7 +91,7 @@ class InferClass:
         self.model = parser.get_parsed_content("network")
         self.model = self.model.to(self.device)
 
-        pretrained_ckpt = torch.load(ckpt_name, map_location=self.device)
+        pretrained_ckpt = torch.load(ckpt_name, map_location=self.device, weights_only=True)
         self.model.load_state_dict(pretrained_ckpt)
         logger.debug(f"Checkpoint {ckpt_name:s} loaded.")
 
@@ -144,7 +144,7 @@ class InferClass:
             try:
                 logger.debug(f"Working on {image_file} on device {_device_in}/{_device_out} in/out.")
                 batch_data["pred"] = None
-                with torch.cuda.amp.autocast(enabled=self.amp):
+                with torch.autocast("cuda", enabled=self.amp):
                     batch_data["pred"] = sliding_window_inference(
                         inputs=batch_data["image"].to(_device_in),
                         roi_size=self.roi_size_valid,
@@ -189,7 +189,7 @@ class InferClass:
                 for _device_in, _device_out in zip(device_list_input, device_list_output):
                     try:
                         infer_images = d["image"].to(_device_in)
-                        with torch.cuda.amp.autocast(enabled=self.amp):
+                        with torch.autocast("cuda", enabled=self.amp):
                             d["pred"] = sliding_window_inference(
                                 inputs=infer_images,
                                 roi_size=self.roi_size_valid,

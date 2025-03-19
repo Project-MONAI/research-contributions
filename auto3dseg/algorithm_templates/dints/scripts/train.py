@@ -483,19 +483,19 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         )
         if torch.cuda.device_count() > 1:
             model.module.load_state_dict(
-                torch.load(parser.get_parsed_content("finetune#pretrained_ckpt_name"), map_location=device)
+                torch.load(parser.get_parsed_content("finetune#pretrained_ckpt_name"), map_location=device, weights_only=True)
             )
         else:
             model.load_state_dict(
-                torch.load(parser.get_parsed_content("finetune#pretrained_ckpt_name"), map_location=device)
+                torch.load(parser.get_parsed_content("finetune#pretrained_ckpt_name"), map_location=device, weights_only=True)
             )
     else:
         logger.debug("training from scratch")
 
     if amp:
-        from torch.cuda.amp import GradScaler, autocast
+        from torch.amp import GradScaler, autocast
 
-        scaler = GradScaler()
+        scaler = GradScaler("cuda")
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
             logger.debug("amp enabled")
 
@@ -597,7 +597,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             param.grad = None
 
                         if amp:
-                            with autocast():
+                            with autocast(device_type="cuda"):
                                 outputs = model(inputs)
                                 loss = loss_function(outputs.float(), labels)
 
@@ -695,7 +695,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 else:
                                     sw_batch_size = num_sw_batch_size
 
-                                with autocast(enabled=amp):
+                                with autocast(device_type="cuda", enabled=amp):
                                     val_outputs = sliding_window_inference(
                                         inputs=val_images,
                                         roi_size=patch_size_valid,
@@ -846,10 +846,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
             if torch.cuda.device_count() > 1:
                 model.module.load_state_dict(
-                    torch.load(os.path.join(ckpt_path, "best_metric_model.pt"), map_location=device)
+                    torch.load(os.path.join(ckpt_path, "best_metric_model.pt"), map_location=device, weights_only=True)
                 )
             else:
-                model.load_state_dict(torch.load(os.path.join(ckpt_path, "best_metric_model.pt"), map_location=device))
+                model.load_state_dict(torch.load(os.path.join(ckpt_path, "best_metric_model.pt"), map_location=device, weights_only=True))
             logger.debug("checkpoints loaded")
 
             model.eval()
@@ -883,7 +883,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             else:
                                 sw_batch_size = num_sw_batch_size
 
-                            with autocast(enabled=amp):
+                            with autocast(device_type="cuda", enabled=amp):
                                 val_data["pred"] = sliding_window_inference(
                                     inputs=val_images,
                                     roi_size=patch_size_valid,

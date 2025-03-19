@@ -211,7 +211,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     model = parser.get_parsed_content("training_network#network")
     model = model.to(device)
 
-    pretrained_ckpt = torch.load(ckpt_name, map_location=device)
+    pretrained_ckpt = torch.load(ckpt_name, map_location=device, weights_only=True)
     model.load_state_dict(pretrained_ckpt)
     logger.debug(f"checkpoint {ckpt_name:s} loaded")
 
@@ -295,7 +295,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     else:
                         sw_batch_size = num_sw_batch_size
 
-                    with torch.cuda.amp.autocast(enabled=amp):
+                    with torch.autocast("cuda", enabled=amp):
                         val_data["pred"] = sliding_window_inference(
                             inputs=val_images,
                             roi_size=patch_size_valid,

@@ -106,7 +106,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     model = parser.get_parsed_content("network")
     model = model.to(device)
 
-    pretrained_ckpt = torch.load(ckpt_name, map_location=device)
+    pretrained_ckpt = torch.load(ckpt_name, map_location=device, weights_only=True)
     model.load_state_dict(pretrained_ckpt)
     logger.debug(f"Checkpoint {ckpt_name:s} loaded")
 
@@ -164,7 +164,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             for _device_in, _device_out in zip(device_list_input, device_list_output):
                 try:
                     val_data["pred"] = None
-                    with torch.cuda.amp.autocast(enabled=amp):
+                    with torch.autocast("cuda", enabled=amp):
                         val_data["pred"] = sliding_window_inference(
                             inputs=val_data["image"].to(_device_in),
                             roi_size=roi_size_valid,

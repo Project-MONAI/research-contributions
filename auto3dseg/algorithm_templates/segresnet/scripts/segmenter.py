@@ -31,7 +31,7 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import yaml
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
@@ -665,7 +665,7 @@ class Segmenter:
 
         dice_ignore_empty = config.get("dice_ignore_empty", True)
         self.acc_function = DiceHelper(sigmoid=config["sigmoid"], ignore_empty=dice_ignore_empty)
-        self.grad_scaler = GradScaler(enabled=config["amp"])
+        self.grad_scaler = GradScaler("cuda", enabled=config["amp"])
 
         if config.get("sliding_inferrer") is not None:
             self.sliding_inferrer = ConfigParser(config["sliding_inferrer"]).get_parsed_content()
@@ -811,7 +811,7 @@ class Segmenter:
             for ckpt_key in ["pretrained_ckpt_name", "validate#ckpt_name", "infer#ckpt_name", "finetune#ckpt_name"]:
                 ckpt = override.get(ckpt_key, None)
                 if ckpt and os.path.exists(ckpt):
-                    checkpoint = torch.load(ckpt, map_location="cpu")
+                    checkpoint = torch.load(ckpt, map_location="cpu", weights_only=False)
                     config = checkpoint.get("config", {})
                     if self.global_rank == 0:
                         print(f"Initializing config from the checkpoint {ckpt}: {yaml.dump(config)}")
@@ -1010,7 +1010,7 @@ class Segmenter:
             if self.global_rank == 0:
                 warnings.warn("Invalid checkpoint file: " + str(ckpt))
         else:
-            checkpoint = torch.load(ckpt, map_location="cpu")
+            checkpoint = torch.load(ckpt, map_location="cpu", weights_only=False)
             model.load_state_dict(checkpoint["state_dict"], strict=True)
             epoch = checkpoint.get("epoch", 0)
             best_metric = checkpoint.get("best_metric", 0)
@@ -1755,7 +1755,7 @@ class Segmenter:
         memory_format = torch.channels_last_3d if channels_last else torch.preserve_format
         data = batch_data["image"].as_subclass(torch.Tensor).to(memory_format=memory_format, device=self.device)
 
-        with autocast(enabled=self.config["amp"]):
+        with autocast("cuda", enabled=self.config["amp"]):
             logits = self.sliding_inferrer(inputs=data, network=self.model)
 
         data = None
@@ -1839,7 +1839,7 @@ class Segmenter:
                 for param in model.parameters():
                     param.grad = None
 
-                with autocast(enabled=use_amp):
+                with autocast("cuda", enabled=use_amp):
                     logits = model(data)
 
                 loss = loss_function(logits, target)
@@ -1923,7 +1923,7 @@ class Segmenter:
             filename = batch_data["image"].meta[ImageMetaKey.FILENAME_OR_OBJ]
             batch_size = data.shape[0]
 
-            with autocast(enabled=use_amp):
+            with autocast("cuda", enabled=use_amp):
                 logits = sliding_inferrer(inputs=data, network=model)
 
             data = None
