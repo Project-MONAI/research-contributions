@@ -811,6 +811,7 @@ class Segmenter:
             for ckpt_key in ["pretrained_ckpt_name", "validate#ckpt_name", "infer#ckpt_name", "finetune#ckpt_name"]:
                 ckpt = override.get(ckpt_key, None)
                 if ckpt and os.path.exists(ckpt):
+                    # weights_only=False to load the full checkpoint including config metadata
                     checkpoint = torch.load(ckpt, map_location="cpu", weights_only=False)
                     config = checkpoint.get("config", {})
                     if self.global_rank == 0:
@@ -1010,6 +1011,7 @@ class Segmenter:
             if self.global_rank == 0:
                 warnings.warn("Invalid checkpoint file: " + str(ckpt))
         else:
+            # weights_only=False to load the full checkpoint including config metadata
             checkpoint = torch.load(ckpt, map_location="cpu", weights_only=False)
             model.load_state_dict(checkpoint["state_dict"], strict=True)
             epoch = checkpoint.get("epoch", 0)
