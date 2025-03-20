@@ -203,7 +203,7 @@ class InferClass:
         self.model = parser.get_parsed_content("training_network#network")
         self.model = self.model.to(self.device)
 
-        pretrained_ckpt = torch.load(ckpt_name, map_location=self.device)
+        pretrained_ckpt = torch.load(ckpt_name, map_location=self.device, weights_only=True)
         self.model.load_state_dict(pretrained_ckpt)
         logger.debug(f"checkpoint {ckpt_name:s} loaded")
 
@@ -286,7 +286,7 @@ class InferClass:
                 else:
                     sw_batch_size = self.num_sw_batch_size
 
-                with torch.cuda.amp.autocast(enabled=self.amp):
+                with torch.autocast("cuda", enabled=self.amp):
                     batch_data["pred"] = sliding_window_inference(
                         inputs=infer_images,
                         roi_size=self.patch_size_valid,
@@ -352,7 +352,7 @@ class InferClass:
                         else:
                             sw_batch_size = self.num_sw_batch_size
 
-                        with torch.cuda.amp.autocast(enabled=self.amp):
+                        with torch.autocast("cuda", enabled=self.amp):
                             infer_data["pred"] = sliding_window_inference(
                                 inputs=infer_images,
                                 roi_size=self.patch_size_valid,

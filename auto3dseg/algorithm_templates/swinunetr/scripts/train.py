@@ -340,7 +340,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 )
 
         store_dict = model.state_dict()
-        model_dict = torch.load(pretrained_path, map_location=device)["state_dict"]
+        model_dict = torch.load(pretrained_path, map_location=device, weights_only=True)["state_dict"]
         for key in model_dict.keys():
             if "out" not in key:
                 store_dict[key].copy_(model_dict[key])
@@ -398,17 +398,17 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
     if finetune["activate"] and os.path.isfile(finetune["pretrained_ckpt_name"]):
         logger.debug("Fine-tuning pre-trained checkpoint {:s}".format(finetune["pretrained_ckpt_name"]))
         if torch.cuda.device_count() > 1:
-            model.module.load_state_dict(torch.load(finetune["pretrained_ckpt_name"], map_location=device))
+            model.module.load_state_dict(torch.load(finetune["pretrained_ckpt_name"], map_location=device, weights_only=True))
         else:
-            model.load_state_dict(torch.load(finetune["pretrained_ckpt_name"], map_location=device))
+            model.load_state_dict(torch.load(finetune["pretrained_ckpt_name"], map_location=device, weights_only=True))
     else:
         if not use_pretrain:
             logger.debug("Training from scratch")
 
     if amp:
-        from torch.cuda.amp import GradScaler, autocast
+        from torch.amp import GradScaler, autocast
 
-        scaler = GradScaler()
+        scaler = GradScaler("cuda")
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
             logger.debug("Amp enabled")
 
@@ -495,7 +495,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                             param.grad = None
 
                         if amp:
-                            with autocast():
+                            with autocast("cuda"):
                                 outputs = model(inputs)
                                 loss = loss_function(outputs.float(), labels)
 
@@ -585,7 +585,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 val_outputs = None
                                 val_devices_input[val_filename] = _device_in
                                 val_devices_output[val_filename] = _device_out
-                                with autocast(enabled=amp):
+                                with autocast("cuda", enabled=amp):
                                     val_outputs = sliding_window_inference(
                                         inputs=val_data["image"].to(_device_in),
                                         roi_size=roi_size_valid,
@@ -716,10 +716,10 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
             if torch.cuda.device_count() > 1:
                 model.module.load_state_dict(
-                    torch.load(os.path.join(ckpt_path, "best_metric_model.pt"), map_location=device)
+                    torch.load(os.path.join(ckpt_path, "best_metric_model.pt"), map_location=device, weights_only=True)
                 )
             else:
-                model.load_state_dict(torch.load(os.path.join(ckpt_path, "best_metric_model.pt"), map_location=device))
+                model.load_state_dict(torch.load(os.path.join(ckpt_path, "best_metric_model.pt"), map_location=device, weights_only=True))
             logger.debug("Checkpoints loaded")
 
             model.eval()
@@ -742,7 +742,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     for _device_in, _device_out in zip(device_list_input, device_list_output):
                         try:
                             val_data["pred"] = None
-                            with autocast(enabled=amp):
+                            with autocast("cuda", enabled=amp):
                                 val_data["pred"] = sliding_window_inference(
                                     inputs=val_data["image"].to(_device_in),
                                     roi_size=roi_size_valid,

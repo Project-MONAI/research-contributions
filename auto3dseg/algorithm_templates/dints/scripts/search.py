@@ -278,9 +278,9 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
         model = DistributedDataParallel(model, device_ids=[device], find_unused_parameters=True)
 
     if amp:
-        from torch.cuda.amp import GradScaler, autocast
+        from torch.amp import GradScaler, autocast
 
-        scaler = GradScaler()
+        scaler = GradScaler("cuda")
         if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
             logger.debug("amp enabled")
 
@@ -335,7 +335,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 param.grad = None
 
             if amp:
-                with autocast():
+                with autocast(device_type="cuda"):
                     outputs = model(inputs)
                     loss = loss_function(outputs.float(), labels)
 
@@ -406,7 +406,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
             combination_weights = (epoch - num_epochs_warmup) / (num_epochs - num_epochs_warmup)
 
             if amp:
-                with autocast():
+                with autocast(device_type="cuda"):
                     outputs_search = model(inputs_search)
                     loss = loss_function(outputs_search.float(), labels_search)
                     loss += combination_weights * (
@@ -491,7 +491,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                         val_images = val_images.to(val_devices[val_filename])
                         val_labels = val_labels.to(val_devices[val_filename])
 
-                        with torch.cuda.amp.autocast(enabled=amp):
+                        with torch.autocast(device_type="cuda", enabled=amp):
                             val_outputs = sliding_window_inference(
                                 inputs=val_images,
                                 roi_size=patch_size_valid,
@@ -507,7 +507,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
 
                         val_devices[val_filename] = "cpu"
 
-                        with torch.cuda.amp.autocast(enabled=amp):
+                        with torch.autocast(device_type="cuda", enabled=amp):
                             val_outputs = sliding_window_inference(
                                 val_images,
                                 patch_size_valid,

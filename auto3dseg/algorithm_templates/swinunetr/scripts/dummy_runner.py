@@ -15,7 +15,7 @@ import fire
 import numpy as np
 import torch
 import yaml
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 
 from monai.bundle import ConfigParser
 from monai.inferers import sliding_window_inference
@@ -74,7 +74,7 @@ class DummyRunnerSwinUNETR(object):
         print("max_shape", self.max_shape)
 
     def run(self, num_images_per_batch, num_sw_batch_size, validation_data_device):
-        scaler = GradScaler()
+        scaler = GradScaler("cuda")
 
         num_epochs = 2
         num_iterations = 6
@@ -122,7 +122,7 @@ class DummyRunnerSwinUNETR(object):
                 for param in self.model.parameters():
                     param.grad = None
 
-                with autocast():
+                with autocast("cuda"):
                     outputs = self.model(inputs)
                     loss = self.loss_function(outputs.float(), labels)
 
@@ -147,7 +147,7 @@ class DummyRunnerSwinUNETR(object):
                     if validation_data_device == "gpu":
                         val_images = val_images.to(self.device)
 
-                    with autocast():
+                    with autocast("cuda"):
                         val_outputs = sliding_window_inference(
                             val_images,
                             self.roi_size_valid,
