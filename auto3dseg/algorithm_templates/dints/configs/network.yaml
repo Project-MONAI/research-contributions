@@ -1,7 +1,7 @@
 ---
 training_network:
   arch_ckpt_path: "$@bundle_root + '/scripts/arch_code.pth'"
-  arch_ckpt: "$torch.load(@training_network#arch_ckpt_path, map_location=torch.device('cuda'), weights_only=True)"
+  arch_ckpt: "$torch.load(@training_network#arch_ckpt_path, map_location=torch.device('cuda'), weights_only=False)"
   dints_space:
     _target_: TopologyInstance
     channel_mul: 1
