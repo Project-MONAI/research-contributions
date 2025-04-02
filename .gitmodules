@@ -1,0 +1,3 @@
+[submodule "MedSyn"]
+	path = MedSyn
+	url = https://github.com/batmanlab/MedSyn.git
