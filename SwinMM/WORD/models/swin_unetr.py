@@ -38,7 +38,6 @@ class SwinUNETR(swin_unetr.SwinUNETR):
 
         """
         super().__init__(
-            img_size,
             *args,
             num_heads=num_heads,
             feature_size=feature_size,

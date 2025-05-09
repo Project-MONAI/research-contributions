@@ -84,8 +84,7 @@ Once the json file is downloaded, please place it in the same folder as the data
 A Swin UNETR network with standard hyper-parameters for multi-organ semantic segmentation (BTCV dataset) is be defined as:
 
 ``` bash
-model = SwinUNETR(img_size=(96,96,96),
-                  in_channels=1,
+model = SwinUNETR(in_channels=1,
                   out_channels=14,
                   feature_size=48,
                   use_checkpoint=True,

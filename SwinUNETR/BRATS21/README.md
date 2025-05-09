@@ -106,8 +106,7 @@ Mean Dice refers to average Dice of WT, ET and TC tumor semantic classes.
 A Swin UNETR network with standard hyper-parameters for brain tumor semantic segmentation (BraTS dataset) is be defined as:
 
 ``` bash
-model = SwinUNETR(img_size=(128,128,128),
-                  in_channels=4,
+model = SwinUNETR(in_channels=4,
                   out_channels=3,
                   feature_size=48,
                   use_checkpoint=True,
