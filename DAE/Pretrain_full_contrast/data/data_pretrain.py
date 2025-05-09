@@ -21,7 +21,6 @@ from monai.transforms import (
     AsChannelFirstd,
     AsDiscrete,
     Compose,
-    CropForegroundd,
     LoadImaged,
     NormalizeIntensityd,
     Orientationd,

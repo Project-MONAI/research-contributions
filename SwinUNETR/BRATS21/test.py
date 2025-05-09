@@ -70,7 +70,6 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     pretrained_pth = os.path.join(pretrained_dir, model_name)
     model = SwinUNETR(
-        img_size=128,
         in_channels=args.in_channels,
         out_channels=args.out_channels,
         feature_size=args.feature_size,

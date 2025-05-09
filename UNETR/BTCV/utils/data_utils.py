@@ -80,7 +80,7 @@ def get_loader(args):
             transforms.ScaleIntensityRanged(
                 keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
             ),
-            transforms.CropForegroundd(keys=["image", "label"], source_key="image"),
+            transforms.CropForegroundd(keys=["image", "label"], source_key="image", allow_smaller=True),
             transforms.RandCropByPosNegLabeld(
                 keys=["image", "label"],
                 label_key="label",
@@ -111,7 +111,7 @@ def get_loader(args):
             transforms.ScaleIntensityRanged(
                 keys=["image"], a_min=args.a_min, a_max=args.a_max, b_min=args.b_min, b_max=args.b_max, clip=True
             ),
-            transforms.CropForegroundd(keys=["image", "label"], source_key="image"),
+            transforms.CropForegroundd(keys=["image", "label"], source_key="image", allow_smaller=True),
             transforms.ToTensord(keys=["image", "label"]),
         ]
     )
