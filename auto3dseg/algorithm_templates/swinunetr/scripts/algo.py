@@ -168,6 +168,7 @@ class SwinunetrAlgo(BundleAlgo):
                         "source_key": "@image_key",
                         "start_coord_key": None,
                         "end_coord_key": None,
+                        "allow_smaller": True,
                     },
                 ],
             }
@@ -183,7 +184,7 @@ class SwinunetrAlgo(BundleAlgo):
                         "b_max": 1.0,
                         "clip": True,
                     },
-                    {"_target_": "CropForegroundd", "keys": "@image_key", "source_key": "@image_key"},
+                    {"_target_": "CropForegroundd", "keys": "@image_key", "source_key": "@image_key", "allow_smaller": True},
                 ],
             }
             mr_intensity_transform = {
