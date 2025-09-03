@@ -1,11 +1,14 @@
 # Model Overview
+
 This repository contains the code for UNETR: Transformers for 3D Medical Image Segmentation [1]. UNETR is the first 3D segmentation network that uses a pure vision transformer as its encoder without relying on CNNs for feature extraction.
 The code presents a volumetric (3D) multi-organ segmentation application using the BTCV challenge dataset.
 ![image](https://lh3.googleusercontent.com/pw/AM-JKLU2eTW17rYtCmiZP3WWC-U1HCPOHwLe6pxOfJXwv2W-00aHfsNy7jeGV1dwUq0PXFOtkqasQ2Vyhcu6xkKsPzy3wx7O6yGOTJ7ZzA01S6LSh8szbjNLfpbuGgMe6ClpiS61KGvqu71xXFnNcyvJNFjN=w1448-h496-no?authuser=0)
 
 ### Installing Dependencies
+
 Dependencies can be installed using:
-``` bash
+
+```bash
 pip install -r requirements.txt
 ```
 
@@ -13,7 +16,7 @@ pip install -r requirements.txt
 
 A UNETR network with standard hyper-parameters for the task of multi-organ semantic segmentation (BTCV dataset) can be defined as follows:
 
-``` bash
+```bash
 model = UNETR(
     in_channels=1,
     out_channels=14,
@@ -22,7 +25,7 @@ model = UNETR(
     hidden_size=768,
     mlp_dim=3072,
     num_heads=12,
-    pos_embed='perceptron',
+    pos_embed='learnable',
     norm_name='instance',
     conv_block=True,
     res_block=True,
@@ -30,12 +33,13 @@ model = UNETR(
 ```
 
 The above UNETR model is used for CT images (1-channel input) and for 14-class segmentation outputs. The network expects
-resampled input images with size ```(96, 96, 96)``` which will be converted into non-overlapping patches of size ```(16, 16, 16)```.
+resampled input images with size `(96, 96, 96)` which will be converted into non-overlapping patches of size `(16, 16, 16)`.
 The position embedding is performed using a perceptron layer. The ViT encoder follows standard hyper-parameters as introduced in [2].
 The decoder uses convolutional and residual blocks as well as instance normalization. More details can be found in [1].
 
 Using the default values for hyper-parameters, the following command can be used to initiate training using PyTorch native AMP package:
-``` bash
+
+```bash
 python main.py
 --feature_size=32
 --batch_size=1
@@ -48,28 +52,30 @@ python main.py
 --data_dir=/dataset/dataset0/
 ```
 
-Note that you need to provide the location of your dataset directory by using ```--data_dir```.
+Note that you need to provide the location of your dataset directory by using `--data_dir`.
 
-To initiate distributed multi-gpu training, ```--distributed``` needs to be added to the training command.
+To initiate distributed multi-gpu training, `--distributed` needs to be added to the training command.
 
-To disable AMP, ```--noamp``` needs to be added to the training command.
+To disable AMP, `--noamp` needs to be added to the training command.
 
-If UNETR is used in distributed multi-gpu training, we recommend increasing the learning rate (i.e. ```--optim_lr```)
-according to the number of GPUs. For instance, ```--optim_lr=4e-4``` is recommended for training with 4 GPUs.
+If UNETR is used in distributed multi-gpu training, we recommend increasing the learning rate (i.e. `--optim_lr`)
+according to the number of GPUs. For instance, `--optim_lr=4e-4` is recommended for training with 4 GPUs.
 
 ### Finetuning
+
 We provide state-of-the-art pre-trained checkpoints and TorchScript models of UNETR using BTCV dataset.
 
 For using the pre-trained checkpoint, please download the weights from the following directory:
 
 https://developer.download.nvidia.com/assets/Clara/monai/research/UNETR_model_best_acc.pth
 
-Once downloaded, please place the checkpoint in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
+Once downloaded, please place the checkpoint in the following directory or use `--pretrained_dir` to provide the address of where the model is placed:
 
-```./pretrained_models```
+`./pretrained_models`
 
 The following command initiates finetuning using the pretrained checkpoint:
-``` bash
+
+```bash
 python main.py
 --batch_size=1
 --logdir=unetr_pretrained
@@ -88,12 +94,13 @@ For using the pre-trained TorchScript model, please download the model from the 
 
 https://developer.download.nvidia.com/assets/Clara/monai/research/UNETR_model_best_acc.pt
 
-Once downloaded, please place the TorchScript model in the following directory or use ```--pretrained_dir``` to provide the address of where the model is placed:
+Once downloaded, please place the TorchScript model in the following directory or use `--pretrained_dir` to provide the address of where the model is placed:
 
-```./pretrained_models```
+`./pretrained_models`
 
 The following command initiates finetuning using the TorchScript model:
-``` bash
+
+```bash
 python main.py
 --batch_size=1
 --logdir=unetr_pretrained
@@ -108,31 +115,43 @@ python main.py
 --pretrained_model_name='UNETR_model_best_acc.pt'
 --resume_jit
 ```
+
 Note that finetuning from the provided TorchScript model does not support AMP.
 
-
 ### Testing
+
 You can use the state-of-the-art pre-trained TorchScript model or checkpoint of UNETR to test it on your own data.
 
 Once the pretrained weights are downloaded, using the links above, please place the TorchScript model in the following directory or
-use ```--pretrained_dir``` to provide the address of where the model is placed:
+use `--pretrained_dir` to provide the address of where the model is placed:
 
-```./pretrained_models```
+`./pretrained_models`
 
-The following command runs inference using the provided checkpoint:
-``` bash
+The following command runs inference(validation or predict mask) using the provided checkpoint:
+
+```bash
 python test.py
+--mode='validation'
 --infer_overlap=0.5
 --data_dir=/dataset/dataset0/
 --pretrained_dir='./pretrained_models/'
 --saved_checkpoint=ckpt
 ```
 
-Note that ```--infer_overlap``` determines the overlap between the sliding window patches. A higher value typically results in more accurate segmentation outputs but with the cost of longer inference time.
+```bash
+python test.py
+--mode='predict'
+--infer_overlap=0.5
+--pretrained_dir='./pretrained_models/'
+--saved_checkpoint=ckpt
+```
 
-If you would like to use the pretrained TorchScript model, ```--saved_checkpoint=torchscript``` should be used.
+Note that `--infer_overlap` determines the overlap between the sliding window patches. A higher value typically results in more accurate segmentation outputs but with the cost of longer inference time.
+
+If you would like to use the pretrained TorchScript model, `--saved_checkpoint=torchscript` should be used.
 
 ### Tutorial
+
 A tutorial for the task of multi-organ segmentation using BTCV dataset can be found in the following:
 
 https://github.com/Project-MONAI/tutorials/blob/main/3d_segmentation/unetr_btcv_segmentation_3d.ipynb
@@ -140,7 +159,9 @@ https://github.com/Project-MONAI/tutorials/blob/main/3d_segmentation/unetr_btcv_
 Additionally, a tutorial which leverages PyTorch Lightning can be found in the following:
 
 https://github.com/Project-MONAI/tutorials/blob/main/3d_segmentation/unetr_btcv_segmentation_3d_lightning.ipynb
+
 ## Dataset
+
 ![image](https://lh3.googleusercontent.com/pw/AM-JKLX0svvlMdcrchGAgiWWNkg40lgXYjSHsAAuRc5Frakmz2pWzSzf87JQCRgYpqFR0qAjJWPzMQLc_mmvzNjfF9QWl_1OHZ8j4c9qrbR6zQaDJWaCLArRFh0uPvk97qAa11HtYbD6HpJ-wwTCUsaPcYvM=w1724-h522-no?authuser=0)
 
 The training data is from the [BTCV challenge dataset](https://www.synapse.org/#!Synapse:syn3193805/wiki/217752).
@@ -152,7 +173,6 @@ Under Institutional Review Board (IRB) supervision, 50 abdomen CT scans of were 
 - Modality: CT
 - Size: 30 3D volumes (24 Training + 6 Testing)
 
-
 We provide the json file that is used to train our models in the following link:
 
 https://developer.download.nvidia.com/assets/Clara/monai/tutorials/swin_unetr_btcv_dataset_0.json
@@ -160,6 +180,7 @@ https://developer.download.nvidia.com/assets/Clara/monai/tutorials/swin_unetr_bt
 Once the json file is downloaded, please place it in the same folder as the dataset.
 
 ## Citation
+
 If you find this repository useful, please consider citing UNETR paper:
 
 ```
@@ -173,6 +194,7 @@ If you find this repository useful, please consider citing UNETR paper:
 ```
 
 ## References
+
 [1] Hatamizadeh, Ali, et al. "UNETR: Transformers for 3D Medical Image Segmentation", 2021. https://arxiv.org/abs/2103.10504.
 
 [2] Dosovitskiy, Alexey, et al. "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale

@@ -1,6 +1,7 @@
-torch==1.9.1
-monai==0.7.0
-nibabel==3.1.1
-tqdm==4.59.0
-einops==0.3.0
-tensorboardX==2.1
+monai==1.5.0
+numpy==2.3.2
+opencv_python
+simpleitk==2.5.2
+tensorboardx==2.6.4
+torch>=2.3,<2.7
+nibabel>=5.0

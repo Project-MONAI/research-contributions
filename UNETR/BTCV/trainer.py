@@ -96,7 +96,7 @@ def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_lab
     start_time = time.time()
     with torch.no_grad():
         for idx, batch_data in enumerate(loader):
-            if isinstance(batch_data, list):
+            if isinstance(batch_data, (list, tuple)):
                 data, target = batch_data
             else:
                 data, target = batch_data["image"], batch_data["label"]

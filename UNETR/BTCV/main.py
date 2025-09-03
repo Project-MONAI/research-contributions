@@ -12,17 +12,12 @@
 import argparse
 import os
 from functools import partial
-
 import numpy as np
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn.parallel
 import torch.utils.data.distributed
-from networks.unetr import UNETR
-from optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
-from trainer import run_training
-from utils.data_utils import get_loader
 
 from monai.inferers import sliding_window_inference
 from monai.losses import DiceCELoss, DiceLoss
@@ -30,19 +25,26 @@ from monai.metrics import DiceMetric
 from monai.transforms import Activations, AsDiscrete, Compose
 from monai.utils.enums import MetricReduction
 
+from networks.unetr import UNETR
+from optimizers.lr_scheduler import LinearWarmupCosineAnnealingLR
+from trainer import run_training
+from utils.data_utils import get_loader
+from dataset.customDataset import getDatasetLoader
+
 parser = argparse.ArgumentParser(description="UNETR segmentation pipeline")
 parser.add_argument("--checkpoint", default=None, help="start training from saved checkpoint")
 parser.add_argument("--logdir", default="test", type=str, help="directory to save the tensorboard logs")
 parser.add_argument(
     "--pretrained_dir", default="./pretrained_models/", type=str, help="pretrained checkpoint directory"
 )
-parser.add_argument("--data_dir", default="/dataset/dataset0/", type=str, help="dataset directory")
+parser.add_argument("--btcv", action="store_true", help="Use BTCV dataset")
+parser.add_argument("--data_dir", default="./dataset/dataset0/", type=str, help="dataset directory")
 parser.add_argument("--json_list", default="dataset_0.json", type=str, help="dataset json file")
 parser.add_argument(
     "--pretrained_model_name", default="UNETR_model_best_acc.pth", type=str, help="pretrained model name"
 )
-parser.add_argument("--save_checkpoint", action="store_true", help="save checkpoint during training")
-parser.add_argument("--max_epochs", default=5000, type=int, help="max number of training epochs")
+parser.add_argument("--save_checkpoint", action="store_true", default=True, help="save checkpoint during training")
+parser.add_argument("--max_epochs", default=100, type=int, help="max number of training epochs")
 parser.add_argument("--batch_size", default=1, type=int, help="number of batch size")
 parser.add_argument("--sw_batch_size", default=1, type=int, help="number of sliding window batch size")
 parser.add_argument("--optim_lr", default=1e-4, type=float, help="optimization learning rate")
@@ -50,7 +52,7 @@ parser.add_argument("--optim_name", default="adamw", type=str, help="optimizatio
 parser.add_argument("--reg_weight", default=1e-5, type=float, help="regularization weight")
 parser.add_argument("--momentum", default=0.99, type=float, help="momentum")
 parser.add_argument("--noamp", action="store_true", help="do NOT use amp for training")
-parser.add_argument("--val_every", default=100, type=int, help="validation frequency")
+parser.add_argument("--val_every", default=10, type=int, help="validation frequency")
 parser.add_argument("--distributed", action="store_true", help="start distributed training")
 parser.add_argument("--world_size", default=1, type=int, help="number of nodes for distributed training")
 parser.add_argument("--rank", default=0, type=int, help="node rank for distributed training")
@@ -58,7 +60,7 @@ parser.add_argument("--dist-url", default="tcp://127.0.0.1:23456", type=str, hel
 parser.add_argument("--dist-backend", default="nccl", type=str, help="distributed backend")
 parser.add_argument("--workers", default=8, type=int, help="number of workers")
 parser.add_argument("--model_name", default="unetr", type=str, help="model name")
-parser.add_argument("--pos_embed", default="perceptron", type=str, help="type of position embedding")
+parser.add_argument("--pos_embed", default="learnable", type=str, help="type of position embedding")
 parser.add_argument("--norm_name", default="instance", type=str, help="normalization layer type in decoder")
 parser.add_argument("--num_heads", default=12, type=int, help="number of attention heads in ViT encoder")
 parser.add_argument("--mlp_dim", default=3072, type=int, help="mlp dimention in ViT encoder")
@@ -73,12 +75,12 @@ parser.add_argument("--a_min", default=-175.0, type=float, help="a_min in ScaleI
 parser.add_argument("--a_max", default=250.0, type=float, help="a_max in ScaleIntensityRanged")
 parser.add_argument("--b_min", default=0.0, type=float, help="b_min in ScaleIntensityRanged")
 parser.add_argument("--b_max", default=1.0, type=float, help="b_max in ScaleIntensityRanged")
-parser.add_argument("--space_x", default=1.5, type=float, help="spacing in x direction")
-parser.add_argument("--space_y", default=1.5, type=float, help="spacing in y direction")
-parser.add_argument("--space_z", default=2.0, type=float, help="spacing in z direction")
-parser.add_argument("--roi_x", default=96, type=int, help="roi size in x direction")
-parser.add_argument("--roi_y", default=96, type=int, help="roi size in y direction")
-parser.add_argument("--roi_z", default=96, type=int, help="roi size in z direction")
+parser.add_argument("--space_x", default=1.0, type=float, help="spacing in x direction")
+parser.add_argument("--space_y", default=1.0, type=float, help="spacing in y direction")
+parser.add_argument("--space_z", default=1.0, type=float, help="spacing in z direction")
+parser.add_argument("--roi_x", default=64, type=int, help="roi size in x direction")
+parser.add_argument("--roi_y", default=64, type=int, help="roi size in y direction")
+parser.add_argument("--roi_z", default=64, type=int, help="roi size in z direction")
 parser.add_argument("--dropout_rate", default=0.0, type=float, help="dropout rate")
 parser.add_argument("--RandFlipd_prob", default=0.2, type=float, help="RandFlipd aug probability")
 parser.add_argument("--RandRotate90d_prob", default=0.2, type=float, help="RandRotate90d aug probability")
@@ -105,7 +107,6 @@ def main():
     else:
         main_worker(gpu=0, args=args)
 
-
 def main_worker(gpu, args):
     if args.distributed:
         torch.multiprocessing.set_start_method("fork", force=True)
@@ -119,7 +120,8 @@ def main_worker(gpu, args):
     torch.cuda.set_device(args.gpu)
     torch.backends.cudnn.benchmark = True
     args.test_mode = False
-    loader = get_loader(args)
+    loader = get_loader(args) if args.btcv else getDatasetLoader(args)
+
     print(args.rank, " gpu", args.gpu)
     if args.rank == 0:
         print("Batch size is:", args.batch_size, "epochs", args.max_epochs)
@@ -157,8 +159,8 @@ def main_worker(gpu, args):
     dice_loss = DiceCELoss(
         to_onehot_y=True, softmax=True, squared_pred=True, smooth_nr=args.smooth_nr, smooth_dr=args.smooth_dr
     )
-    post_label = AsDiscrete(to_onehot=True, n_classes=args.out_channels)
-    post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=args.out_channels)
+    post_label = AsDiscrete(to_onehot=args.out_channels)
+    post_pred = AsDiscrete(argmax=True, to_onehot=args.out_channels)
     dice_acc = DiceMetric(include_background=True, reduction=MetricReduction.MEAN, get_not_nans=True)
     model_inferer = partial(
         sliding_window_inference,
@@ -234,7 +236,6 @@ def main_worker(gpu, args):
         post_pred=post_pred,
     )
     return accuracy
-
 
 if __name__ == "__main__":
     main()
