@@ -1,0 +1,6 @@
+torch==1.9.1
+monai==0.7.0
+nibabel==3.1.1
+tqdm==4.59.0
+einops==0.3.0
+tensorboardX==2.1
