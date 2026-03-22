@@ -47,10 +47,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-try:
-    from apex.contrib.clip_grad import clip_grad_norm_
-except ModuleNotFoundError:
-    from torch.nn.utils import clip_grad_norm_
+from torch.nn.utils import clip_grad_norm_
 
 try:
     _libcudart = ctypes.CDLL("libcudart.so")
