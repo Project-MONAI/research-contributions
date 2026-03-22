@@ -40,10 +40,7 @@ from monai.inferers import sliding_window_inference
 from monai.metrics import compute_dice
 from monai.utils import RankFilter, set_determinism
 
-try:
-    from apex.contrib.clip_grad import clip_grad_norm_
-except ModuleNotFoundError:
-    from torch.nn.utils import clip_grad_norm_
+from torch.nn.utils import clip_grad_norm_
 
 
 CONFIG = {
