@@ -131,12 +131,20 @@ def get_loader(args):
         )
         loader = test_loader
     else:
-        datalist = load_decathlon_datalist(datalist_json, True, "training", base_dir=data_dir)
+        full_datalist = load_decathlon_datalist(datalist_json, True, "training", base_dir=data_dir)
+        folds = data.partition_dataset(data=full_datalist, num_partitions=5, shuffle=True, seed=42)
+        val_files = folds[args.fold]
+        
+        train_files = []
+        for i in range(5):
+            if i != args.fold:
+                train_files.extend(folds[i])
+        
         if args.use_normal_dataset:
-            train_ds = data.Dataset(data=datalist, transform=train_transform)
+            train_ds = data.Dataset(data=train_files, transform=train_transform)
         else:
             train_ds = data.CacheDataset(
-                data=datalist, transform=train_transform, cache_num=24, cache_rate=1.0, num_workers=args.workers
+                data=train_files, transform=train_transform, cache_num=24, cache_rate=1.0, num_workers=args.workers
             )
         train_sampler = Sampler(train_ds) if args.distributed else None
         train_loader = data.DataLoader(
@@ -148,7 +156,7 @@ def get_loader(args):
             pin_memory=True,
             persistent_workers=True,
         )
-        val_files = load_decathlon_datalist(datalist_json, True, "validation", base_dir=data_dir)
+        
         val_ds = data.Dataset(data=val_files, transform=val_transform)
         val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
         val_loader = data.DataLoader(
