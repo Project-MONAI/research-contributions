@@ -85,7 +85,7 @@ class UNETR(nn.Module):
         )
         self.hidden_size = hidden_size
         self.classification = False
-        
+
         # MONAI >= 1.3.0 backward compatibility handle
         vit_kwargs = {
             "in_channels": in_channels,
@@ -98,7 +98,7 @@ class UNETR(nn.Module):
             "classification": self.classification,
             "dropout_rate": dropout_rate,
         }
-        
+
         import inspect
         vit_params = inspect.signature(ViT.__init__).parameters
         if "proj_type" in vit_params:
@@ -107,7 +107,7 @@ class UNETR(nn.Module):
             vit_kwargs["pos_embed"] = proj_type
 
         self.vit = ViT(**vit_kwargs)
-        
+
         self.encoder1 = UnetrBasicBlock(
             spatial_dims=3,
             in_channels=in_channels,
