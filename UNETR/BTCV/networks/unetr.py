@@ -34,7 +34,7 @@ class UNETR(nn.Module):
         hidden_size: int = 768,
         mlp_dim: int = 3072,
         num_heads: int = 12,
-        pos_embed: str = "perceptron",
+        proj_type: str = "perceptron",
         norm_name: Union[Tuple, str] = "instance",
         conv_block: bool = False,
         res_block: bool = True,
@@ -49,7 +49,7 @@ class UNETR(nn.Module):
             hidden_size: dimension of hidden layer.
             mlp_dim: dimension of feedforward layer.
             num_heads: number of attention heads.
-            pos_embed: position embedding layer type.
+            proj_type: position embedding layer type / projection type.
             norm_name: feature normalization type and arguments.
             conv_block: bool argument to determine if convolutional block is used.
             res_block: bool argument to determine if residual block is used.
@@ -61,7 +61,7 @@ class UNETR(nn.Module):
             >>> net = UNETR(in_channels=1, out_channels=4, img_size=(96,96,96), feature_size=32, norm_name='batch')
 
             # for 4-channel input 3-channel output with patch size of (128,128,128), conv position embedding and instance norm
-            >>> net = UNETR(in_channels=4, out_channels=3, img_size=(128,128,128), pos_embed='conv', norm_name='instance')
+            >>> net = UNETR(in_channels=4, out_channels=3, img_size=(128,128,128), proj_type='conv', norm_name='instance')
 
         """
 
@@ -73,8 +73,8 @@ class UNETR(nn.Module):
         if hidden_size % num_heads != 0:
             raise AssertionError("hidden size should be divisible by num_heads.")
 
-        if pos_embed not in ["conv", "perceptron"]:
-            raise KeyError(f"Position embedding layer of type {pos_embed} is not supported.")
+        if proj_type not in ["conv", "perceptron"]:
+            raise KeyError(f"Position embedding layer of type {proj_type} is not supported.")
 
         self.num_layers = 12
         self.patch_size = (16, 16, 16)
@@ -85,18 +85,29 @@ class UNETR(nn.Module):
         )
         self.hidden_size = hidden_size
         self.classification = False
-        self.vit = ViT(
-            in_channels=in_channels,
-            img_size=img_size,
-            patch_size=self.patch_size,
-            hidden_size=hidden_size,
-            mlp_dim=mlp_dim,
-            num_layers=self.num_layers,
-            num_heads=num_heads,
-            pos_embed=pos_embed,
-            classification=self.classification,
-            dropout_rate=dropout_rate,
-        )
+        
+        # MONAI >= 1.3.0 backward compatibility handle
+        vit_kwargs = {
+            "in_channels": in_channels,
+            "img_size": img_size,
+            "patch_size": self.patch_size,
+            "hidden_size": hidden_size,
+            "mlp_dim": mlp_dim,
+            "num_layers": self.num_layers,
+            "num_heads": num_heads,
+            "classification": self.classification,
+            "dropout_rate": dropout_rate,
+        }
+        
+        import inspect
+        vit_params = inspect.signature(ViT.__init__).parameters
+        if "proj_type" in vit_params:
+            vit_kwargs["proj_type"] = proj_type
+        else:
+            vit_kwargs["pos_embed"] = proj_type
+
+        self.vit = ViT(**vit_kwargs)
+        
         self.encoder1 = UnetrBasicBlock(
             spatial_dims=3,
             in_channels=in_channels,
@@ -201,7 +212,7 @@ class UNETR(nn.Module):
                 weights["state_dict"]["module.transformer.patch_embedding.patch_embeddings.1.weight"]
             )
             self.vit.patch_embedding.patch_embeddings[1].bias.copy_(
-                weights["state_dict"]["module.transformer.patch_embedding.patch_embeddings.1.bias"]
+                weights["state_dict"]["module.transformer.patch_embeddings.1.bias"]
             )
 
             # copy weights from  encoding blocks (default: num of blocks: 12)
