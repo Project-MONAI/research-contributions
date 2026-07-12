@@ -134,12 +134,12 @@ def get_loader(args):
         full_datalist = load_decathlon_datalist(datalist_json, True, "training", base_dir=data_dir)
         folds = data.partition_dataset(data=full_datalist, num_partitions=5, shuffle=True, seed=42)
         val_files = folds[args.fold]
-        
+
         train_files = []
         for i in range(5):
             if i != args.fold:
                 train_files.extend(folds[i])
-        
+
         if args.use_normal_dataset:
             train_ds = data.Dataset(data=train_files, transform=train_transform)
         else:
@@ -156,7 +156,7 @@ def get_loader(args):
             pin_memory=True,
             persistent_workers=True,
         )
-        
+
         val_ds = data.Dataset(data=val_files, transform=val_transform)
         val_sampler = Sampler(val_ds, shuffle=False) if args.distributed else None
         val_loader = data.DataLoader(
