@@ -77,6 +77,7 @@ class Segresnet2dAlgo(BundleAlgo):
 
         os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:2048"
 
+        normalize_mode_is_derived = getattr(self, "_normalize_mode_is_derived", False)
         if kwargs.pop("fill_with_datastats", True):
             config = {"bundle_root": output_path}
 
@@ -300,10 +301,10 @@ class Segresnet2dAlgo(BundleAlgo):
                 config.update({"mlflow_experiment_name": self.mlflow_experiment_name})
 
             config.update(input_config)  # override if any additional inputs provided
-            self._normalize_mode_is_derived = isinstance(config["normalize_mode"], str)
+            normalize_mode_is_derived = isinstance(config["normalize_mode"], str)
             fill_records = {"hyper_parameters.yaml": config}
         else:
-            fill_records = self.fill_records
+            fill_records = copy.deepcopy(self.fill_records)
 
         for yaml_file, yaml_contents in fill_records.items():
             file_path = os.path.join(output_path, "configs", yaml_file)
@@ -320,7 +321,6 @@ class Segresnet2dAlgo(BundleAlgo):
                     "input_channels must be provided when an extra_modalities override changes input keys; "
                     "extra images may contain multiple channels."
                 )
-            normalize_mode_is_derived = getattr(self, "_normalize_mode_is_derived", False)
             if "normalize_mode" in kwargs:
                 normalize_mode_is_derived = isinstance(kwargs["normalize_mode"], str)
             if (
@@ -373,12 +373,12 @@ class Segresnet2dAlgo(BundleAlgo):
                 modes = [aliases.get(mode, mode) for mode in modes]
                 parser["normalize_mode"] = modes[0] if all(mode == modes[0] for mode in modes) else modes
                 yaml_contents["normalize_mode"] = copy.deepcopy(parser["normalize_mode"])
-            self._normalize_mode_is_derived = normalize_mode_is_derived
-
             ConfigParser.export_config_file(
                 parser.get(), file_path, fmt="yaml", default_flow_style=None, sort_keys=False
             )
 
+        self.fill_records = fill_records
+        self._normalize_mode_is_derived = normalize_mode_is_derived
         return fill_records
 
     def export_to_disk(self, output_path: str, algo_name: str, **kwargs):

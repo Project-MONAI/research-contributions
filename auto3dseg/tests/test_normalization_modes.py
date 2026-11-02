@@ -126,6 +126,65 @@ EXPORT_CASES = (
 
 
 class TestNormalizationModes(unittest.TestCase):
+    @parameterized.expand([(algo, fresh_stats) for algo in ALGORITHMS for fresh_stats in (False, True)])
+    def test_rejected_mode_override_preserves_refill_state(self, algo_name, fresh_stats):
+        """A rejected export must not change modes used by a later cached export."""
+        algo_class = getattr(importlib.import_module(f"{algo_name}.scripts.algo"), f"{algo_name.capitalize()}Algo")
+        algo = algo_class(template_path=str(ALGO_TEMPLATES))
+        algo.name = algo_name
+        modes = ["none", "none"] if fresh_stats else ["meanstd", "none"]
+        algo.fill_records = {
+            "hyper_parameters.yaml": {
+                "normalize_mode": modes,
+                "extra_modalities": {"image2": "none"},
+                "input_channels": 2,
+            }
+        }
+        algo._normalize_mode_is_derived = not fresh_stats
+        previous_records = copy.deepcopy(algo.fill_records)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = {
+                "modality": "mri",
+                "extra_modalities": {"image2": "none"},
+                "dataroot": temp_dir,
+                "datalist": str(root / "datalist.json"),
+            }
+            stats = {
+                "stats_summary": {
+                    "n_cases": 2,
+                    "image_stats": {
+                        "channels": {"max": 1},
+                        "spacing": {
+                            "median": [1, 1, 1],
+                            "percentile_10_0": [1, 1, 1],
+                            "percentile_00_5": [1, 1, 1],
+                            "percentile_99_5": [1, 1, 1],
+                        },
+                        "sizemm": {"median": [32, 32, 32], "percentile_90_0": [32, 32, 32]},
+                    },
+                    "image_foreground_stats": {"intensity": {"percentile_00_5": -2, "percentile_99_5": 2}},
+                    "label_stats": {"labels": [0, 1]},
+                }
+            }
+            source_file, stats_file = root / "input.yaml", root / "datastats.yaml"
+            ConfigParser.export_config_file(source, str(source_file), sort_keys=False)
+            ConfigParser.export_config_file(stats, str(stats_file))
+            algo.set_data_source(str(source_file))
+            algo.set_data_stats(str(stats_file))
+            with self.assertRaisesRegex(ValueError, "normalize_mode.*input"):
+                algo.export_to_disk(temp_dir, "rejected", fill_with_datastats=fresh_stats, normalize_mode=["ct"])
+            self.assertEqual(algo.fill_records, previous_records)
+            # Persist and restore after rejection to detect a corrupted provenance flag too.
+            state = copy.deepcopy(algo.state_dict())
+            algo = algo_class()
+            algo.load_state_dict(state)
+            overrides = {"extra_modalities": {"image2": "mri"}} if fresh_stats else {}
+            algo.export_to_disk(temp_dir, "recovered", fill_with_datastats=False, **overrides)
+            config = ConfigParser.load_config_file(str(root / "recovered/configs/hyper_parameters.yaml"))
+        self.assertEqual(config["normalize_mode"], modes)
+        self.assertEqual(algo.fill_records["hyper_parameters.yaml"]["normalize_mode"], modes)
+
     @parameterized.expand([(algo, indexed) for algo in ALGORITHMS for indexed in (False, True)])
     def test_reordered_inputs_require_complete_explicit_modes(self, algo_name, indexed):
         """Reordering keys must not silently assign explicit modes to different images."""
