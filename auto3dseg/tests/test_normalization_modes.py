@@ -104,10 +104,85 @@ EXPORT_CASES = (
         {"extra_modalities": {"image2": "mri"}},
         ["meanstd", "none"],
     ),
+    (
+        "mri",
+        {"image_z": "none", "image_a": "ct"},
+        {},
+        ["meanstd", "none", "range"],
+        None,
+        {"extra_modalities": {"image_a": "ct", "image_z": "none"}},
+        ["meanstd", "range", "none"],
+    ),
+    (
+        "mri",
+        {"image_z": "none", "image_a": "ct"},
+        {"normalize_mode": ["none", "none", "range"]},
+        ["none", "none", "range"],
+        None,
+        {"extra_modalities": {"image_a": "ct", "image_z": "none"}, "normalize_mode": "meanstd"},
+        ["meanstd", "range", "none"],
+    ),
 )
 
 
 class TestNormalizationModes(unittest.TestCase):
+    @parameterized.expand([(algo, indexed) for algo in ALGORITHMS for indexed in (False, True)])
+    def test_reordered_inputs_require_complete_explicit_modes(self, algo_name, indexed):
+        """Reordering keys must not silently assign explicit modes to different images."""
+        algo_class = getattr(importlib.import_module(f"{algo_name}.scripts.algo"), f"{algo_name.capitalize()}Algo")
+        algo = algo_class(template_path=str(ALGO_TEMPLATES))
+        algo.name = algo_name
+        algo.fill_records = {
+            "hyper_parameters.yaml": {
+                "normalize_mode": ["meanstd", "none", "range"],
+                "extra_modalities": {"image_z": "none", "image_a": "ct"},
+                "input_channels": 3,
+            }
+        }
+        # An indexed override makes even a previously derived list explicit.
+        algo._normalize_mode_is_derived = indexed
+        state = copy.deepcopy(algo.state_dict())
+        algo = algo_class()
+        algo.load_state_dict(state)
+        reordered = {"image_a": "ct", "image_z": "none"}
+        overrides = {"normalize_mode#1": "none"} if indexed else {}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(ValueError, "normalize_mode.*input"):
+                algo.export_to_disk(
+                    temp_dir, "bundle", fill_with_datastats=False, extra_modalities=reordered, **overrides
+                )
+            self.assertEqual(
+                list(algo.fill_records["hyper_parameters.yaml"]["extra_modalities"]), ["image_z", "image_a"]
+            )
+            algo.export_to_disk(
+                temp_dir,
+                "bundle",
+                fill_with_datastats=False,
+                extra_modalities=reordered,
+                normalize_mode=["meanstd", "range", "none"],
+            )
+            config = ConfigParser.load_config_file(str(Path(temp_dir) / "bundle/configs/hyper_parameters.yaml"))
+        self.assertEqual(list(config["extra_modalities"]), ["image_a", "image_z"])
+        self.assertEqual(config["normalize_mode"], ["meanstd", "range", "none"])
+        self.assertEqual(algo.fill_records["hyper_parameters.yaml"]["normalize_mode"], config["normalize_mode"])
+        self.assertEqual(config["input_channels"], 3)
+        builder_class = importlib.import_module(f"{algo_name}.scripts.segmenter").DataTransformBuilder
+        builder = builder_class(
+            roi_size=[2, 2, 2],
+            normalize_mode=config["normalize_mode"],
+            extra_modalities=config["extra_modalities"],
+            normalize_params={"intensity_bounds": [0, 10]},
+        )
+        label_input = MetaTensor(torch.full((1, 2, 2), 7.0))
+        result = Compose(builder.get_normalize_transforms())(
+            {
+                "image": MetaTensor(torch.ones(1, 2, 2)),
+                "image_a": MetaTensor(torch.ones(1, 2, 2)),
+                "image_z": label_input,
+            }
+        )
+        torch.testing.assert_close(result["image"][2], label_input[0])
+
     @parameterized.expand(
         [
             (algo, extra, count, modes)

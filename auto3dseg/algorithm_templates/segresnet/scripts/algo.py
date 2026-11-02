@@ -298,6 +298,17 @@ class SegresnetAlgo(BundleAlgo):
             normalize_mode_is_derived = getattr(self, "_normalize_mode_is_derived", False)
             if "normalize_mode" in kwargs:
                 normalize_mode_is_derived = isinstance(kwargs["normalize_mode"], str)
+            if (
+                "extra_modalities" in kwargs
+                and list(kwargs["extra_modalities"]) != list(previous_extra_modalities)
+                and isinstance(yaml_contents.get("normalize_mode"), list)
+                and (not normalize_mode_is_derived or any(k.startswith("normalize_mode#") for k in kwargs))
+                and "normalize_mode" not in kwargs
+            ):
+                raise ValueError(
+                    "normalize_mode must be provided when an override changes input keys or their order for an "
+                    "explicit list; supply a complete list in final input order or a string to regenerate modes."
+                )
             for k, v in yaml_contents.items():
                 if k in kwargs:
                     parser[k] = kwargs.pop(k)

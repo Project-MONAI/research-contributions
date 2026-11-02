@@ -61,6 +61,12 @@ When export/refill overrides change the keys in `extra_modalities`, also provide
 An indexed override such as `normalize_mode#1` requires a list-valued mode. For a
 shared string mode, supply a complete `normalize_mode` list instead.
 
+When an explicit list is in use, changing extra input keys or their order also
+requires a complete `normalize_mode` list in the final input order. An indexed
+override cannot replace this full-list update. Alternatively, provide a string
+mode to regenerate the modes from `extra_modalities`. Derived modes without
+indexed overrides are regenerated automatically when the input order changes.
+
 # References
 
 [1] Myronenko, A., 2018, September. 3D MRI brain tumor segmentation using autoencoder regularization. In International MICCAI Brainlesion Workshop (pp. 311-320). Springer, Cham.
