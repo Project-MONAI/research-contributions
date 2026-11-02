@@ -162,7 +162,7 @@ class DataTransformBuilder:
         label_key: str = "label",
         resample: bool = False,
         resample_resolution: Optional[list] = None,
-        normalize_mode: str = "meanstd",
+        normalize_mode: Union[str, List[str]] = "meanstd",
         normalize_params: Optional[dict] = None,
         crop_mode: str = "ratio",
         crop_params: Optional[dict] = None,
@@ -174,6 +174,13 @@ class DataTransformBuilder:
         class_index=None,
         **kwargs,
     ) -> None:
+        """Configure preprocessing for the primary image and optional extra inputs.
+
+        A string ``normalize_mode`` selects the primary image's mode, with extra
+        modes taken from ``extra_modalities``. A list selects one mode per input
+        key, ordered by the primary image followed by the extra keys. Each mode
+        applies to every channel of its input image.
+        """
         self.roi_size, self.image_key, self.label_key = roi_size, image_key, label_key
 
         self.resample, self.resample_resolution = resample, resample_resolution
@@ -269,7 +276,14 @@ class DataTransformBuilder:
         return ts
 
     def get_normalize_transforms(self):
+        """Return normalization transforms followed by optional input concatenation.
 
+        Explicit lists take precedence over the modes in ``extra_modalities``.
+        Custom normalization transforms replace the default normalization stage.
+
+        Raises:
+            ValueError: If a list does not match the input key count or a mode is unsupported.
+        """
         ts = self.get_custom("normalize_transforms")
         if len(ts) > 0:
             return ts
@@ -283,8 +297,14 @@ class DataTransformBuilder:
             ts.append(RandIdentity())  # indicate to stop caching after this point
             ts.append(CastToTyped(keys=self.image_key, dtype=torch.float, allow_missing_keys=True))
 
-        modalities = {self.image_key: self.normalize_mode}
-        modalities.update(self.extra_modalities)
+        if isinstance(self.normalize_mode, str):
+            modalities = {self.image_key: self.normalize_mode}
+            modalities.update(self.extra_modalities)
+        else:
+            keys = [self.image_key, *self.extra_modalities]
+            if len(self.normalize_mode) != len(keys):
+                raise ValueError(f"normalize_mode must contain {len(keys)} modes, one per input image key")
+            modalities = dict(zip(keys, self.normalize_mode))
 
         for key, normalize_mode in modalities.items():
             if normalize_mode == "none":

@@ -32,6 +32,12 @@ else:
 
 
 class SegresnetAlgo(BundleAlgo):
+    def state_dict(self) -> dict:
+        """Serialize bundle state together with normalization-mode provenance."""
+        state = super().state_dict()
+        state["_normalize_mode_is_derived"] = getattr(self, "_normalize_mode_is_derived", False)
+        return state
+
     def fill_template_config(self, data_stats_file: Optional[str] = None, output_path: Optional[str] = None, **kwargs):
         """
         Fill the freshly copied config templates
@@ -49,6 +55,7 @@ class SegresnetAlgo(BundleAlgo):
 
         os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:2048"
 
+        normalize_mode_is_derived = getattr(self, "_normalize_mode_is_derived", False)
         if kwargs.pop("fill_with_datastats", True):
             config = {"bundle_root": output_path}
 
@@ -269,15 +276,39 @@ class SegresnetAlgo(BundleAlgo):
                 config.update({"mlflow_experiment_name": self.mlflow_experiment_name})
 
             config.update(input_config)  # override if any additional inputs provided
+            normalize_mode_is_derived = isinstance(config["normalize_mode"], str)
             fill_records = {"hyper_parameters.yaml": config}
         else:
-            fill_records = self.fill_records
+            fill_records = copy.deepcopy(self.fill_records)
 
         for yaml_file, yaml_contents in fill_records.items():
             file_path = os.path.join(output_path, "configs", yaml_file)
 
             parser = ConfigParser(globals=False)
             parser.read_config(file_path)
+            previous_extra_modalities = yaml_contents.get("extra_modalities", {})
+            if (
+                "extra_modalities" in kwargs
+                and set(kwargs["extra_modalities"]) != set(previous_extra_modalities)
+                and "input_channels" not in kwargs
+            ):
+                raise ValueError(
+                    "input_channels must be provided when an extra_modalities override changes input keys; "
+                    "extra images may contain multiple channels."
+                )
+            if "normalize_mode" in kwargs:
+                normalize_mode_is_derived = isinstance(kwargs["normalize_mode"], str)
+            if (
+                "extra_modalities" in kwargs
+                and list(kwargs["extra_modalities"]) != list(previous_extra_modalities)
+                and isinstance(yaml_contents.get("normalize_mode"), list)
+                and (not normalize_mode_is_derived or any(k.startswith("normalize_mode#") for k in kwargs))
+                and "normalize_mode" not in kwargs
+            ):
+                raise ValueError(
+                    "normalize_mode must be provided when an override changes input keys or their order for an "
+                    "explicit list; supply a complete list in final input order or a string to regenerate modes."
+                )
             for k, v in yaml_contents.items():
                 if k in kwargs:
                     parser[k] = kwargs.pop(k)
@@ -285,15 +316,44 @@ class SegresnetAlgo(BundleAlgo):
                     parser[k] = copy.deepcopy(v)  # some values are dicts
                 yaml_contents[k] = copy.deepcopy(parser[k])
 
-            for k, v in kwargs.items():  # override new params not in fill_records
-                if parser.get(k, None) is not None:
-                    parser[k] = copy.deepcopy(v)
-                    yaml_contents.update({k: parser[k]})
+            if any(k.startswith("normalize_mode#") for k in kwargs) and isinstance(parser.get("normalize_mode"), str):
+                raise ValueError(
+                    "Indexed normalize_mode overrides require a list; provide a complete normalize_mode list "
+                    "to override a shared scalar mode."
+                )
 
+            for k, v in kwargs.items():  # override new params not in fill_records
+                if k == "extra_modalities" or parser.get(k, None) is not None:
+                    parser[k] = copy.deepcopy(v)
+                    if k.startswith("normalize_mode#"):
+                        normalize_mode_is_derived = False
+                        yaml_contents["normalize_mode"] = copy.deepcopy(parser["normalize_mode"])
+                    else:
+                        yaml_contents.update({k: parser[k]})
+
+            normalize_mode = parser.get("normalize_mode", None)
+            aliases = {"ct": "range", "mri": "meanstd"}
+            if normalize_mode_is_derived and isinstance(normalize_mode, list) and normalize_mode:
+                normalize_mode = normalize_mode[0]
+            if isinstance(normalize_mode, list):
+                expected_modes = 1 + len(parser.get("extra_modalities", {}))
+                if len(normalize_mode) != expected_modes:
+                    raise ValueError(f"normalize_mode must contain {expected_modes} modes, one per input image key")
+                parser["normalize_mode"] = [aliases.get(mode, mode) for mode in normalize_mode]
+                yaml_contents["normalize_mode"] = copy.deepcopy(parser["normalize_mode"])
+            elif isinstance(normalize_mode, str):
+                normalize_mode_is_derived = True
+                # Record modes in the same order as the image concatenation.
+                modes = [normalize_mode, *parser.get("extra_modalities", {}).values()]
+                modes = [aliases.get(mode, mode) for mode in modes]
+                parser["normalize_mode"] = modes[0] if all(mode == modes[0] for mode in modes) else modes
+                yaml_contents["normalize_mode"] = copy.deepcopy(parser["normalize_mode"])
             ConfigParser.export_config_file(
                 parser.get(), file_path, fmt="yaml", default_flow_style=None, sort_keys=False
             )
 
+        self.fill_records = fill_records
+        self._normalize_mode_is_derived = normalize_mode_is_derived
         return fill_records
 
     def export_to_disk(self, output_path: str, algo_name: str, **kwargs):
