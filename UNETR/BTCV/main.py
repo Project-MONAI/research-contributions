@@ -91,7 +91,7 @@ parser.add_argument("--resume_ckpt", action="store_true", help="resume training 
 parser.add_argument("--resume_jit", action="store_true", help="resume training from pretrained torchscript checkpoint")
 parser.add_argument("--smooth_dr", default=1e-6, type=float, help="constant added to dice denominator to avoid nan")
 parser.add_argument("--smooth_nr", default=0.0, type=float, help="constant added to dice numerator to avoid zero")
-
+parser.add_argument("--fold", default=0, type=int, help="fold number for 5-fold cross-validation (0-4)")
 
 def main():
     args = parser.parse_args()
