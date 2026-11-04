@@ -640,28 +640,30 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                     metric = metric.tolist()
                     if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                         for _c in range(metric_dim):
-                            logger.debug(f"Evaluation metric - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}")
-                            try:
-                                writer.add_scalar(
-                                    f"val_class/acc_{class_names[_c]}", metric[2 * _c] / metric[2 * _c + 1], epoch
-                                )
-                                mlflow.log_metric(
-                                    f"val_class/acc_{class_names[_c]}", metric[2 * _c] / metric[2 * _c + 1], step=epoch
-                                )
-                            except BaseException:
-                                writer.add_scalar(f"val_class/acc_{_c}", metric[2 * _c] / metric[2 * _c + 1], epoch)
-                                mlflow.log_metric(
-                                    f"val_class/acc_{_c}", metric[2 * _c] / metric[2 * _c + 1], step=epoch
-                                )
+                            class_metric = metric[2 * _c] / metric[2 * _c + 1] if metric[2 * _c + 1] != 0 else float('nan')
+                            if metric[2 * _c +1] == 0:
+                                logger.warning(f"Class {_c + 1} has no samples in validation fold; logging as NaN.")
+                            logger.debug(f"Evaluation metric - class {_c + 1}: {class_metric}")
+                            if not math.isnan(class_metric):
+                                try:
+                                    writer.add_scalar(f"val_class/acc_{class_names[_c]}", class_metric, epoch)
+                                    mlflow.log_metric(f"val_class/acc_{class_names[_c]}", class_metric, step=epoch)
+                                except BaseException:
+                                    writer.add_scalar(f"val_class/acc_{_c}", class_metric, epoch)
+                                    mlflow.log_metric(f"val_class/acc_{_c}", class_metric, step=epoch)
 
                         avg_metric = 0
+                        count = 0
                         for _c in range(metric_dim):
-                            avg_metric += metric[2 * _c] / metric[2 * _c + 1]
-                        avg_metric = avg_metric / float(metric_dim)
+                            if metric[2 * _c + 1] != 0:
+                                avg_metric += metric[2 * _c] / metric[2 * _c + 1]
+                                count +=1
+                        avg_metric = avg_metric / float(count) if count > 0 else float('nan')
                         logger.debug(f"Avg_metric: {avg_metric}")
 
-                        writer.add_scalar("val/acc", avg_metric, epoch)
-                        mlflow.log_metric("val/acc", avg_metric, step=epoch)
+                        if not math.isnan(avg_metric):
+                            writer.add_scalar("val/acc", avg_metric, epoch)
+                            mlflow.log_metric("val/acc", avg_metric, step=epoch)
 
                         if avg_metric > best_metric:
                             best_metric = avg_metric
@@ -694,7 +696,7 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                                 )
                             )
 
-                        if es:
+                        if es and not math.isnan(avg_metric):
                             early_stopping(val_acc=avg_metric)
                             stop_train = torch.tensor(early_stopping.early_stop).to(device)
 
@@ -800,26 +802,31 @@ def run(config_file: Optional[Union[str, Sequence[str]]] = None, **override):
                 metric = metric.tolist()
                 if torch.cuda.device_count() == 1 or dist.get_rank() == 0:
                     for _c in range(metric_dim):
-                        logger.debug(
-                            f"Evaluation metric at original resolution - class {_c + 1}: {metric[2 * _c] / metric[2 * _c + 1]}"
-                        )
+                        class_metric = metric[2 * _c] / metric[2 * _c + 1] if metric[2 * _c + 1] != 0 else float('nan')
+                        if metric[2 * _c + 1] == 0:
+                            logger.warning(f"Class {_c + 1} has no samples in validation fold; logging as NaN.")
+                        logger.debug(f"Evaluation metric at original resolution - class {_c + 1}: {class_metric}")
 
                     avg_metric = 0
+                    count = 0
                     for _c in range(metric_dim):
-                        avg_metric += metric[2 * _c] / metric[2 * _c + 1]
-                    avg_metric = avg_metric / float(metric_dim)
+                        if metric[2 * _c + 1] != 0:
+                            avg_metric += metric[2 * _c] / metric[2 * _c + 1]
+                            count += 1
+                    avg_metric = avg_metric / float(count) if count > 0 else float('nan')
                     logger.debug(f"Avg_metric at original resolution: {avg_metric}")
 
                     with open(os.path.join(ckpt_path, "progress.yaml"), "r") as out_file:
                         progress = yaml.safe_load(out_file)
 
-                    dict_file = {}
-                    dict_file["best_avg_dice_score"] = float(avg_metric)
-                    dict_file["best_avg_dice_score_epoch"] = int(progress[-1]["best_avg_dice_score_epoch"])
-                    dict_file["best_avg_dice_score_iteration"] = int(progress[-1]["best_avg_dice_score_iteration"])
-                    dict_file["inverted_best_validation"] = True
-                    with open(os.path.join(ckpt_path, "progress.yaml"), "a") as out_file:
-                        yaml.dump([dict_file], stream=out_file)
+                    if not math.isnan(avg_metric):
+                        dict_file = {}
+                        dict_file["best_avg_dice_score"] = float(avg_metric)
+                        dict_file["best_avg_dice_score_epoch"] = int(progress[-1]["best_avg_dice_score_epoch"])
+                        dict_file["best_avg_dice_score_iteration"] = int(progress[-1]["best_avg_dice_score_iteration"])
+                        dict_file["inverted_best_validation"] = True
+                        with open(os.path.join(ckpt_path, "progress.yaml"), "a") as out_file:
+                            yaml.dump([dict_file], stream=out_file)
 
                 if torch.cuda.device_count() > 1:
                     dist.barrier()
