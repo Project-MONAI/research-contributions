@@ -11,13 +11,16 @@
 
 import math
 import os
-
 import numpy as np
 import torch
+from pathlib import Path
+import SimpleITK as sitk
 
 from monai import data, transforms
 from monai.data import load_decathlon_datalist
 
+WORKROOT = Path(__file__).parent.parent
+JPG_EXT = '.jpg'
 
 class Sampler(torch.utils.data.Sampler):
     def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, make_even=True):
@@ -72,7 +75,7 @@ def get_loader(args):
     train_transform = transforms.Compose(
         [
             transforms.LoadImaged(keys=["image", "label"]),
-            transforms.AddChanneld(keys=["image", "label"]),
+            transforms.EnsureChannelFirstd(keys=["image", "label"], channel_dim="no_channel"),
             transforms.Orientationd(keys=["image", "label"], axcodes="RAS"),
             transforms.Spacingd(
                 keys=["image", "label"], pixdim=(args.space_x, args.space_y, args.space_z), mode=("bilinear", "nearest")
@@ -103,7 +106,7 @@ def get_loader(args):
     val_transform = transforms.Compose(
         [
             transforms.LoadImaged(keys=["image", "label"]),
-            transforms.AddChanneld(keys=["image", "label"]),
+            transforms.EnsureChannelFirstd(keys=["image", "label"], channel_dim="no_channel"),
             transforms.Orientationd(keys=["image", "label"], axcodes="RAS"),
             transforms.Spacingd(
                 keys=["image", "label"], pixdim=(args.space_x, args.space_y, args.space_z), mode=("bilinear", "nearest")
