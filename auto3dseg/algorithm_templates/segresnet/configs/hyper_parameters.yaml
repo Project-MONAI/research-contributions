@@ -1,6 +1,6 @@
 bundle_root: null                           # root folder of the fold
 ckpt_path: $@bundle_root + '/model'         # location to save checkpoints and logs
-mlflow_tracking_uri: $@ckpt_path + '/mlruns/'
+mlflow_tracking_uri: $'sqlite:///' + @ckpt_path + '/mlruns.db'
 mlflow_experiment_name: "Auto3DSeg"
 
 data_file_base_dir: null                    # location of the dataset

@@ -413,7 +413,7 @@ class DataTransformBuilder:
         if invert and transform is not None:
             # if resample:
             #     ts.append(ToDeviced(keys="pred", device=torch.device("cpu")))
-            ts.append(Invertd(keys="pred", orig_keys="image", transform=transform, nearest_interp=False))
+            ts.append(Invertd(keys="pred", orig_keys="label", transform=transform, nearest_interp=False))
 
         if save_mask and output_path is not None:
             ts.append(CopyItemsd(keys="pred", times=1, names="seg"))

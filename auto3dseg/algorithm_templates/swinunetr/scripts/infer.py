@@ -100,9 +100,9 @@ class InferClass:
             transforms.Invertd(
                 keys="pred",
                 transform=self.infer_transforms,
-                orig_keys="image",
+                orig_keys="label",
                 meta_keys="pred_meta_dict",
-                orig_meta_keys="image_meta_dict",
+                orig_meta_keys="label_meta_dict",
                 meta_key_postfix="meta_dict",
                 nearest_interp=False,
                 to_tensor=True,
